@@ -1,10 +1,11 @@
 # Archetype — Project Outline
 
-**Status:** Phase 1 closed — all fifteen work items delivered and accepted · **Version:** 1.1 · **Date:** 2026-08-30
-**Phase:** 2 (Manuscript Model & Anchors) — next; its plan is not yet written
+**Status:** Phase 1 closed — all fifteen work items delivered and accepted · **Version:** 1.2 · **Date:** 2026-08-30
+**Phase:** 2 (Manuscript Model & Anchors) — plan drafted, awaiting its § 2 rulings
 **Child documents:**
 - [`specs/development-phases.md`](development-phases.md) — binding decision register (D1–D20) and the work breakdown across all phases
 - [`specs/phase-1-plan.md`](phase-1-plan.md) — Phase 1 work items
+- [`specs/phase-2-plan.md`](phase-2-plan.md) — Phase 2 work items; its § 2 carries the rulings (D21–D24) this phase needs before code
 - [`specs/backlog.md`](backlog.md) — deferred ideas and revisit list
 - [`specs/data-model.md`](data-model.md) — storage: the Phase 1 tables as built, later phases sketched
 - [`specs/api-contract.md`](api-contract.md) — the HTTP surface as built
@@ -13,6 +14,8 @@
 > This is the root planning document. Every phase plan links back to it, and any change to
 > scope, architecture, or phase boundaries is recorded **here first**, then propagated to the
 > affected phase plan and to `CLAUDE.md`.
+
+**Changes in 1.2 (2026-08-30):** `specs/phase-2-plan.md` written — fifteen items (`P2-1` … `P2-15`) in four groups, exit criteria, and a manual acceptance script. No scope changed and no phase boundary moved. The plan **proposes** four register entries (D21 anchor resolution authority, D22 soft chapter delete, D23 the snapshot policy settling `Q1`, D24 no multi-tab lock settling `Q5`) and one correction to a Phase 1 claim: heading jump stays resolved by ordinal, and anchors are added alongside it rather than replacing it. None of the four is binding until ruled on and promoted to the register.
 
 **Changes in 1.1 (2026-08-30):** **Phase 1 closed.** All fifteen items delivered, both suites green, and the phase-1 acceptance script run by the writer against the single-process build — results in that plan's § 6. `specs/data-model.md` and `specs/api-contract.md` written (P1-15), so § 5 below is now a **sketch superseded for the Phase 1 tables** by the data model, and still the sketch for everything after them. No decision changed and no phase boundary moved; every divergence from the plan is recorded in that plan's § 6.
 

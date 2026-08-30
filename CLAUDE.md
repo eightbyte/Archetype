@@ -33,8 +33,11 @@ search — none of that is Phase 1.
 
 Every Phase 1 exit criterion is met, including the acceptance script run by hand against the
 single-process build; the results are in [specs/phase-1-plan.md](specs/phase-1-plan.md) § 6.
-**Next: Phase 2 — the manuscript model and anchors.** It starts by writing `specs/phase-2-plan.md`
-and `specs/anchors.md`; no Phase 2 code exists yet.
+**Next: Phase 2 — the manuscript model and anchors.** [specs/phase-2-plan.md](specs/phase-2-plan.md)
+is written and awaiting the writer's rulings on its § 2 — four proposed register entries
+(D21–D24, two of which settle backlog `Q1` and `Q5`) and one correction to a Phase 1 claim:
+heading jump stays resolved by ordinal rather than being replaced by anchors. `specs/anchors.md`
+is `P2-4`, written before the resolver it governs. No Phase 2 code exists yet.
 
 One thing that run surfaced, worth carrying forward: **the editor's visible failure states are
 hard to reach from the app.** Stopping the server mid-edit did not produce a failed save the
@@ -51,6 +54,9 @@ show up by using the app, so those tests are the only thing standing under them.
   register** (D1–D20) and the work breakdown across all phases. Cite these IDs.
 - [specs/phase-1-plan.md](specs/phase-1-plan.md) — Phase 1 work items (`P1-1` … `P1-15`), exit
   criteria, and the as-built deviations table.
+- [specs/phase-2-plan.md](specs/phase-2-plan.md) — Phase 2 work items (`P2-1` … `P2-15`). **Its § 2
+  rulings are not yet made**: D21–D24 are proposals, and Group B should not be built until
+  D21 is settled.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions (`Q1`–`Q6`), each
   with the phase it must be settled by.
 - [specs/data-model.md](specs/data-model.md) — storage as built: the project file, the two
