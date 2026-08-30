@@ -17,18 +17,31 @@ relational data plus keyword and vector indexes. Single user, localhost, Windows
 Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository directory is
 `WritingAssistant` — a path, not the product name.
 
-**Current state: Phase 1 in progress — Groups A, B, and C (P1-1 → P1-13) complete.** All
-twenty decisions are resolved and binding. The app is now a place you can write: create a
-project, add chapters, write formatted prose that saves itself and survives a reload, and move
-around the manuscript by its headings. What exists on the server: configuration and the secret
-guard, the project file schema with its migration runner, the ID generator, the project store,
-the whole Phase 1 REST surface with its uniform error envelope and structured request logging,
-the save protocol with the D19 version guard, and the text projection. On the client: the
-three-region workspace with resizable keyboard-accessible dividers, the three contexts and their
-pure reducers, the TipTap editor over a closed schema with autosave, the live table of contents
-with jump-to-heading, the project picker, and error boundaries per region. There is no AI, no
-bible, no anchors, and no search — none of that is Phase 1. Next: Group D (P1-14, P1-15) — the
-single-process run mode, `specs/data-model.md`, `specs/api-contract.md`, and phase close-out.
+**Current state: Phase 1 complete (2026-08-30) — all fifteen items (P1-1 → P1-15) delivered and
+accepted.** All
+twenty decisions are resolved and binding. The app is a place you can write: create a project,
+add chapters, write formatted prose that saves itself and survives a reload, and move around the
+manuscript by its headings. What exists on the server: configuration and the secret guard, the
+project file schema with its migration runner, the ID generator, the project store, the whole
+Phase 1 REST surface with its uniform error envelope and structured request logging, the save
+protocol with the D19 version guard, the text projection, and the static mount that lets one
+process serve both the API and the built app. On the client: the three-region workspace with
+resizable keyboard-accessible dividers, the three contexts and their pure reducers, the TipTap
+editor over a closed schema with autosave, the live table of contents with jump-to-heading, the
+project picker, and error boundaries per region. There is no AI, no bible, no anchors, and no
+search — none of that is Phase 1.
+
+Every Phase 1 exit criterion is met, including the acceptance script run by hand against the
+single-process build; the results are in [specs/phase-1-plan.md](specs/phase-1-plan.md) § 6.
+**Next: Phase 2 — the manuscript model and anchors.** It starts by writing `specs/phase-2-plan.md`
+and `specs/anchors.md`; no Phase 2 code exists yet.
+
+One thing that run surfaced, worth carrying forward: **the editor's visible failure states are
+hard to reach from the app.** Stopping the server mid-edit did not produce a failed save the
+writer could see — the retry loop absorbed the outage and the save landed when the server
+returned. *Save failed*, the backoff ladder, and the `409` reload prompt are therefore exercised
+only by `web/src/__tests__/editor.test.tsx` through the fake client. A regression in them will not
+show up by using the app, so those tests are the only thing standing under them.
 
 ## The specs are the contract
 
@@ -40,8 +53,13 @@ single-process run mode, `specs/data-model.md`, `specs/api-contract.md`, and pha
   criteria, and the as-built deviations table.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions (`Q1`–`Q6`), each
   with the phase it must be settled by.
-- `specs/data-model.md`, `specs/api-contract.md`, `specs/anchors.md`, `specs/agent-tools.md` —
-  written as their phases begin (data-model and api-contract land in Phase 1, item `P1-15`).
+- [specs/data-model.md](specs/data-model.md) — storage as built: the project file, the two
+  tables, the projection rules, and the migration discipline. Its § 7 sketches later phases and
+  is **not** binding; the rest is a bug if it disagrees with the code.
+- [specs/api-contract.md](specs/api-contract.md) — every route that exists, what it promises, and
+  what it refuses. The generated OpenAPI schema is authoritative for types; this is authoritative
+  for behaviour.
+- `specs/anchors.md`, `specs/agent-tools.md` — written as their phases begin (Phases 2 and 6).
 
 Work items carry stable IDs (`P3-4`) that commits and code comments reference. IDs are never
 renumbered — a dropped item is marked **withdrawn**, not deleted.
@@ -119,23 +137,31 @@ renumbered — a dropped item is marked **withdrawn**, not deleted.
 
 ## Commands
 
-Real as of Group C. `P1-15` finalises this section at phase close — the single-process run mode
-(`P1-14`) is not built yet.
+Real as of `P1-15`, and verified from a clean clone on Windows 11.
 
 ```powershell
 # bootstrap (once)
 cd server; python -m venv .venv; .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 cd web; npm install
 
-# run — two processes, two terminals
+# run — two processes, two terminals. Hot reload; use this while developing.
 cd server; .\.venv\Scripts\python.exe -m archetype     # API on 127.0.0.1:8787
 cd web; npm run dev                                    # app on 127.0.0.1:5173, /api proxied
+
+# run — one process. The shape the product ships in (P1-14, D7).
+cd web; npm run build                                  # writes web/dist
+cd server; .\.venv\Scripts\python.exe -m archetype     # API *and* app on 127.0.0.1:8787
 
 # test and lint
 cd server; .\.venv\Scripts\python.exe -m pytest
 cd server; .\.venv\Scripts\python.exe -m ruff check .; .\.venv\Scripts\python.exe -m ruff format .
 cd web; npm test; npm run typecheck; npm run build
 ```
+
+The single-process mount is driven by `ARCHETYPE_WEB_DIST` (default `<repo>/web/dist`): it
+installs when that directory holds an `index.html`, and is skipped with a log line when it does
+not. Set it empty to never mount one — which is what the test suite does, so that no test's
+behaviour depends on whether `npm run build` has been run.
 
 Built and tested on Python 3.14 and Node 24; the declared floors are 3.11 and 20.
 
@@ -159,6 +185,7 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/api/routes.py` | The `/api` router (`P1-5`) |
 | `server/archetype/api/logging.py` | Request logging: one line per request, with a request id (`P1-13`) |
 | `server/archetype/api/schemas.py` | Wire shapes, mirrored in `web/src/api/types.ts` |
+| `server/archetype/api/static.py` | The single-process static mount and the `web_not_built` notice (`P1-14`) |
 | `server/archetype/api/errors.py` | The uniform error envelope and its exception handlers |
 | `server/archetype/app.py` | `create_app()`; builds the store and locator onto `app.state` |
 | `server/tests/fixtures/db/` | Databases captured at a known schema version, with their README |
@@ -175,6 +202,7 @@ suite keeps a developer's real config out of its way.
 | `web/src/format.ts` | The display edge: the only place a UTC timestamp becomes words |
 | `web/src/__tests__/fakes/` | The hand-written typed fake API client (`P1-8`) |
 | `web/src/__tests__/harness.tsx` | The real provider stack with a fake client and a hurried autosave |
+| `server/tests/test_static.py` | The run-mode tests; each builds its own miniature `dist` in `tmp_path` |
 
 **Invariants established in Groups A, B, and C**, beyond those already listed above:
 
@@ -227,3 +255,11 @@ suite keeps a developer's real config out of its way.
   leaves the editor — which may be holding the only copy of a sentence — working.
 - **Every request is logged once, with a request id**, and that id is the only thing a `500`
   tells the browser. The traceback stays in the log.
+- **The static mount is registered last, and the API can never be shadowed.** Starlette matches
+  routes in order, so a bundle holding `api/health` loses to the route of the same name — asserted
+  by a test, because it is the kind of thing that works by accident until someone reorders
+  `create_app`. A path under the mount that matches no file returns the 404 envelope, never
+  `index.html`: the client has no router, so a fallback would turn a typo into a blank page.
+- **No test's behaviour depends on whether the frontend has been built.** The shared `settings`
+  fixture pins `web_dist=None`, and `test_static.py` builds its own miniature bundle in `tmp_path`.
+  A stale real `web/dist` must not be able to make a passing test lie.

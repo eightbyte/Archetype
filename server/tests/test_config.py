@@ -13,6 +13,7 @@ from pydantic import Field, SecretStr
 
 from archetype.config import (
     CONFIG_FILE_ENV_VAR,
+    PROJECT_ROOT,
     Settings,
     get_settings,
     load_settings,
@@ -127,6 +128,32 @@ def test_a_relative_data_dir_resolves_against_the_repository_root(
     settings = load_settings()
     assert settings.data_dir.is_absolute()
     assert settings.data_dir.parts[-2:] == ("some", "where")
+
+
+def test_web_dist_defaults_to_the_built_frontend(tmp_path: Path) -> None:
+    # P1-14: the single-process mode serves whatever npm run build left in web/dist. Whether the
+    # directory exists is a runtime question; the default only has to point at the right place.
+    settings = load_settings()
+    assert settings.web_dist == PROJECT_ROOT / "web" / "dist"
+
+
+def test_an_empty_web_dist_switches_the_static_mount_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    # ARCHETYPE_WEB_DIST= must mean "serve nothing", not Path("") - which pydantic would
+    # otherwise read as the repository root and try to serve.
+    monkeypatch.setenv("ARCHETYPE_WEB_DIST", "")
+    assert load_settings().web_dist is None
+
+    monkeypatch.setenv("ARCHETYPE_WEB_DIST", "   ")
+    assert load_settings().web_dist is None
+
+
+def test_a_relative_web_dist_resolves_against_the_repository_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ARCHETYPE_WEB_DIST", "web/dist")
+    settings = load_settings()
+    assert settings.web_dist is not None
+    assert settings.web_dist == PROJECT_ROOT / "web" / "dist"
 
 
 def test_ensure_dirs_creates_the_projects_directory(tmp_path: Path) -> None:

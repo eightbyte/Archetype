@@ -1,6 +1,6 @@
 # Archetype — Decision Register & Development Phases
 
-**Status:** Active · **Version:** 1.0 · **Date:** 2026-08-29
+**Status:** Active · **Version:** 1.1 · **Date:** 2026-08-30
 **Parent:** [`specs/project-outline.md`](project-outline.md)
 
 This document is the **authoritative register of binding decisions** (§ 1) and the **work
@@ -54,9 +54,9 @@ are flagged in the Phase 1 plan for override before implementation begins.
 
 | # | Phase | Exit criterion | Status |
 |---|---|---|---|
-| 0 | Planning & Specs | Decisions answered; Phase 1 plan approved | **Decisions closed; plan awaiting approval** |
-| 1 | [Skeleton & Editor](phase-1-plan.md) | Write, format, and reload a multi-chapter document; navigate by TOC; both suites green | Planned |
-| 2 | Manuscript Model & Anchors | An anchor survives heavy editing around it; deleted text yields `stale`, never a wrong match | Not started |
+| 0 | Planning & Specs | Decisions answered; Phase 1 plan approved | **Closed** (2026-08-29) |
+| 1 | [Skeleton & Editor](phase-1-plan.md) | Write, format, and reload a multi-chapter document; navigate by TOC; both suites green | **Complete** (2026-08-30) — every exit criterion met; acceptance recorded in its § 6 |
+| 2 | Manuscript Model & Anchors | An anchor survives heavy editing around it; deleted text yields `stale`, never a wrong match | **Next** — plan not yet written |
 | 3 | Story Bible (manual) | Build a bible by hand; retcon an entry and see dependents flagged | Not started |
 | 4 | LLM Provider Layer & Chat | Ask a question about a selection, get a streamed answer; swap providers in settings with no code change | Not started |
 | 5 | Retrieval & Indexing | Search 50k words by meaning and by exact phrase; edits reindex within seconds | Not started |

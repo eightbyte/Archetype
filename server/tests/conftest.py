@@ -62,8 +62,13 @@ def data_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def settings(data_dir: Path) -> Settings:
-    """Settings pointed at the temporary data root."""
-    return Settings(data_dir=data_dir)
+    """Settings pointed at the temporary data root, with no frontend mounted.
+
+    ``web_dist`` is pinned off (P1-14) so the suite says the same thing whether or not the
+    developer has run ``npm run build``. The tests that care about the static mount are in
+    ``test_static.py`` and build their own bundle.
+    """
+    return Settings(data_dir=data_dir, web_dist=None)
 
 
 @pytest.fixture

@@ -5,8 +5,8 @@ locator - and hangs them on ``app.state``, where :mod:`archetype.api.deps` reads
 construct their own :class:`~archetype.config.Settings` and pass them in, so nothing in the suite
 depends on the developer's data directory.
 
-The ``/api`` router and the uniform error envelope arrive with P1-5, request logging with P1-13.
-The static mount that serves a built ``web/dist`` from this same process is P1-14.
+The ``/api`` router and the uniform error envelope arrive with P1-5, request logging with P1-13,
+and the static mount that serves a built ``web/dist`` from this same process with P1-14.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from . import __version__
 from .api.errors import install_error_handlers
 from .api.logging import RequestLogMiddleware
 from .api.routes import router as api_router
+from .api.static import install_web_app
 from .config import Settings, get_settings
 from .manuscript.locator import DocumentLocator
 from .projects.store import ProjectStore
@@ -57,6 +58,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestLogMiddleware)
     install_error_handlers(app)
     app.include_router(api_router)
+
+    # Last, and deliberately so: Starlette matches routes in order, so a mount at / can only be
+    # reached by a path no API route claimed (P1-14).
+    app.state.web_mounted = install_web_app(app, settings.web_dist)
 
     logger.info("archetype %s serving projects from %s", __version__, projects_dir)
     return app

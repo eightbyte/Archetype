@@ -8,12 +8,11 @@ chat panel sits on the other.
 React + TypeScript frontend, Python (FastAPI) backend, one SQLite file per project. Single user,
 localhost, Windows 11 primary.
 
-**Current state: Phase 1, Groups A, B, and C complete** — you can write in it. Create a
-project, add chapters, write formatted prose that saves itself and survives a reload, and move
-around the manuscript by its headings. There is no AI yet, no story bible, no search, and no
-export; those are Phase 2 onwards. What remains in [Phase 1](specs/phase-1-plan.md) is the
-single-process run mode and the phase's documentation. See
-[specs/project-outline.md](specs/project-outline.md) for the whole plan.
+**Current state: Phase 1 complete** — you can write in it. Create a project, add
+chapters, write formatted prose that saves itself and survives a reload, and move around the
+manuscript by its headings. There is no AI yet, no story bible, no search, and no export; those
+are Phase 2 onwards. See [specs/project-outline.md](specs/project-outline.md) for the whole plan,
+and [specs/phase-1-plan.md](specs/phase-1-plan.md) § 6 for what Phase 1 actually shipped.
 
 ---
 
@@ -45,7 +44,12 @@ cd ..
 
 ## Run
 
-Development is two processes. Open two terminals.
+There are two ways to run it. Use the first while you are working on the app, the second to see
+it the way it ships.
+
+### Two processes (development)
+
+Vite serves the app with hot reload and proxies `/api` to the Python server. Open two terminals.
 
 ```powershell
 # terminal 1 - the API on http://127.0.0.1:8787
@@ -61,8 +65,31 @@ npm run dev
 
 Then open <http://127.0.0.1:5173>. You land on the project picker.
 
-A single-process mode — FastAPI serving the built `web/dist` from `http://127.0.0.1:8787`, which
-is the real target shape — arrives in work item `P1-14`.
+### One process (the shipping shape)
+
+Build the frontend once and the Python server serves it too, from a single port. This is the
+shape the finished product runs in, and it needs no Node process at all.
+
+```powershell
+# build the app (repeat after any change to web/)
+cd web
+npm run build
+cd ..
+
+# serve the API and the built app together on http://127.0.0.1:8787
+cd server
+.\.venv\Scripts\python.exe -m archetype
+```
+
+Then open <http://127.0.0.1:8787>.
+
+The server looks for `web/dist` and mounts it at `/` when it holds an `index.html`. If you have
+not built the app, the server still starts and serves its API — and `http://127.0.0.1:8787/` tells
+you so rather than answering a bare "Not Found". Point `ARCHETYPE_WEB_DIST` somewhere else to
+serve a bundle from another directory, or set it empty to never serve one.
+
+Use the two-process mode while you are working on the frontend — it has hot reload; this one does
+not.
 
 ## Using it
 
@@ -123,8 +150,9 @@ in either suite touches the network, a real model, or a real API key.
 ## The API
 
 The server exposes one JSON API under `/api`, on `127.0.0.1:8787`. Interactive documentation is
-generated from the code at <http://127.0.0.1:8787/docs>; the written contract lands in
-`specs/api-contract.md` at the close of Phase 1.
+generated from the code at <http://127.0.0.1:8787/docs>; the written contract — what each route
+promises, what it refuses, and why — is [specs/api-contract.md](specs/api-contract.md), and the
+storage behind it is [specs/data-model.md](specs/data-model.md).
 
 | Method | Route | What |
 |---|---|---|
@@ -181,6 +209,7 @@ elsewhere. It is gitignored.
 | `host` | `ARCHETYPE_HOST` | `127.0.0.1` | Bind address. Loopback is deliberate: single user, no auth, no HTTPS (D7). |
 | `port` | `ARCHETYPE_PORT` | `8787` | Server port. |
 | `log_level` | `ARCHETYPE_LOG_LEVEL` | `info` | One of `critical`, `error`, `warning`, `info`, `debug`, `trace`. Case-insensitive. |
+| `web_dist` | `ARCHETYPE_WEB_DIST` | `<repo>/web/dist` | The built frontend to serve from the API process. Mounted at `/` when the directory holds an `index.html`; skipped with a log line when it does not. Set it empty to never serve one. A relative value resolves against the repository root. |
 | — | `ARCHETYPE_CONFIG_FILE` | `<repo>/config.yaml` | Which YAML file the middle layer reads. Environment only. |
 
 Example `config.yaml`:
@@ -189,6 +218,7 @@ Example `config.yaml`:
 port: 8787
 log_level: debug
 data_dir: D:/manuscripts
+web_dist: web/dist
 ```
 
 ### Secrets

@@ -46,6 +46,10 @@ CONFIG_FILE_ENV_VAR = "ARCHETYPE_CONFIG_FILE"
 DEFAULT_CONFIG_FILE = PROJECT_ROOT / "config.yaml"
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
 
+#: Where ``npm run build`` leaves the built frontend. Served by this process when it is there
+#: (P1-14); the two-process dev mode ignores it and talks to Vite instead.
+DEFAULT_WEB_DIST = PROJECT_ROOT / "web" / "dist"
+
 LogLevel = Literal["critical", "error", "warning", "info", "debug", "trace"]
 
 
@@ -152,6 +156,14 @@ class Settings(_SecretPolicyBaseSettings):
     )
     port: int = Field(default=8787, ge=1, le=65535, description="Server port.")
     log_level: LogLevel = Field(default="info", description="Server log level.")
+    web_dist: Path | None = Field(
+        default=DEFAULT_WEB_DIST,
+        description=(
+            "Built frontend to serve from this process (P1-14). Mounted at / when the directory "
+            "holds an index.html; skipped with a log line when it does not. Set it empty to "
+            "never mount one."
+        ),
+    )
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -161,6 +173,20 @@ class Settings(_SecretPolicyBaseSettings):
     @field_validator("data_dir", mode="after")
     @classmethod
     def _absolute_data_dir(cls, value: Path) -> Path:
+        return value if value.is_absolute() else (PROJECT_ROOT / value).resolve()
+
+    @field_validator("web_dist", mode="before")
+    @classmethod
+    def _blank_web_dist_means_none(cls, value: Any) -> Any:
+        # ARCHETYPE_WEB_DIST= is how a shell turns the static mount off. Without this, pydantic
+        # would read the empty string as Path("."), which is the repository root.
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("web_dist", mode="after")
+    @classmethod
+    def _absolute_web_dist(cls, value: Path | None) -> Path | None:
+        if value is None:
+            return None
         return value if value.is_absolute() else (PROJECT_ROOT / value).resolve()
 
     @classmethod

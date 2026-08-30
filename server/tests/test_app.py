@@ -20,7 +20,7 @@ def test_health_reports_ok_and_the_version(settings: Settings) -> None:
 
 
 def test_creating_the_app_prepares_the_data_directory(tmp_path: Path) -> None:
-    settings = Settings(data_dir=tmp_path / "fresh-data")
+    settings = Settings(data_dir=tmp_path / "fresh-data", web_dist=None)
     create_app(settings)
     assert settings.projects_dir.is_dir()
 

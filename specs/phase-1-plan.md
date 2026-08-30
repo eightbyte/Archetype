@@ -1,6 +1,6 @@
 # Phase 1 — Skeleton & Editor
 
-**Status:** In progress — **Groups A, B, and C (P1-1 → P1-13) complete** · **Version:** 1.3 · **Date:** 2026-08-30
+**Status:** **Complete** (2026-08-30) — all fifteen items built, both suites green, the § 4 acceptance script run by the writer and recorded in § 6 · **Version:** 1.4 · **Date:** 2026-08-30
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 
@@ -548,7 +548,99 @@ written, because both are expensive to change later:
 **Toolchain note.** Built and tested on Python 3.14 and Node 24. The declared floors stay 3.11 and
 20 per § 2; nothing in the code uses an API newer than 3.11.
 
-**Not yet done.** Group D. `P1-14` (the single-process static mount) and `P1-15`
-(`specs/data-model.md`, `specs/api-contract.md`, and the phase close-out) remain, so the
-`CLAUDE.md` Commands section is still provisional. The manual acceptance script in section 4 is
-run by hand at the phase boundary and its results recorded here then; it has not been run yet.
+### Group D (P1-14 → P1-15), 2026-08-30
+
+**Decisions of record.** The plan asks for "an optional static mount" and names neither the switch
+that turns it on nor what happens when there is nothing to serve. Both were settled before code:
+
+- **One setting, not a flag plus a path.** `ARCHETYPE_WEB_DIST` defaults to `<repo>/web/dist` and
+  the mount installs when that directory holds an `index.html`. Whether a bundle exists is a fact
+  on disk; a separate `serve_web` boolean could disagree with it, and a second source of truth
+  over something this easy to check is not worth the key. Setting it empty turns the mount off.
+- **A phase is code-complete before it is accepted.** The § 4 script is run by a person at a
+  browser. Everything reachable without one was driven mechanically and is recorded below; the
+  rest is listed as it stands rather than assumed.
+
+| Item | Planned | As built | Why |
+|---|---|---|---|
+| P1-14 | "An optional static mount so a built `web/dist` is served by the same FastAPI process" | `ARCHETYPE_WEB_DIST`, defaulting to `<repo>/web/dist`, mounted when the directory holds an `index.html` | The plan names the capability but not the switch. See the decision above. The setting also needs an empty-string-to-`None` validator, because pydantic reads `ARCHETYPE_WEB_DIST=` as `Path(".")` — which is the repository root, and would have served the writer's source tree. |
+| P1-14 | — | The mount is registered **last**, after every API route, with a test that a bundle containing `api/health` cannot take that route away | Starlette matches routes in order, so the ordering is the whole mechanism. It is the kind of thing that works by accident until someone reorders `create_app`, which is why it is a test and not a comment. |
+| P1-14 | — | A path under the mount that matches no file returns the **404 envelope**, not `index.html` | The usual single-page fallback rewrites every unmatched path to the index. The client has no router (`web/src/App.tsx`), so there is no deep link to rewrite, and a fallback would turn a typo'd route or a missing asset into a blank page instead of an error. |
+| P1-14 | — | `index.html` is served with `Cache-Control: no-cache`; the fingerprinted files under `assets/` are not | `index.html` is the one file whose name never changes and whose contents change on every build. Cached, a browser goes on loading the previous build's scripts after an upgrade. `no-cache` means *revalidate*, so the ETag Starlette already sends makes the ordinary case a 304 rather than a re-download. |
+| P1-14 | — | With nothing mounted, `GET /` answers `404` with `code: "web_not_built"`, carrying a `reason` and a `remedy`, and excluded from the OpenAPI schema | A person who starts the server and opens the address the README gives them should be told they skipped `npm run build`, not shown a bare "Not Found". It is a diagnostic for a human, which is why it stays out of the generated contract. |
+| P1-14 | — | The suite's shared `settings` fixture pins `web_dist=None`; `test_static.py` builds its own miniature bundle in `tmp_path` | Left at its default, every API test would behave differently depending on whether the developer had run `npm run build` — and a stale real build could make a passing test lie. The suite must say the same thing on a machine that has never touched Node. |
+| P1-15 | `specs/data-model.md` "documenting the Phase 1 tables as implemented and the rest as planned" | The document says in its own header which half is which | Half of it is generated from the code and is a bug if it disagrees; half is a sketch a later phase may discard. A reader who cannot tell them apart will treat the sketch as a commitment. |
+| P1-15 | — | `specs/api-contract.md` documents `GET /` and the `web_not_built` code alongside the API | It is not an API route, but it is part of how the server is reached, and a reader who meets a `404` at `/` needs it written down somewhere. Marked in the table as a diagnostic rather than a route. |
+| § 4 | "Manual acceptance script … run by hand at the phase boundary, results recorded in § 6" | Split: the machine-drivable half was driven and is recorded below; the browser half is listed as outstanding | Recorded rather than quietly skipped. A phase plan that claims a hand-run script nobody ran is exactly what the outline § 13 rule exists to prevent. |
+
+**Toolchain note (Group D).** The static mount uses only Starlette's `StaticFiles`, already
+present through FastAPI. No dependency was added on either side in this group.
+
+---
+
+### Phase 1 acceptance record, 2026-08-30
+
+**Suites.** `pytest` 303 passed (285 at Group C; Group D added 18). `vitest` 297 passed across 17
+files. `ruff check` clean, `ruff format` reports nothing to change, `tsc --noEmit` clean, and
+`vite build` succeeds — 488 KB of JS, 8 KB of CSS.
+
+**Both run modes, on Windows 11, by the documented commands** — exit criterion 6.
+
+| Checked | Result |
+|---|---|
+| Two-process: uvicorn on 8787, Vite on 5173 | Both start; `http://127.0.0.1:5173/` serves the app |
+| `/api` proxied through Vite to uvicorn | `GET /api/health` and `GET /api/projects` answer through 5173 |
+| Single-process: `npm run build`, then the server alone on 8787 | `GET /` serves `index.html` (394 bytes, `cache-control: no-cache`); both fingerprinted assets it references return 200 |
+| `ARCHETYPE_WEB_DIST=` (empty) | The server starts, logs "no frontend mounted … serving the API alone", and `GET /` is the `web_not_built` envelope |
+
+**The manuscript path, driven over real HTTP against the single-process server** — exit criterion
+4, and the server half of 1.
+
+| Checked | Result |
+|---|---|
+| Create a project | `201`, seeded with one chapter at `version` 1 |
+| Save formatted prose | `200`, `version` 2, server-derived heading, word count 15 |
+| Save again presenting the old version (D19) | `409`, `code: version_conflict`, `current_version: 2` |
+| Read the document back after the `409` | Byte-for-byte the earlier content, still `version` 2 — the refused save wrote nothing |
+| Add two more chapters and write in each | Three chapters, ordered |
+| The stitched outline | Three chapters in order, every heading present |
+| Rename a chapter | `200`, title changed, `version` **unmoved** at 2 |
+| Project list | 3 chapters, 28 words — equal to the sum of the chapters |
+| Stop the server, restart it on the same data directory | Text, title, version, and outline exactly as left |
+| A missing document | `404`, `code: document_not_found`, in the envelope |
+| Request logging (P1-13) | One line per request, each carrying a `request_id`, a status, and a duration |
+
+**Run by the writer at a browser, 2026-08-30**, against the **single-process** mode — which
+means the shipping shape is the one that was actually accepted, not just the developer one.
+
+| Checked | Result |
+|---|---|
+| A multi-chapter manuscript, written and navigated | Functioned as intended |
+| Rename a chapter from the editor header | Functioned |
+| Switch chapters with an edit still pending | Edits were kept across the switch — no keystroke lost (criterion 3) |
+| Provoke a save failure by hand | **Could not be provoked** |
+| Stop the server mid-edit | Editing continued uninterrupted, and the client reconnected gracefully once the server was available again |
+
+**One finding worth keeping.** Stopping the server is the obvious way to force a failed save, and
+it did not produce one the writer could see: the retry loop absorbed the outage completely, so
+editing carried on and the save landed when the server came back. That is the behaviour P1-10 was
+built for rather than a gap in the run — but it is worth writing down that **the visible failure
+states are hard to reach from the app**. *Save failed*, the backoff ladder, and the `409` reload
+prompt are exercised by `web/src/__tests__/editor.test.tsx`, which stages failures through the
+fake client that a real server does not readily produce. A regression in those surfaces will not
+show up by using the app, which makes the tests the only thing standing under them. Phase 9's
+error-surface hardening should start from that fact.
+
+**Every exit criterion in § 4 is met.**
+
+| # | Criterion | How |
+|---|---|---|
+| 1 | Write three chapters, reopen, everything as left | Writer's run, plus a stop/restart round trip over HTTP |
+| 2 | TOC shows chapters and headings; clicking navigates, including across chapters | Writer's run; `TableOfContents.test.tsx` |
+| 3 | Switching chapters with unsaved changes never loses a keystroke | Writer's run; `editor.test.tsx` |
+| 4 | A stale save is refused with a `409` and a reload prompt, not a silent overwrite | Driven over HTTP above; `test_documents.py`, `editor.test.tsx` |
+| 5 | Both suites green, with edge cases on the projection and the save protocol | 303 pytest, 297 vitest |
+| 6 | Both run modes work from a clean clone on Windows 11 | Both driven above |
+| 7 | The four documents describe the code as built | Written in this change |
+
+**Phase 1 is complete.**
