@@ -1,0 +1,203 @@
+/**
+ * P1-8 — the contract fixtures.
+ *
+ * `server/tests/test_contract.py` drives the real routes and writes representative responses to
+ * `server/tests/fixtures/contract/*.json`. This test reads the same files and checks them against
+ * the client's TypeScript types, so a backend shape change fails the suite rather than the
+ * browser. Small in Phase 1, load-bearing from Phase 4.
+ *
+ * The checking is done twice over, deliberately:
+ *
+ * - at compile time, by assigning the parsed value to the client type — `tsc` rejects a type that
+ *   no longer describes anything the server sends;
+ * - at run time, by comparing the fixture's key set against the keys the client type declares —
+ *   `tsc` cannot see into a `JSON.parse`, so without this a field the server dropped would sail
+ *   straight through as `undefined`.
+ *
+ * The run-time check is an **exact** key match, not a subset. Wire schemas are extension-only, so
+ * a new field never breaks an old client — but server and client live in one repository and move
+ * in one commit, so a field on one side and not the other is drift, and drift is what this test
+ * is for.
+ */
+
+import { describe, expect, test } from 'vitest';
+import type {
+  Document,
+  DocumentList,
+  DocumentMeta,
+  ErrorResponse,
+  Health,
+  Outline,
+  ProjectDetail,
+  ProjectList,
+  SaveResult,
+  VersionConflictDetail,
+} from '../api/types';
+import { readServerFixture } from './fixtures';
+
+function load<T>(name: string): T {
+  return readServerFixture<T>(`contract/${name}.json`);
+}
+
+/** Every key the client type declares, in the order the server sends them. */
+const KEYS = {
+  health: ['status', 'version'],
+  projectSummary: ['id', 'title', 'chapter_count', 'word_count', 'created_at', 'updated_at'],
+  skippedFile: ['name', 'reason', 'detail'],
+  documentMeta: [
+    'id',
+    'project_id',
+    'order_index',
+    'title',
+    'kind',
+    'headings',
+    'word_count',
+    'version',
+    'created_at',
+    'updated_at',
+  ],
+  document: [
+    'id',
+    'project_id',
+    'order_index',
+    'title',
+    'kind',
+    'content_json',
+    'headings',
+    'word_count',
+    'version',
+    'created_at',
+    'updated_at',
+  ],
+  heading: ['level', 'text', 'ordinal'],
+  saveResult: ['document_id', 'version', 'word_count', 'headings', 'updated_at'],
+  outlineChapter: ['document_id', 'title', 'order_index', 'word_count', 'headings'],
+  errorBody: ['code', 'message', 'detail'],
+  versionConflictDetail: [
+    'document_id',
+    'presented_version',
+    'current_version',
+    'updated_at',
+  ],
+} as const;
+
+function expectKeys(value: unknown, expected: readonly string[]): void {
+  expect(value).toBeTypeOf('object');
+  expect(value).not.toBeNull();
+  expect(Object.keys(value as object).sort()).toEqual([...expected].sort());
+}
+
+describe('the fixtures exist', () => {
+  test('reading one does not throw, so the paths are in step with the backend', () => {
+    expect(load<Health>('health').status).toBe('ok');
+  });
+});
+
+describe('project shapes', () => {
+  test('health', () => {
+    const health: Health = load('health');
+    expectKeys(health, KEYS.health);
+    expect(typeof health.version).toBe('string');
+  });
+
+  test('project_list', () => {
+    const body: ProjectList = load('project_list');
+    expectKeys(body, ['projects', 'skipped']);
+    expect(body.projects.length).toBeGreaterThan(0);
+    for (const summary of body.projects) {
+      expectKeys(summary, KEYS.projectSummary);
+      expect(typeof summary.chapter_count).toBe('number');
+      expect(typeof summary.word_count).toBe('number');
+    }
+    for (const file of body.skipped) {
+      expectKeys(file, KEYS.skippedFile);
+    }
+  });
+
+  test('project_detail', () => {
+    const body: ProjectDetail = load('project_detail');
+    expectKeys(body, ['project', 'documents']);
+    expectKeys(body.project, KEYS.projectSummary);
+    expect(body.documents.length).toBeGreaterThan(0);
+    for (const meta of body.documents) {
+      expectKeys(meta, KEYS.documentMeta);
+      expect(meta.project_id).toBe(body.project.id);
+    }
+  });
+});
+
+describe('document shapes', () => {
+  test('document_list omits content, deliberately', () => {
+    const body: DocumentList = load('document_list');
+    expectKeys(body, ['documents']);
+    for (const meta of body.documents) {
+      expectKeys(meta, KEYS.documentMeta);
+      expect(meta).not.toHaveProperty('content_json');
+    }
+  });
+
+  test('document carries content and no text_plain', () => {
+    const body: Document = load('document');
+    expectKeys(body, KEYS.document);
+    expect(body.content_json.type).toBe('doc');
+    expect(body).not.toHaveProperty('text_plain');
+    for (const heading of body.headings) {
+      expectKeys(heading, KEYS.heading);
+    }
+  });
+
+  test('document_meta, from a rename', () => {
+    const body: DocumentMeta = load('document_meta');
+    expectKeys(body, KEYS.documentMeta);
+  });
+
+  test('save_result carries the new version and the projection', () => {
+    const body: SaveResult = load('save_result');
+    expectKeys(body, KEYS.saveResult);
+    expect(body.version).toBeGreaterThan(1);
+    expect(typeof body.word_count).toBe('number');
+    for (const heading of body.headings) {
+      expectKeys(heading, KEYS.heading);
+      expect(typeof heading.level).toBe('number');
+      expect(typeof heading.ordinal).toBe('number');
+    }
+  });
+
+  test('outline spans chapters', () => {
+    const body: Outline = load('outline');
+    expectKeys(body, ['project_id', 'chapters']);
+    expect(body.chapters.length).toBeGreaterThan(1);
+    for (const chapter of body.chapters) {
+      expectKeys(chapter, KEYS.outlineChapter);
+      for (const heading of chapter.headings) {
+        expectKeys(heading, KEYS.heading);
+      }
+    }
+  });
+});
+
+describe('the error envelope', () => {
+  test('a not-found', () => {
+    const body: ErrorResponse = load('error_not_found');
+    expectKeys(body, ['error']);
+    expectKeys(body.error, KEYS.errorBody);
+    expect(body.error.code).toBe('document_not_found');
+    expect(body.error.detail).toBeNull();
+  });
+
+  test('a validation failure', () => {
+    const body: ErrorResponse = load('error_validation');
+    expectKeys(body.error, KEYS.errorBody);
+    expect(body.error.code).toBe('validation_error');
+  });
+
+  test('a version conflict carries what the editor needs to offer a reload (D19)', () => {
+    const body: ErrorResponse = load('error_version_conflict');
+    expectKeys(body.error, KEYS.errorBody);
+    expect(body.error.code).toBe('version_conflict');
+
+    const detail = body.error.detail as VersionConflictDetail;
+    expectKeys(detail, KEYS.versionConflictDetail);
+    expect(detail.current_version).toBeGreaterThan(detail.presented_version);
+  });
+});

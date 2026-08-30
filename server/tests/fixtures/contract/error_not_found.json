@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "document_not_found",
+    "message": "no document 'doc_000000000003' in this workspace",
+    "detail": null
+  }
+}

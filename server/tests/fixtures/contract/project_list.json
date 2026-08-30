@@ -1,0 +1,13 @@
+{
+  "projects": [
+    {
+      "id": "prj_000000000001",
+      "title": "The Long Road",
+      "chapter_count": 2,
+      "word_count": 13,
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "skipped": []
+}

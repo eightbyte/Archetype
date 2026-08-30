@@ -1,0 +1,18 @@
+{
+  "id": "doc_000000000002",
+  "project_id": "prj_000000000001",
+  "order_index": 1,
+  "title": "Departure",
+  "kind": "chapter",
+  "headings": [
+    {
+      "level": 1,
+      "text": "Away",
+      "ordinal": 0
+    }
+  ],
+  "word_count": 1,
+  "version": 2,
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z"
+}
