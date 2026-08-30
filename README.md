@@ -8,10 +8,12 @@ chat panel sits on the other.
 React + TypeScript frontend, Python (FastAPI) backend, one SQLite file per project. Single user,
 localhost, Windows 11 primary.
 
-**Current state: Phase 1, Group A (foundations) complete** — the toolchain, configuration,
-project file schema, migration runner, and project store are built and tested. There is no
-editor and no AI yet; those are Groups B and C of [Phase 1](specs/phase-1-plan.md) and the phases
-after it. See [specs/project-outline.md](specs/project-outline.md) for the whole plan.
+**Current state: Phase 1, Groups A and B complete** — the toolchain, configuration, project file
+schema, migration runner, project store, REST API, save protocol, and text projection are built
+and tested, on both sides. The browser page is still a placeholder: it reports whether the server
+is reachable and lists your projects. There is no editor and no AI yet; those are Group C of
+[Phase 1](specs/phase-1-plan.md) and the phases after it. See
+[specs/project-outline.md](specs/project-outline.md) for the whole plan.
 
 ---
 
@@ -57,7 +59,8 @@ cd web
 npm run dev
 ```
 
-Then open <http://127.0.0.1:5173>. The page reports whether it can reach the server.
+Then open <http://127.0.0.1:5173>. The page reports whether it can reach the server and lists
+whatever projects are in your data directory.
 
 A single-process mode — FastAPI serving the built `web/dist` from `http://127.0.0.1:8787`, which
 is the real target shape — arrives in work item `P1-14`.
@@ -80,6 +83,51 @@ npm run build
 
 Tests marked `@pytest.mark.live` touch a real provider and are excluded by default. Nothing else
 in either suite touches the network, a real model, or a real API key.
+
+## The API
+
+The server exposes one JSON API under `/api`, on `127.0.0.1:8787`. Interactive documentation is
+generated from the code at <http://127.0.0.1:8787/docs>; the written contract lands in
+`specs/api-contract.md` at the close of Phase 1.
+
+| Method | Route | What |
+|---|---|---|
+| `GET` | `/api/health` | Liveness and the running version |
+| `GET` | `/api/projects` | Every readable project, plus any file that could not be read |
+| `POST` | `/api/projects` | Create a project, seeded with one empty chapter |
+| `GET` | `/api/projects/{pid}` | One project with its document list |
+| `GET` | `/api/projects/{pid}/documents` | Ordered chapter metadata, **without** content |
+| `POST` | `/api/projects/{pid}/documents` | Add a chapter at the end |
+| `GET` | `/api/projects/{pid}/outline` | The table of contents across every chapter |
+| `GET` | `/api/documents/{did}` | One document including its content |
+| `PUT` | `/api/documents/{did}/content` | Save (see below) |
+| `PATCH` | `/api/documents/{did}` | Rename |
+
+Every failing response uses one envelope:
+
+```json
+{ "error": { "code": "version_conflict", "message": "…", "detail": { "current_version": 7 } } }
+```
+
+`code` is the stable name to branch on; `detail` is `null` when there is nothing to add.
+
+### Saving
+
+`PUT /api/documents/{did}/content` takes the document and the version the client believes it is
+editing:
+
+```json
+{ "content_json": { "type": "doc", "content": [] }, "version": 3 }
+```
+
+In one transaction the server validates the document, derives `text_plain`, the heading list, and
+the word count from it, increments the version, and writes. It answers with the new version and
+the derived values — the server's projection is the authoritative one (D18).
+
+If the presented version is not the stored one, **nothing is written** and the answer is `409`
+with the current version in `detail` (D19). The client warns and offers a reload. It never merges.
+This route is the only way manuscript text changes, which is what makes "the writer owns the
+words" a property of the system rather than a promise.
 
 ## Configuration
 

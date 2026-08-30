@@ -1,9 +1,12 @@
-"""The FastAPI application (P1-1).
+"""The FastAPI application (P1-1, P1-5).
 
-Group A ships the smallest app that makes "a clean clone reaches a running server" checkable:
-the factory, logging wired to the configured level, and a health route. The ``/api`` router,
-the pydantic request/response models, and the uniform error envelope are P1-5; the static mount
-for single-process serving is P1-14.
+The factory builds the settings-dependent pieces once - the project store and the document
+locator - and hangs them on ``app.state``, where :mod:`archetype.api.deps` reads them. Tests
+construct their own :class:`~archetype.config.Settings` and pass them in, so nothing in the suite
+depends on the developer's data directory.
+
+The ``/api`` router and the uniform error envelope arrive with P1-5. The static mount that serves
+a built ``web/dist`` from this same process is P1-14.
 """
 
 from __future__ import annotations
@@ -13,7 +16,11 @@ import logging
 from fastapi import FastAPI
 
 from . import __version__
+from .api.errors import install_error_handlers
+from .api.routes import router as api_router
 from .config import Settings, get_settings
+from .manuscript.locator import DocumentLocator
+from .projects.store import ProjectStore
 
 __all__ = ["create_app"]
 
@@ -40,12 +47,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         summary="A workspace for writing and maintaining a long narrative.",
     )
     app.state.settings = settings
-    settings.ensure_dirs()
-    logger.info("archetype %s serving projects from %s", __version__, settings.projects_dir)
+    projects_dir = settings.ensure_dirs()
+    app.state.project_store = ProjectStore(projects_dir)
+    app.state.document_locator = DocumentLocator(app.state.project_store)
 
-    @app.get("/api/health", tags=["meta"])
-    def health() -> dict[str, str]:
-        """Liveness, and the version the browser is talking to."""
-        return {"status": "ok", "version": __version__}
+    install_error_handlers(app)
+    app.include_router(api_router)
 
+    logger.info("archetype %s serving projects from %s", __version__, projects_dir)
     return app

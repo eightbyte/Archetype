@@ -50,3 +50,47 @@ h1 {
   color: var(--ink-soft);
   font-size: 0.9rem;
 }
+
+/* The project list (P1-8, grown into the picker by P1-12). */
+
+h2 {
+  margin: 2rem 0 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.project-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.project-title {
+  font-size: 1.05rem;
+}
+
+.project-meta,
+.project-skipped {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.project-skipped {
+  margin-top: 1rem;
+}
+
+[role='alert'] {
+  color: #8c2f1d;
+}

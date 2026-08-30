@@ -10,6 +10,11 @@ const API_TARGET = 'http://127.0.0.1:8787';
 export default defineConfig({
   plugins: [react()],
   server: {
+    // Bound by address, not by name. Vite's default is the name `localhost`, which on Windows
+    // resolves to ::1 first — so the dev server listened on IPv6 only and the documented
+    // http://127.0.0.1:5173 refused the connection. Naming the address also states the D7
+    // loopback posture outright rather than leaving it to name resolution.
+    host: '127.0.0.1',
     port: 5173,
     strictPort: true,
     proxy: {

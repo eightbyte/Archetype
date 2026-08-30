@@ -1,0 +1,18 @@
+{
+  "document_id": "doc_000000000001",
+  "version": 2,
+  "word_count": 12,
+  "headings": [
+    {
+      "level": 1,
+      "text": "Arrival",
+      "ordinal": 0
+    },
+    {
+      "level": 2,
+      "text": "The Quay",
+      "ordinal": 1
+    }
+  ],
+  "updated_at": "2026-01-01T00:00:00Z"
+}

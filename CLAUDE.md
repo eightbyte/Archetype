@@ -17,12 +17,15 @@ relational data plus keyword and vector indexes. Single user, localhost, Windows
 Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository directory is
 `WritingAssistant` — a path, not the product name.
 
-**Current state: Phase 1 in progress — Group A (P1-1 → P1-4) complete.** All twenty decisions are
-resolved and binding. What exists: the two-sided scaffold, configuration and the secret guard,
-the project file schema with its migration runner, the ID generator, and the project store. The
-frontend is a placeholder that confirms the toolchain — no editor, no API routes beyond
-`/api/health`, no AI. Next: Group B (P1-5 → P1-8), the REST routes, the save protocol, and the
-text projection.
+**Current state: Phase 1 in progress — Groups A and B (P1-1 → P1-8) complete.** All twenty
+decisions are resolved and binding. What exists: the two-sided scaffold, configuration and the
+secret guard, the project file schema with its migration runner, the ID generator, the project
+store, the whole Phase 1 REST surface with its uniform error envelope, the save protocol with the
+D19 version guard, the text projection and its client mirror, and the test harness on both sides
+including the shared projection cases and the contract fixtures. The frontend is still a
+placeholder shell — a health check and a read-only project list — with no editor and no AI. Next:
+Group C (P1-9 → P1-13), the three-region shell, the TipTap editor with autosave, the table of
+contents, and the project picker.
 
 ## The specs are the contract
 
@@ -41,6 +44,14 @@ Work items carry stable IDs (`P3-4`) that commits and code comments reference. I
 renumbered — a dropped item is marked **withdrawn**, not deleted.
 
 ## Rules
+
+### Strongly Type All Variables and Parameters
+
+- All variables in code must be typed, avoiding the use of super classes like `any` or `object` (unless strictly required).
+
+### Present Options to User
+
+- There may be mistakes in requirements or requests. Inform and ask for guiadance offering alternatives, and explaining why another method might be best. The user has final say in all matters.
 
 ### Keep the documents current
 
@@ -105,7 +116,7 @@ renumbered — a dropped item is marked **withdrawn**, not deleted.
 
 ## Commands
 
-Real as of Group A. `P1-15` finalises this section at phase close — the single-process run mode
+Real as of Group B. `P1-15` finalises this section at phase close — the single-process run mode
 (`P1-14`) is not built yet.
 
 ```powershell
@@ -139,18 +150,46 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/projects/migrations.py` | The forward-only migration runner (D20) |
 | `server/archetype/projects/migrations/*.sql` | Numbered schema migrations |
 | `server/archetype/projects/store.py` | `ProjectStore`, `ProjectHandle`, the directory scan (D17) |
-| `server/archetype/app.py` | `create_app()`; routes proper arrive in `P1-5` |
+| `server/archetype/manuscript/projection.py` | The pure text projection: rules, `text_plain`, headings, word count (`P1-7`, D18) |
+| `server/archetype/manuscript/documents.py` | `DocumentStore` — the only path by which manuscript text changes (`P1-6`, D19) |
+| `server/archetype/manuscript/locator.py` | Resolves a bare document id to the project file holding it |
+| `server/archetype/api/routes.py` | The `/api` router (`P1-5`) |
+| `server/archetype/api/schemas.py` | Wire shapes, mirrored in `web/src/api/types.ts` |
+| `server/archetype/api/errors.py` | The uniform error envelope and its exception handlers |
+| `server/archetype/app.py` | `create_app()`; builds the store and locator onto `app.state` |
 | `server/tests/fixtures/db/` | Databases captured at a known schema version, with their README |
-| `web/src/` | The Vite + React 18 client |
+| `server/tests/fixtures/projection/` | The shared projection cases — read by **both** suites (`P1-7`) |
+| `server/tests/fixtures/contract/` | API responses written by pytest, type-checked by vitest (`P1-8`) |
+| `server/tests/fakes/` | `FakeProvider` and `FakeEmbedder` land here in Phases 4 and 5 |
+| `web/src/api/` | The typed client, its interface, and the mirrored wire types |
+| `web/src/editor/projection.ts` | The client mirror of the projection, held to the server by shared fixtures |
+| `web/src/__tests__/fakes/` | The hand-written typed fake API client (`P1-8`) |
 
-**Invariants established in Group A**, beyond those already listed above:
+**Invariants established in Groups A and B**, beyond those already listed above:
 
 - **Transaction control is explicit.** Connections open with `isolation_level=None`; `BEGIN` and
   `COMMIT` are written, never implied. A migration carries its transaction *inside* the script
   text, because `executescript` commits whatever transaction is already open.
-- **Looking at a project never changes it.** The directory scan opens files read-only; migrations
-  run only on an explicit open.
+- **Looking at a project never changes it.** The directory scan and the document locator open
+  files read-only; migrations run only on an explicit open. Reads made *through* an opened project
+  use an ordinary connection — by then the file has been migrated deliberately, and a read-only
+  handle cannot recover a write-ahead log left behind by an unclean shutdown.
 - **A bad file in the projects directory is reported, not fatal.** `scan()` returns readable
   projects alongside skipped ones with a reason.
 - **Secrets are unwritable, not just untested.** A `SecretStr` settings field that is not declared
   `Field(exclude=True)` raises at class-definition time, and the YAML layer refuses to supply one.
+- **`DocumentStore.save_content` is the only path by which manuscript text changes.** Routes,
+  tests, and the agent's accepted proposals (D12) all go through it, which is what makes "the
+  writer owns the words" structural rather than aspirational.
+- **A rejected save has written nothing.** Validation, the size check, and the projection all run
+  before the transaction opens; the version guard is re-read under the write lock inside it.
+- **A rename does not bump `version`.** A rename is not a text edit, and invalidating an in-flight
+  autosave over one would cost the writer a keystroke.
+- **Routes carry no domain logic and stores carry no HTTP.** Domain exceptions are translated to
+  the envelope by handlers in `api/errors.py`, so the same store serves a request and an agent run.
+- **The projection is one specification, two implementations.** The rules live in the docstring of
+  `manuscript/projection.py`; `server/tests/fixtures/projection/cases.json` drives both, so drift
+  fails a test rather than confusing a table of contents.
+- **The contract fixtures are generated, normalised, and committed.** `pytest` rewrites them with
+  ids and timestamps replaced by placeholders, so a run that changed no shape produces no diff and
+  a run that did shows exactly what changed — and the frontend suite type-checks the same files.

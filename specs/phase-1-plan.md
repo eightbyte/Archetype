@@ -1,6 +1,6 @@
 # Phase 1 — Skeleton & Editor
 
-**Status:** In progress — **Group A (P1-1 → P1-4) complete** · **Version:** 1.1 · **Date:** 2026-08-29
+**Status:** In progress — **Groups A and B (P1-1 → P1-8) complete** · **Version:** 1.2 · **Date:** 2026-08-30
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 
@@ -427,8 +427,61 @@ happened and why (outline § 13).*
 | P1-4 | "list all by scanning `data/projects/`" | `ProjectStore.scan()` returns readable projects **and** a list of skipped files with reasons; `list_projects()` returns just the projects | P1-12 requires that a corrupt or unreadable file be reported without taking down the list. The reason has to survive the scan for the picker to say anything useful about it. |
 | P1-4 | Handle exposes project identity | `ProjectSummary` also carries `chapter_count`, `word_count`, and `schema_version` | `GET /api/projects` (P1-5) and the picker (P1-12) need exactly these; they are one aggregate query on a file already open. The scan opens files **read-only** so listing never migrates or mutates a project. |
 
+### Group B (P1-5 → P1-8), 2026-08-30
+
+**Decisions of record.** The plan asks for a text projection and names the cases it must cover,
+but the *rules* were left open. They are load-bearing — chunking reads them in Phase 5 and agent
+context composition in Phase 6 — so they are written down in the module docstring of
+`server/archetype/manuscript/projection.py` and summarised here:
+
+- **Blocks.** Paragraphs and headings are text blocks; containers (blockquote, lists, list items)
+  are walked through and contribute nothing of their own. An empty block is dropped, so exactly
+  one blank line separates blocks and later chunking can split on real boundaries.
+- **No decoration.** No bullets on list items, no marker on blockquotes, no marks. `text_plain` is
+  what the words are, not what they look like.
+- **A scene break is text.** `horizontalRule` projects as its own block reading `* * *`. It is a
+  real narrative boundary, and a chunker that could not see it would cut across a scene change.
+  It contributes no words.
+- **Headings include the empty ones**, and `ordinal` is the index among all heading nodes in
+  document order, from zero. That makes an ordinal mean "the Nth heading node in this document" —
+  what P1-11 resolves against. Skipping empty headings would renumber every heading below the one
+  being typed.
+- **A word** is a run of Unicode letters and digits, optionally joined by apostrophes or dashes,
+  counted over `text_plain` with headings included. `* * *` and `--` are zero words.
+- **Unknown node types are projected, not rejected.** The TipTap schema is a closed list enforced
+  where documents are authored (P1-10); a projection that threw would turn a schema question into
+  lost text.
+
+| Item | Planned | As built | Why |
+|---|---|---|---|
+| P1-5 | `GET /api/projects` returns id, title, chapter count, word count, `updated_at` | Also returns `created_at`, and a second list, `skipped`, of files that are not usable projects | P1-12 requires a corrupt or unreadable file to be reported without taking down the list. `ProjectStore.scan()` already carried the reason (Group A); this is the route that surfaces it. |
+| P1-5 | `POST /api/projects` — "Create" | Creates the project **and seeds one empty chapter**, returning the same body as `GET /api/projects/{pid}` | P1-12 requires that a new project open into a writable editor rather than an empty state. Doing it in the route makes that true for every client, including the agent later, rather than being a property of one UI flow. |
+| P1-5 | Routes for documents addressed as `/api/documents/{did}` | Added `manuscript/locator.py`, which resolves a bare document id to the project file holding it | Storage is one file per project (D3) but the planned route names no project, so something has to answer "which file". The answer is cached; the cache is a hint, re-confirmed on every use, so a project file moved behind the app's back costs a wasted scan and never a wrong read or write. |
+| P1-5 | `GET /api/documents/{did}` — "Full document including content" | Returns `content_json` and the derived `headings` and `word_count`, but **not** `text_plain` | `text_plain` is derived from `content_json` by rules the client mirrors (P1-7), so sending it would double the size of every chapter load to carry something the client can compute. Extension-only rules allow adding it later if a consumer needs the server's exact string. |
+| P1-5 | Uniform error envelope | Domain exceptions are translated by FastAPI exception handlers, not caught per route; every route stays free of HTTP vocabulary | The same store is called by the agent loop in Phase 6, which is not serving a request. Keeping status codes out of the store is what lets one implementation serve both. |
+| P1-5 | — | Request models are `extra="forbid"`; an undeclared field is a `422` | Wire schemas are extension-only in the *server's* favour: the server may add fields, but a client sending one the server does not know is a client bug, and silence would hide it until Phase 4. |
+| P1-5 / P1-13 | An exception handler producing the envelope is P1-13 | The catch-all handler landed here | "The error envelope is uniform" is P1-5's acceptance bar and is not checkable while an unhandled exception still returns Starlette's plain-text `500`. P1-13 keeps structured request logging and the client-side error boundaries. |
+| P1-5 | — | A `404` names the id that was asked for and nothing else; the store's message, which carries the projects directory, goes to the log | The browser has no business knowing the writer's directory layout, and the log is where that detail is actually useful. |
+| P1-5 | `GET /api/health` lives in `app.py` (Group A) | Moved into the `/api` router with the rest | It is an `/api` route; leaving it defined in the factory would have made the router an incomplete description of the API surface. Behaviour and path are unchanged. |
+| P1-6 | "An oversized or malformed payload is rejected before any write" | `MAX_CONTENT_BYTES` = 2 MiB per document, refused with `413` and a `detail` carrying the size and the limit | The plan requires the rejection but names no limit. A 20,000-word chapter is roughly 300 KB of ProseMirror JSON, so two megabytes is generous for a chapter and still refuses a payload that would take the process down. |
+| P1-6 | A stale save gets a `409` | The guard is **equality**, not "at least": a version ahead of the stored one is refused too | A client cannot get ahead of the store except by inventing a version. Accepting it would let a bug skip the guard entirely. |
+| P1-6 | — | `PATCH /api/documents/{did}` (rename) deliberately does **not** bump `version` | A rename is not a text edit. Bumping the version would invalidate an in-flight autosave and cost the writer a keystroke over a cosmetic change — the exact failure P1-10 exists to prevent. |
+| P1-6 | — | Every document write stamps `project.updated_at` in the same transaction | The picker sorts on it (P1-12). A project whose chapter changed a minute ago must not claim it was last touched when it was created. |
+| P1-7 | A pure module, no database or framework imports | Also validates structure — shape, node types being strings, `attrs` being objects, nesting depth ≤ 64 — and raises `InvalidDocumentError` | The save protocol needs "rejected before any write" to happen somewhere, and the projection is the one place that already walks every node. The client mirror deliberately does **not** validate: throwing there would blank the outline panel over a node nobody has taught it yet. |
+| P1-7 | The client mirror agrees with the server on every shared fixture | The mirror uses `\p{L}\p{N}` where Python uses `[^\W_]` | JavaScript's `\w` is ASCII-only even under the `u` flag, so the obvious spelling would have counted "naïve" as two words where Python counts one. The shared cases include a non-ASCII case that fails if this regresses. |
+| P1-8 | "A pytest test serializes representative responses to `tests/fixtures/contract/*.json`" | It also normalises ids and timestamps to fixed placeholders before writing | Without it every run would rewrite every fixture with fresh ids, and the `git diff` that is supposed to show a wire-shape change would show noise instead. |
+| P1-8 | The frontend "type-checks against" the contract fixtures | Checked twice: assigned to the client type for `tsc`, and compared key-set-for-key-set at run time | `tsc` cannot see into a `JSON.parse`, so a field the server dropped would arrive as `undefined` and type-check cleanly. The run-time check is an exact key match — extension-only protects an old client, but both sides live in one repository and move in one commit, so a field on one side only is drift. |
+| P1-8 | Web dev budget | Added `@types/node` | The shared fixture sets live under `server/tests/` and are read from disk by the frontend suite, which runs in Node. Type-only, dev-only, and scoped by a comment in `tsconfig.json` saying application code must not use Node APIs. |
+| P1-8 | "The fake client backs at least one real component test" | Added `web/src/panels/ProjectList.tsx` — a small, real component | There was no component to test: the Group A frontend was a health-check placeholder. This is the seed of the picker (P1-12), kept read-only, and it makes the fake's interface conformance load-bearing rather than notional. |
+| P1-8 | — | `web/src/health.ts` deleted; `App.test.tsx` rewritten against the fake client | `health.ts` was P1-1's single stubbed call, and its own docstring said the typed client would replace it at P1-8. Its tests moved rather than went: three of the four now run against the fake, and the fourth — that a failing status code is an error and not a silent success — moved to `client.test.ts`, which is where `fetch` itself is now exercised. Recorded here because the failing-test rule requires a deliberate test change to be written down. |
+| P1-8 | `tests/fakes/` exists | Exists with a README and no fakes | Phase 1 has no collaborator to fake — SQLite runs for real against `tmp_path`, and there is no provider, embedder, or network. The README says what belongs there and when (`FakeProvider` in Phase 4, `FakeEmbedder` in Phase 5). |
+| P1-8 | — | The frontend resolves the shared fixtures from `process.cwd()`, not `import.meta.url` | Under Vitest the module URL is not a `file:` URL, so `fileURLToPath` throws. `src/__tests__/fixtures.ts` resolves the path and, if it is wrong, says so plainly instead of failing with a bare `ENOENT`. |
+| P1-5 / P1-6 | — | Document **reads** use an ordinary connection, not the read-only mode the scan uses | The D17 discipline is that *looking at* a project — the directory scan, before the file has been opened — must not change it. By the time a `DocumentStore` exists the project has been explicitly opened and migrated. A read-only handle also cannot recover a write-ahead log left by an unclean shutdown, which would turn every read into an error after a crash. |
+| P1-1 | Vite on 5173 with `/api` proxied | `vite.config.ts` now binds `host: '127.0.0.1'` explicitly | Vite's default is the *name* `localhost`, which on Windows resolves to `::1` first — so the dev server listened on IPv6 only and the `http://127.0.0.1:5173` the README tells you to open refused the connection. Found by testing the documented URL rather than the one Vite prints. Naming the address also states the D7 loopback posture outright instead of leaving it to name resolution. |
+
 **Toolchain note.** Built and tested on Python 3.14 and Node 24. The declared floors stay 3.11 and
 20 per § 2; nothing in the code uses an API newer than 3.11.
 
-**Not yet done in Group A.** `specs/data-model.md` and `specs/api-contract.md` are P1-15, and the
-`CLAUDE.md` Commands section is filled in provisionally — P1-15 finalises it at phase close.
+**Not yet done.** `specs/data-model.md` and `specs/api-contract.md` are P1-15, and the `CLAUDE.md`
+Commands section is filled in provisionally — P1-15 finalises both at phase close. The routes are
+built and tested but not yet written up as a contract document.

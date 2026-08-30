@@ -1,0 +1,70 @@
+{
+  "id": "doc_000000000001",
+  "project_id": "prj_000000000001",
+  "order_index": 0,
+  "title": "Chapter 1",
+  "kind": "chapter",
+  "content_json": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": {
+          "level": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Arrival"
+          }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": {
+          "level": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "The Quay"
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "The harbour was grey."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "He did not look back."
+          }
+        ]
+      }
+    ]
+  },
+  "headings": [
+    {
+      "level": 1,
+      "text": "Arrival",
+      "ordinal": 0
+    },
+    {
+      "level": 2,
+      "text": "The Quay",
+      "ordinal": 1
+    }
+  ],
+  "word_count": 12,
+  "version": 2,
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z"
+}
