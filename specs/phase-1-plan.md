@@ -1,6 +1,6 @@
 # Phase 1 — Skeleton & Editor
 
-**Status:** Awaiting approval · **Version:** 1.0 · **Date:** 2026-08-29
+**Status:** In progress — **Group A (P1-1 → P1-4) complete** · **Version:** 1.1 · **Date:** 2026-08-29
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 
@@ -407,9 +407,28 @@ chapter → stop the server mid-edit and confirm the failure state is honest and
 
 ## 6. As-Built Deviations
 
-*Empty until implementation begins. Every divergence from this plan is recorded here in the same
-change that makes it, with what happened and why (outline § 13).*
+*Every divergence from this plan is recorded here in the same change that makes it, with what
+happened and why (outline § 13).*
+
+### Group A (P1-1 → P1-4), 2026-08-29
 
 | Item | Planned | As built | Why |
 |---|---|---|---|
-| — | — | — | — |
+| P1-1 | Web dependency budget lists `react`, `react-dom`, `@tiptap/react`, `@tiptap/starter-kit` | Added `@tiptap/pm` | A required peer dependency of `@tiptap/react` v2 — ProseMirror itself. Declared explicitly rather than left to npm's peer auto-install, so the lockfile is honest about it. |
+| P1-1 | Web dev budget lists `vite`, `typescript`, `vitest`, `@testing-library/react`, `@testing-library/user-event`, `jsdom` | Added `@vitejs/plugin-react`, `@types/react`, `@types/react-dom`, `@testing-library/dom` | The plugin is how Vite compiles JSX and does React fast refresh; without it React + Vite does not build. The two `@types` packages are the type surface of runtime dependencies already budgeted. `@testing-library/dom` is a required peer of `@testing-library/react` v16. All four are tooling for budgeted choices, not new capability. |
+| P1-1 | Vitest, unversioned | Vitest 3 with Vite 6 | Vitest 2 pins Vite 5 and installs a second copy of Vite, which breaks `tsc` on the config's `test` block. Matching majors keeps one Vite in the tree. |
+| P1-1 | The FastAPI app is P1-5 | A minimal `archetype/app.py` with `create_app()` and `GET /api/health` landed in Group A | "A clean clone reaches a running server" is P1-1's acceptance bar and is not checkable without an app to run. The `/api` router, the pydantic models, and the uniform error envelope remain P1-5; the static mount remains P1-14. |
+| P1-1 | — | The Group A frontend calls `GET /api/health` and reports the result | Proves the toolchain end to end — Vite's `/api` proxy actually reaches uvicorn. It is not the typed API client; that is P1-8, and this call is deliberately a single function with a locally stubbed `fetch` in its test. |
+| P1-2 | D8 permits secrets in a gitignored `config.yaml`; P1-2 says environment only | Environment only, enforced: the YAML source strips any key naming a `SecretStr` field | P1-2 is the stricter reading of a permission D8 grants but does not require, so no decision changes. Recorded because the two documents can be read as differing. |
+| P1-2 | "Add a test that asserts a secret-typed field does not appear in the settings dump" | Also a build-time guard: a `SecretStr` field not declared `Field(exclude=True)` raises `TypeError` at class definition | A test catches the regression; the guard makes it unwritable. Phase 4 adds provider keys to this class, which is exactly when a quiet regression would happen. |
+| P1-3 | The `001_init.sql` DDL as listed | Added `CREATE INDEX idx_document_project_order ON document(project_id, order_index)` | The document list and the outline both read one project's chapters in order. Deliberately not `UNIQUE`: Phase 2 reorder needs to move rows through transient duplicate indices. |
+| P1-3 | "A migration runner applies numbered, forward-only SQL migrations" | Each migration's `BEGIN`/`COMMIT` is written into the script text rather than issued around it | `sqlite3.Cursor.executescript` commits any open transaction before it runs, so a transaction opened outside the script would be closed by the very call it was meant to protect — the migration would apply statement by statement and could half-land. |
+| P1-3 | ID generator | Added `random_token(length)` beside `new_id(prefix)` | The project filename suffix is a disambiguator, not an identity. Keeping it out of `new_id` lets IDs keep their 8-character minimum instead of relaxing it for a filename. |
+| P1-4 | "list all by scanning `data/projects/`" | `ProjectStore.scan()` returns readable projects **and** a list of skipped files with reasons; `list_projects()` returns just the projects | P1-12 requires that a corrupt or unreadable file be reported without taking down the list. The reason has to survive the scan for the picker to say anything useful about it. |
+| P1-4 | Handle exposes project identity | `ProjectSummary` also carries `chapter_count`, `word_count`, and `schema_version` | `GET /api/projects` (P1-5) and the picker (P1-12) need exactly these; they are one aggregate query on a file already open. The scan opens files **read-only** so listing never migrates or mutates a project. |
+
+**Toolchain note.** Built and tested on Python 3.14 and Node 24. The declared floors stay 3.11 and
+20 per § 2; nothing in the code uses an API newer than 3.11.
+
+**Not yet done in Group A.** `specs/data-model.md` and `specs/api-contract.md` are P1-15, and the
+`CLAUDE.md` Commands section is filled in provisionally — P1-15 finalises it at phase close.

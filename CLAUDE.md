@@ -17,8 +17,12 @@ relational data plus keyword and vector indexes. Single user, localhost, Windows
 Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository directory is
 `WritingAssistant` — a path, not the product name.
 
-**Current state: Phase 0 complete.** All sixteen decisions are resolved and binding; the Phase 1
-plan is written and awaiting approval. **No code exists yet** — the specs are the only artifact.
+**Current state: Phase 1 in progress — Group A (P1-1 → P1-4) complete.** All twenty decisions are
+resolved and binding. What exists: the two-sided scaffold, configuration and the secret guard,
+the project file schema with its migration runner, the ID generator, and the project store. The
+frontend is a placeholder that confirms the toolchain — no editor, no API routes beyond
+`/api/health`, no AI. Next: Group B (P1-5 → P1-8), the REST routes, the save protocol, and the
+text projection.
 
 ## The specs are the contract
 
@@ -101,8 +105,52 @@ renumbered — a dropped item is marked **withdrawn**, not deleted.
 
 ## Commands
 
-**None yet — scaffolding lands in Phase 1 (`P1-1`).** This section must be filled in with the
-real bootstrap, run, test, and lint commands as part of `P1-15`, before Phase 1 can close.
+Real as of Group A. `P1-15` finalises this section at phase close — the single-process run mode
+(`P1-14`) is not built yet.
 
-Planned shape (not yet real): server on `127.0.0.1:8787` via uvicorn, web dev server via Vite
-with `/api` proxied, `pytest` in `server/`, `vitest` in `web/`, `ruff` for Python lint.
+```powershell
+# bootstrap (once)
+cd server; python -m venv .venv; .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+cd web; npm install
+
+# run — two processes, two terminals
+cd server; .\.venv\Scripts\python.exe -m archetype     # API on 127.0.0.1:8787
+cd web; npm run dev                                    # app on 127.0.0.1:5173, /api proxied
+
+# test and lint
+cd server; .\.venv\Scripts\python.exe -m pytest
+cd server; .\.venv\Scripts\python.exe -m ruff check .; .\.venv\Scripts\python.exe -m ruff format .
+cd web; npm test; npm run typecheck; npm run build
+```
+
+Built and tested on Python 3.14 and Node 24; the declared floors are 3.11 and 20.
+
+Settings layer defaults < `config.yaml` < `ARCHETYPE_*` env vars, env winning. Keys are
+documented in the README; `ARCHETYPE_CONFIG_FILE` relocates the YAML layer, which is how the
+suite keeps a developer's real config out of its way.
+
+## Where things live
+
+| Path | What |
+|---|---|
+| `server/archetype/config.py` | Settings layering and the `SecretStr` guard (`P1-2`, D8) |
+| `server/archetype/ids.py` | Prefixed short-token IDs and `random_token` (`P1-3`) |
+| `server/archetype/projects/db.py` | Connections, pragmas, explicit transactions, `utc_now` |
+| `server/archetype/projects/migrations.py` | The forward-only migration runner (D20) |
+| `server/archetype/projects/migrations/*.sql` | Numbered schema migrations |
+| `server/archetype/projects/store.py` | `ProjectStore`, `ProjectHandle`, the directory scan (D17) |
+| `server/archetype/app.py` | `create_app()`; routes proper arrive in `P1-5` |
+| `server/tests/fixtures/db/` | Databases captured at a known schema version, with their README |
+| `web/src/` | The Vite + React 18 client |
+
+**Invariants established in Group A**, beyond those already listed above:
+
+- **Transaction control is explicit.** Connections open with `isolation_level=None`; `BEGIN` and
+  `COMMIT` are written, never implied. A migration carries its transaction *inside* the script
+  text, because `executescript` commits whatever transaction is already open.
+- **Looking at a project never changes it.** The directory scan opens files read-only; migrations
+  run only on an explicit open.
+- **A bad file in the projects directory is reported, not fatal.** `scan()` returns readable
+  projects alongside skipped ones with a reason.
+- **Secrets are unwritable, not just untested.** A `SecretStr` settings field that is not declared
+  `Field(exclude=True)` raises at class-definition time, and the YAML layer refuses to supply one.
