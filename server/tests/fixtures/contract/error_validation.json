@@ -1,0 +1,65 @@
+{
+  "error": {
+    "code": "validation_error",
+    "message": "the request body or path did not validate",
+    "detail": [
+      {
+        "type": "missing",
+        "loc": [
+          "body",
+          "version"
+        ],
+        "msg": "Field required",
+        "input": {
+          "content_json": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 1
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Arrival"
+                  }
+                ]
+              },
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The Quay"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The harbour was grey."
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "He did not look back."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

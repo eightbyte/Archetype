@@ -1,0 +1,651 @@
+/* Phase 1 holds styling to legibility only (plan section 1). A writing surface has to be
+   pleasant to look at, so typography gets real attention; everything else stays plain until
+   Phase 9. No CSS framework - that is a standing constraint, not a Phase 1 shortcut. */
+
+:root {
+  --ink: #1b1b1a;
+  --ink-soft: #5c5c58;
+  --ink-faint: #8b8a84;
+  --page: #fbfaf7;
+  --panel: #f4f2ed;
+  --rule: #dedad1;
+  --accent: #3a5a78;
+  --alarm: #8c2f1d;
+  --measure: 34rem;
+
+  color-scheme: light;
+  color: var(--ink);
+  background: var(--page);
+  font-family: Iowan Old Style, Palatino Linotype, Georgia, serif;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+[role='alert'] {
+  color: var(--alarm);
+}
+
+/* -- the picker (P1-12) ------------------------------------------------------------------- */
+
+.picker {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+}
+
+h1 {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.tagline {
+  margin: 0 0 1.5rem;
+  color: var(--ink-soft);
+}
+
+.server-status {
+  margin: 0 0 2rem;
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+}
+
+.recent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.recent-label,
+.project-recent {
+  color: var(--ink-faint);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.recent button {
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--panel);
+  padding: 0.15rem 0.7rem;
+  font-size: 0.9rem;
+}
+
+.create-project {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.create-project label {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.create-project input {
+  flex: 1 1 12rem;
+  min-width: 8rem;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: #fff;
+  padding: 0.35rem 0.6rem;
+}
+
+.create-project button,
+.toc-footer button,
+.save-status button,
+.region-error button,
+.workspace-back {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--panel);
+  padding: 0.3rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.create-error {
+  font-size: 0.9rem;
+}
+
+h2 {
+  margin: 2rem 0 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.project-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-list li {
+  border-bottom: 1px solid var(--rule);
+}
+
+.project-open,
+.project-list li > .project-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 0.6rem 0;
+  text-align: left;
+}
+
+.project-open:hover {
+  background: var(--panel);
+}
+
+.project-title {
+  font-size: 1.05rem;
+}
+
+.project-meta,
+.project-skipped {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.project-meta {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.project-skipped {
+  margin-top: 1rem;
+}
+
+/* -- the workspace (P1-9) ----------------------------------------------------------------- */
+
+.workspace-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.workspace-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  border-bottom: 1px solid var(--rule);
+  padding: 0.5rem 1rem;
+}
+
+.workspace-header h1 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.workspace-meta {
+  margin-left: auto;
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns:
+    var(--outline-width) 6px minmax(0, 1fr) 6px var(--agent-width);
+  flex: 1;
+  min-height: 0;
+}
+
+.region {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.region-outline,
+.region-agent {
+  background: var(--panel);
+}
+
+.region-outline {
+  border-right: 1px solid var(--rule);
+}
+
+.region-agent {
+  border-left: 1px solid var(--rule);
+}
+
+.split-divider {
+  background: transparent;
+  cursor: col-resize;
+}
+
+.split-divider:hover,
+.split-divider:focus-visible {
+  background: var(--accent);
+}
+
+.rail {
+  height: 100%;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 0.5rem 0;
+}
+
+.rail-text {
+  display: inline-block;
+  color: var(--ink-faint);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+}
+
+/* -- panels ------------------------------------------------------------------------------- */
+
+.outline-panel,
+.agent-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.agent-panel {
+  padding: 0.75rem 1rem;
+  overflow-y: auto;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tabs button {
+  flex: 1;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  padding: 0.5rem 0.25rem;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tabs button[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+}
+
+.tab-panel {
+  flex: 1;
+  min-height: 0;
+  padding: 0.75rem 0.5rem;
+  overflow-y: auto;
+}
+
+.panel-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+}
+
+.panel-placeholder {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+/* -- the table of contents (P1-11) -------------------------------------------------------- */
+
+.toc-chapters {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toc-chapter-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.toc-twisty {
+  border: 0;
+  background: none;
+  padding: 0 0.2rem;
+  color: var(--ink-faint);
+  font-size: 0.75rem;
+}
+
+.toc-chapter-title {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: 0.25rem 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toc-chapter.is-open .toc-chapter-title {
+  font-weight: 600;
+}
+
+.toc-count {
+  color: var(--ink-faint);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.toc-headings {
+  margin: 0 0 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.toc-heading {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-left: 1px solid var(--rule);
+  background: none;
+  padding: 0.1rem 0 0.1rem 0.5rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toc-heading:hover {
+  color: var(--ink);
+}
+
+.toc-untitled {
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+.toc-footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.5rem;
+}
+
+.toc-total {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 0.75rem;
+}
+
+/* -- the editor (P1-10) ------------------------------------------------------------------- */
+
+.editor-region {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.editor-region-empty {
+  padding: 2rem;
+}
+
+.chapter-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--rule);
+  padding: 0.5rem 1.5rem;
+}
+
+.chapter-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+}
+
+.chapter-title button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+}
+
+.chapter-title input {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.1rem 0.3rem;
+  font: inherit;
+}
+
+.chapter-count {
+  color: var(--ink-faint);
+  font-size: 0.8rem;
+}
+
+.save-status {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-left: auto;
+  color: var(--ink-faint);
+  font-size: 0.8rem;
+}
+
+.save-status-failed,
+.save-status-conflict {
+  color: var(--alarm);
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--rule);
+  padding: 0.35rem 1.5rem;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.toolbar button {
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  padding: 0.15rem 0.45rem;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.toolbar button:hover:not(:disabled) {
+  background: var(--panel);
+}
+
+.toolbar button[aria-pressed='true'] {
+  border-color: var(--rule);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.editor-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2rem 1.5rem 6rem;
+}
+
+.manuscript {
+  max-width: var(--measure);
+  margin: 0 auto;
+  outline: none;
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.manuscript:focus-visible {
+  outline: none;
+}
+
+.manuscript p {
+  margin: 0 0 1em;
+}
+
+.manuscript h1,
+.manuscript h2,
+.manuscript h3 {
+  margin: 1.6em 0 0.6em;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+}
+
+.manuscript h1 {
+  font-size: 1.5rem;
+}
+
+.manuscript h2 {
+  font-size: 1.25rem;
+}
+
+.manuscript h3 {
+  font-size: 1.1rem;
+}
+
+.manuscript blockquote {
+  margin: 0 0 1em;
+  border-left: 2px solid var(--rule);
+  padding-left: 1rem;
+  color: var(--ink-soft);
+}
+
+.manuscript ul,
+.manuscript ol {
+  margin: 0 0 1em;
+  padding-left: 1.5rem;
+}
+
+.manuscript hr {
+  margin: 2em auto;
+  border: 0;
+  color: var(--ink-faint);
+  text-align: center;
+}
+
+/* A scene break reads as one in the manuscript too, matching how the projection renders it. */
+.manuscript hr::before {
+  content: '* * *';
+  letter-spacing: 0.5em;
+}
+
+/* -- error surfaces (P1-13) --------------------------------------------------------------- */
+
+.region-error {
+  padding: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.region-error-detail {
+  color: var(--ink-soft);
+  font-family: Consolas, Menlo, monospace;
+  font-size: 0.8rem;
+}
+
+.toasts {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 26rem;
+}
+
+.toast {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  padding: 0.6rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+.toast-error {
+  border-color: var(--alarm);
+  color: var(--alarm);
+}
+
+.toast button {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+}

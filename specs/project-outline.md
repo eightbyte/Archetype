@@ -1,16 +1,20 @@
 # Archetype — Project Outline
 
-**Status:** Phase 0 closed — all § 11 decisions resolved · **Version:** 1.0 · **Date:** 2026-08-29
-**Phase:** 1 (Skeleton & Editor) — plan written, awaiting approval
+**Status:** Phase 1 closed — all fifteen work items delivered and accepted · **Version:** 1.1 · **Date:** 2026-08-30
+**Phase:** 2 (Manuscript Model & Anchors) — next; its plan is not yet written
 **Child documents:**
 - [`specs/development-phases.md`](development-phases.md) — binding decision register (D1–D20) and the work breakdown across all phases
 - [`specs/phase-1-plan.md`](phase-1-plan.md) — Phase 1 work items
 - [`specs/backlog.md`](backlog.md) — deferred ideas and revisit list
-- `specs/data-model.md`, `specs/api-contract.md`, `specs/anchors.md`, `specs/agent-tools.md` *(written as their phases begin)*
+- [`specs/data-model.md`](data-model.md) — storage: the Phase 1 tables as built, later phases sketched
+- [`specs/api-contract.md`](api-contract.md) — the HTTP surface as built
+- `specs/anchors.md`, `specs/agent-tools.md` *(written as their phases begin)*
 
 > This is the root planning document. Every phase plan links back to it, and any change to
 > scope, architecture, or phase boundaries is recorded **here first**, then propagated to the
 > affected phase plan and to `CLAUDE.md`.
+
+**Changes in 1.1 (2026-08-30):** **Phase 1 closed.** All fifteen items delivered, both suites green, and the phase-1 acceptance script run by the writer against the single-process build — results in that plan's § 6. `specs/data-model.md` and `specs/api-contract.md` written (P1-15), so § 5 below is now a **sketch superseded for the Phase 1 tables** by the data model, and still the sketch for everything after them. No decision changed and no phase boundary moved; every divergence from the plan is recorded in that plan's § 6.
 
 **Changes in 1.0 (2026-08-29):** all sixteen § 11 decisions answered and closed; the project is
 named **Archetype** (D16), Python package `archetype`, config namespace `ARCHETYPE_`; decisions
@@ -301,7 +305,7 @@ Three resizable regions plus a settings screen.
 
 ## 5. Data Model Sketch
 
-Firmed up in `specs/data-model.md` during Phase 1. Illustrative, not final:
+**Superseded for the tables that exist.** [`specs/data-model.md`](data-model.md) documents `project`, `document`, and `schema_version` as built, and is the authority on them. What is below stays as the sketch for the tables later phases will add — illustrative, not final:
 
 ```
 project(id, title, created_at, settings_json)

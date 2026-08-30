@@ -1,0 +1,440 @@
+{
+  "_readme": "Shared projection cases (P1-7, D18). Read by tests/test_projection.py on the server and by web/src/__tests__/projection.test.ts in the browser suite. Both implementations must agree on every case, so a rule that changes on one side and not the other fails a test instead of confusing a writer's table of contents. Expected values are hand-written: they are the specification, not a recording of what the code happens to do.",
+  "cases": [
+    {
+      "name": "an empty editor projects to nothing",
+      "doc": { "type": "doc", "content": [{ "type": "paragraph" }] },
+      "text_plain": "",
+      "headings": [],
+      "word_count": 0
+    },
+    {
+      "name": "a document with no blocks at all",
+      "doc": { "type": "doc", "content": [] },
+      "text_plain": "",
+      "headings": [],
+      "word_count": 0
+    },
+    {
+      "name": "a document with no content key",
+      "doc": { "type": "doc" },
+      "text_plain": "",
+      "headings": [],
+      "word_count": 0
+    },
+    {
+      "name": "paragraphs are separated by exactly one blank line",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "paragraph", "content": [{ "type": "text", "text": "The harbour was grey." }] },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "He did not look back." }] }
+        ]
+      },
+      "text_plain": "The harbour was grey.\n\nHe did not look back.",
+      "headings": [],
+      "word_count": 9
+    },
+    {
+      "name": "an empty paragraph does not widen the gap",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "paragraph", "content": [{ "type": "text", "text": "One." }] },
+          { "type": "paragraph" },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "Two." }] }
+        ]
+      },
+      "text_plain": "One.\n\nTwo.",
+      "headings": [],
+      "word_count": 2
+    },
+    {
+      "name": "headings carry level, text, and ordinal",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": { "level": 1 },
+            "content": [{ "type": "text", "text": "Part One" }]
+          },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "Prose." }] },
+          {
+            "type": "heading",
+            "attrs": { "level": 2 },
+            "content": [{ "type": "text", "text": "Arrival" }]
+          },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "More prose." }] }
+        ]
+      },
+      "text_plain": "Part One\n\nProse.\n\nArrival\n\nMore prose.",
+      "headings": [
+        { "level": 1, "text": "Part One", "ordinal": 0 },
+        { "level": 2, "text": "Arrival", "ordinal": 1 }
+      ],
+      "word_count": 6
+    },
+    {
+      "name": "marks inside a heading do not reach the text",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": { "level": 1 },
+            "content": [
+              { "type": "text", "text": "The " },
+              { "type": "text", "marks": [{ "type": "bold" }], "text": "Long" },
+              { "type": "text", "marks": [{ "type": "italic" }], "text": " Road" }
+            ]
+          }
+        ]
+      },
+      "text_plain": "The Long Road",
+      "headings": [{ "level": 1, "text": "The Long Road", "ordinal": 0 }],
+      "word_count": 3
+    },
+    {
+      "name": "an empty heading still takes an ordinal",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": { "level": 1 },
+            "content": [{ "type": "text", "text": "Chapter" }]
+          },
+          { "type": "heading", "attrs": { "level": 2 } },
+          {
+            "type": "heading",
+            "attrs": { "level": 1 },
+            "content": [{ "type": "text", "text": "Next" }]
+          }
+        ]
+      },
+      "text_plain": "Chapter\n\nNext",
+      "headings": [
+        { "level": 1, "text": "Chapter", "ordinal": 0 },
+        { "level": 2, "text": "", "ordinal": 1 },
+        { "level": 1, "text": "Next", "ordinal": 2 }
+      ],
+      "word_count": 2
+    },
+    {
+      "name": "a heading with no level reads as level one",
+      "doc": {
+        "type": "doc",
+        "content": [{ "type": "heading", "content": [{ "type": "text", "text": "Untitled" }] }]
+      },
+      "text_plain": "Untitled",
+      "headings": [{ "level": 1, "text": "Untitled", "ordinal": 0 }],
+      "word_count": 1
+    },
+    {
+      "name": "a blockquote contributes its paragraphs undecorated",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "blockquote",
+            "content": [
+              { "type": "paragraph", "content": [{ "type": "text", "text": "First line." }] },
+              { "type": "paragraph", "content": [{ "type": "text", "text": "Second line." }] }
+            ]
+          }
+        ]
+      },
+      "text_plain": "First line.\n\nSecond line.",
+      "headings": [],
+      "word_count": 4
+    },
+    {
+      "name": "list items are blocks without bullets",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "bulletList",
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  { "type": "paragraph", "content": [{ "type": "text", "text": "Salt." }] }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [{ "type": "text", "text": "Rope and canvas." }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "text_plain": "Salt.\n\nRope and canvas.",
+      "headings": [],
+      "word_count": 4
+    },
+    {
+      "name": "an ordered list behaves the same way",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "orderedList",
+            "attrs": { "start": 1 },
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  { "type": "paragraph", "content": [{ "type": "text", "text": "First." }] }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  { "type": "paragraph", "content": [{ "type": "text", "text": "Second." }] }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "text_plain": "First.\n\nSecond.",
+      "headings": [],
+      "word_count": 2
+    },
+    {
+      "name": "nesting is walked all the way down",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "blockquote",
+            "content": [
+              {
+                "type": "bulletList",
+                "content": [
+                  {
+                    "type": "listItem",
+                    "content": [
+                      { "type": "paragraph", "content": [{ "type": "text", "text": "Deep." }] }
+                    ]
+                  },
+                  {
+                    "type": "listItem",
+                    "content": [
+                      {
+                        "type": "blockquote",
+                        "content": [
+                          {
+                            "type": "paragraph",
+                            "content": [{ "type": "text", "text": "Deeper." }]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "text_plain": "Deep.\n\nDeeper.",
+      "headings": [],
+      "word_count": 2
+    },
+    {
+      "name": "a horizontal rule is a scene break and costs no words",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "paragraph", "content": [{ "type": "text", "text": "Before." }] },
+          { "type": "horizontalRule" },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "After." }] }
+        ]
+      },
+      "text_plain": "Before.\n\n* * *\n\nAfter.",
+      "headings": [],
+      "word_count": 2
+    },
+    {
+      "name": "a hard break is a line inside one block",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              { "type": "text", "text": "Roses are red" },
+              { "type": "hardBreak" },
+              { "type": "text", "text": "violets are blue" }
+            ]
+          }
+        ]
+      },
+      "text_plain": "Roses are red\nviolets are blue",
+      "headings": [],
+      "word_count": 6
+    },
+    {
+      "name": "a run of hard breaks cannot forge a block boundary",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              { "type": "text", "text": "One" },
+              { "type": "hardBreak" },
+              { "type": "hardBreak" },
+              { "type": "text", "text": "Two" }
+            ]
+          }
+        ]
+      },
+      "text_plain": "One\nTwo",
+      "headings": [],
+      "word_count": 2
+    },
+    {
+      "name": "whitespace around a block is trimmed, inside it is left alone",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [{ "type": "text", "text": "   The  harbour was grey.   " }]
+          }
+        ]
+      },
+      "text_plain": "The  harbour was grey.",
+      "headings": [],
+      "word_count": 4
+    },
+    {
+      "name": "words are letters and digits joined by apostrophes and dashes",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "He didn't look back -- the well-known road, 1984, * * *"
+              }
+            ]
+          }
+        ]
+      },
+      "text_plain": "He didn't look back -- the well-known road, 1984, * * *",
+      "headings": [],
+      "word_count": 8
+    },
+    {
+      "name": "non-ascii words count once each",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [{ "type": "text", "text": "naïve café Ωmega résumé don’t" }]
+          }
+        ]
+      },
+      "text_plain": "naïve café Ωmega résumé don’t",
+      "headings": [],
+      "word_count": 5
+    },
+    {
+      "name": "an unknown node still yields its text",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "callout",
+            "content": [
+              { "type": "paragraph", "content": [{ "type": "text", "text": "Held back." }] }
+            ]
+          }
+        ]
+      },
+      "text_plain": "Held back.",
+      "headings": [],
+      "word_count": 2
+    },
+    {
+      "name": "a whole chapter, as the editor would produce it",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": { "level": 1 },
+            "content": [{ "type": "text", "text": "One: Arrival" }]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              { "type": "text", "text": "The harbour was grey and the " },
+              { "type": "text", "marks": [{ "type": "italic" }], "text": "Kestrel" },
+              { "type": "text", "text": " rode low in it." }
+            ]
+          },
+          { "type": "horizontalRule" },
+          {
+            "type": "heading",
+            "attrs": { "level": 2 },
+            "content": [{ "type": "text", "text": "The Customs House" }]
+          },
+          {
+            "type": "blockquote",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [{ "type": "text", "text": "Nothing to declare." }]
+              }
+            ]
+          },
+          {
+            "type": "bulletList",
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  { "type": "paragraph", "content": [{ "type": "text", "text": "Salt." }] }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  { "type": "paragraph", "content": [{ "type": "text", "text": "Rope." }] }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": { "level": 3 },
+            "content": [{ "type": "text", "text": "Later" }]
+          },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "He did not look back." }] }
+        ]
+      },
+      "text_plain": "One: Arrival\n\nThe harbour was grey and the Kestrel rode low in it.\n\n* * *\n\nThe Customs House\n\nNothing to declare.\n\nSalt.\n\nRope.\n\nLater\n\nHe did not look back.",
+      "headings": [
+        { "level": 1, "text": "One: Arrival", "ordinal": 0 },
+        { "level": 2, "text": "The Customs House", "ordinal": 1 },
+        { "level": 3, "text": "Later", "ordinal": 2 }
+      ],
+      "word_count": 27
+    }
+  ]
+}

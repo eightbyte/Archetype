@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": "version_conflict",
+    "message": "document doc_000000000001 is at version 2, not 1; reload before saving",
+    "detail": {
+      "document_id": "doc_000000000001",
+      "presented_version": 1,
+      "current_version": 2,
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  }
+}

@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "archetype"
+version = "0.1.0"
+description = "Archetype — a workspace for writing and maintaining a long narrative (P1-1)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pyyaml>=6.0",
+]
+
+# Dependency budget is fixed by the Phase 1 plan (P1-1). Anything not listed here is an
+# argument to be made in review, not a default. No ORM (D20), no extra runtime packages.
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+    "ruff>=0.5",
+]
+
+[tool.setuptools.packages.find]
+include = ["archetype*"]
+
+[tool.setuptools.package-data]
+archetype = ["projects/migrations/*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "live: touches a real provider or network; excluded by default (outline § 8)",
+]
+addopts = "-m 'not live'"
+filterwarnings = ["error::DeprecationWarning:archetype.*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
