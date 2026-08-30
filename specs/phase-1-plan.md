@@ -1,6 +1,6 @@
 # Phase 1 — Skeleton & Editor
 
-**Status:** In progress — **Groups A and B (P1-1 → P1-8) complete** · **Version:** 1.2 · **Date:** 2026-08-30
+**Status:** In progress — **Groups A, B, and C (P1-1 → P1-13) complete** · **Version:** 1.3 · **Date:** 2026-08-30
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 
@@ -277,9 +277,17 @@ layout holds at 1280px and at 1920px.
 **P1-10 · Editor integration and autosave**
 
 TipTap with a deliberately narrow schema (D1): paragraph, headings 1–3, bold, italic, blockquote,
-bullet and ordered lists, horizontal rule as scene break, undo/redo. Nothing else — every node
-type is a case that anchors, chunking, and Markdown export must each handle, so the schema stays
-small until something earns its way in.
+bullet and ordered lists, horizontal rule as scene break, **hard break**, undo/redo. Nothing else
+— every node type is a case that anchors, chunking, and Markdown export must each handle, so the
+schema stays small until something earns its way in.
+
+> **Amended 2026-08-30 (Group C).** `hardBreak` was added to the closed list by the writer's
+> ruling. Verse, epigraphs, and an address block are one block with line breaks in them, not a
+> run of paragraphs, and forcing them into paragraphs would misrepresent the text to every later
+> consumer of the projection. The projection already had a rule for it on both sides (P1-7), so
+> nothing downstream changes; what changes is that the editor can now produce one. The list in
+> `web/src/editor/extensions.ts` is checked against the built TipTap schema by a test, so this
+> list and the code cannot drift apart silently.
 
 Autosave, which is where a writer either trusts the app or does not:
 
@@ -479,9 +487,68 @@ context composition in Phase 6 — so they are written down in the module docstr
 | P1-5 / P1-6 | — | Document **reads** use an ordinary connection, not the read-only mode the scan uses | The D17 discipline is that *looking at* a project — the directory scan, before the file has been opened — must not change it. By the time a `DocumentStore` exists the project has been explicitly opened and migrated. A read-only handle also cannot recover a write-ahead log left by an unclean shutdown, which would turn every read into an error after a crash. |
 | P1-1 | Vite on 5173 with `/api` proxied | `vite.config.ts` now binds `host: '127.0.0.1'` explicitly | Vite's default is the *name* `localhost`, which on Windows resolves to `::1` first — so the dev server listened on IPv6 only and the `http://127.0.0.1:5173` the README tells you to open refused the connection. Found by testing the documented URL rather than the one Vite prints. Naming the address also states the D7 loopback posture outright instead of leaving it to name resolution. |
 
+### Group C (P1-9 → P1-13), 2026-08-30
+
+**Decisions of record.** Two questions the plan leaves open were put to the writer before code was
+written, because both are expensive to change later:
+
+- **`hardBreak` is in the schema.** See the amendment in P1-10 above. The alternative — Shift+Enter
+  making a new paragraph — was the stricter reading of "nothing else", and was rejected because a
+  stanza is not a sequence of paragraphs.
+- **A reload reopens the project that was open.** The open project id is persisted, and the
+  workspace header carries a *Projects* control that flushes before it leaves. The alternative,
+  always landing on the picker, reads worse against exit criterion 1 ("close the browser, reopen —
+  everything is exactly as it was left") and costs a click after every mid-sentence reload.
+
+**The client half of the save protocol**, which the plan names but does not specify:
+
+- **Dirtiness is a revision comparison, not a flag.** Every edit bumps a counter; a save records
+  which revision it is writing and marks that one saved when it lands. An edit made *while* a save
+  is in flight therefore leaves the document dirty when the save returns — a boolean set to
+  `false` on success would have swallowed that keystroke until the next one arrived.
+- **`openDocument` refuses rather than discards.** It flushes first; if the flush did not leave the
+  document clean — a failed save, or an unanswered `409` — it does not switch, and says so.
+  "Switching chapters with unsaved changes must be impossible" is read as *impossible*, not as
+  *usually saved first*.
+- **A conflict stops autosave until it is answered.** Typing more does not clear it and does not
+  resume saving. The only offered answer is to take the server's copy; there is no merge and no
+  "save anyway", because the version guard exists precisely to stop a client overwriting what it
+  has not seen (D19).
+- **Retry backoff** is 1s, 2s, 5s, 10s, 30s, holding at 30s. It tops out rather than growing
+  without bound: the usual cause here is a server that was stopped and will be started again, and a
+  writer who fixes it should not wait ten minutes to learn that they did.
+
+| Item | Planned | As built | Why |
+|---|---|---|---|
+| P1-9 | Three regions with split dividers | Added `web/src/shell/` for the workspace frame, the divider, the error boundary, and the toast surface | Outline § 10 lists `api/`, `editor/`, `panels/`, and `state/`. None of them is the layout: a panel is content, and the frame that arranges panels is not. One new directory, named for what it holds. |
+| P1-9 | Pane widths persisted to `localStorage` | Also the open project and the recent-projects list, all under `archetype.*` keys, all validated field by field on the way in | A stored value can be written by a previous version of this app, an extension, or a person with the console open. None of it is worth failing over, so a value that cannot be read is forgotten rather than repaired. |
+| P1-9 | `UiContext`, `ProjectContext`, `DocumentContext` | `ToastProvider` as a fourth, outermost | P1-13 asks for a toast for transient failures, and the thing that pushes one is usually a panel deep in the tree. Its lifetime is the session's, which puts it outside all three. |
+| P1-9 | Collapse / expand | A collapsed pane becomes a 28px rail with a button on it, not nothing | A pane that vanishes entirely is a pane a writer cannot find again. The divider stays where it is and reports `aria-valuetext="collapsed"`. |
+| P1-9 | The outline panel's tabs | All four tabs render now; the three that are not Contents say which phase they arrive in (Timeline and Characters in Phase 8, Bible in Phase 3) | The tab strip is a layout commitment. A panel that grows one in Phase 3 is a panel whose every measurement changes in Phase 3. |
+| P1-9 | — | `DocumentContext` keeps a ref beside its reducer, updated by running the same pure reducer synchronously | The save loop runs on timers and promises and has to read the current `version` *now*; a `useReducer` state is not readable after a dispatch until React re-renders, and a save presenting a stale version would be refused as a conflict the client itself caused. One set of rules, two readers — the ref for the loop, React's copy for the screen. Every action goes through one function, so they cannot diverge. |
+| P1-10 | The closed schema | `hardBreak` added; `code`, `codeBlock`, and `strike` switched off by name | StarterKit brings more than the list. Naming the surplus explicitly means a future StarterKit release that adds a node fails `schema.test.ts` rather than quietly widening the schema. |
+| P1-10 | Debounced save, flush, retry, status | The *timing* is a framework-free `SaveScheduler` in `editor/autosave.ts`; what a save does is a callback | It makes the rules that decide whether a keystroke survives testable with fake timers and no React, no network, and no editor. Attempts are serialised on one chain, so a flush racing the debounce cannot put two saves in the air presenting the same version. |
+| P1-10 | — | The pane bounds, the debounce, and the backoff are exported constants, and tests shorten the last two through a `scheduler` prop | A test that waits a second and a half per keystroke is a test nobody runs. |
+| P1-10 | — | `ProseMirrorNode` and `ProseMirrorDocument` in `editor/projection.ts` became type aliases with a typed `marks` array | A type alias carries an implicit index signature, which is what lets these values reach TipTap's `JSONContent` with no cast. The cast would have been the one place the two could stop describing the same JSON. |
+| P1-11 | Jump-to-heading scrolls to the target | Implemented by counting `h1`–`h3` in the rendered editor DOM | Every heading level the schema allows renders as one of those, in document order, so DOM order and ordinal order are the same thing. It reads nothing the projection does not already number, which is what keeps this a seam Phase 2 can replace with an anchor. |
+| P1-11 | The TOC updates live for the open document | The merge happens at the point of display: the server outline is used for every chapter, overlaid by the client mirror for the one whose id is open | Keeping the two in separate reducers means it is always obvious which answer is on screen, and the server's replaces the mirror's the moment a save returns (D18). |
+| P1-11 | Create, rename, and open only | The *New chapter* control lives in the Contents tab's footer | The plan gives chapter creation a route (P1-5) but no home in the UI, and exit criterion 1 needs three chapters. Reorder and delete stay out until Phase 2 brings the snapshot that makes deleting safe. |
+| P1-12 | The picker lists projects | Sorted by `updated_at`, most recent first, with relative timestamps | The project a writer wants is almost always the one they were last in. `web/src/format.ts` is the only place a timestamp becomes words, which is what keeps a formatted string from leaking back into a comparison. |
+| P1-12 | Recent-projects shortcut | Ids come from `localStorage`, titles from the list already fetched; an id whose project is gone is silently not offered | The shortcut can never offer something that is not there, and it costs no second request. |
+| P1-12 | `ProjectList` from P1-8 | Grown rather than replaced: it gained `onOpen`, `recentIds`, `reloadToken`, and `onLoaded`, and every P1-8 test still passes unchanged | Those tests are as much about the fake client's interface conformance as about the component. Rewriting them would have thrown that away. |
+| P1-13 | Structured request logging | `api/logging.py`, pure ASGI, one line per request carrying `request_id`, `method`, `path`, `status`, and `duration_ms` as `key=value` **and** as `extra` fields | Pure ASGI because it must sit outside the exception handlers and inside Starlette's `ServerErrorMiddleware`, so an unhandled exception passes through it and is logged with the status it actually produced. `extra` means a JSON formatter in Phase 9 needs no message change. The level follows the outcome: `5xx` error, `4xx` warning, otherwise info. |
+| P1-13 | "No stack traces in responses" | A `500` carries `{"request_id": …}` in `detail`, and nothing else | It is what turns "it broke" into a line in the log. Everything else about the failure stays server-side. |
+| P1-13 | — | uvicorn's own access log is switched off in `__main__.py` | It duplicated every line the middleware writes, with less in it. |
+| P1-13 | An error boundary around each region | Also one around the whole app, and each boundary offers *Try again* | A failure in the shell itself would otherwise show a blank page. Retrying costs nothing and is right whenever the cause was transient. |
+| P1-8 / P1-10 | The hand-written fake client | Gained `failAlways`, `stopFailing`, and `writeBehindTheScenes` | A retry loop calls again by definition, so a one-shot failure cannot exercise one. `writeBehindTheScenes` moves the store on the way another window or the Phase 6 agent would, which stages a *real* `409` rather than a simulated one. |
+| P1-8 | Vitest setup unmounts React trees between tests | Also clears `localStorage`, and stubs `Element.scrollIntoView`, `Range.getBoundingClientRect`, `Range.getClientRects`, and `document.elementFromPoint` | jsdom omits what ProseMirror expects. They are stubs, not implementations — anything needing a real measurement is out of reach and is not tested — but with them a real TipTap editor mounts and real keystrokes drive it, which is worth considerably more than testing a mock of the editor. |
+| P1-10 | — | `SaveScheduler.dispose()` is reversible, paired with `activate()`, and `ManuscriptEditor` never destroys its own editor | `main.tsx` renders in `StrictMode`, which mounts, unmounts, and remounts every component while refs survive. A one-way dispose left autosave permanently off, and an unmount-effect `editor.destroy()` tore down the instance TipTap's own manager waits a tick to reuse — both broken in the browser only, with every test still green. A test that renders the workspace inside `StrictMode` now covers it. |
+| P1-10 | — | The editor tests avoid `{End}` and other selection-moving keys | `user-event` implements them with `setSelectionRange`, which jsdom does not support on a contenteditable. Where a test needs a heading it types the markdown input rule (`# `) instead, which is also how a writer will make one. |
+
 **Toolchain note.** Built and tested on Python 3.14 and Node 24. The declared floors stay 3.11 and
 20 per § 2; nothing in the code uses an API newer than 3.11.
 
-**Not yet done.** `specs/data-model.md` and `specs/api-contract.md` are P1-15, and the `CLAUDE.md`
-Commands section is filled in provisionally — P1-15 finalises both at phase close. The routes are
-built and tested but not yet written up as a contract document.
+**Not yet done.** Group D. `P1-14` (the single-process static mount) and `P1-15`
+(`specs/data-model.md`, `specs/api-contract.md`, and the phase close-out) remain, so the
+`CLAUDE.md` Commands section is still provisional. The manual acceptance script in section 4 is
+run by hand at the phase boundary and its results recorded here then; it has not been run yet.

@@ -9,6 +9,10 @@
  * list, saving a document bumps its version, and a save at the wrong version rejects the way the
  * server does (D19). A component test that passes against this one is testing the flow, not a
  * script.
+ *
+ * Group C added the controls the editor tests need on top of that: a failure that persists across
+ * retries, and a write that happens behind the app's back so a real conflict can be staged
+ * rather than simulated.
  */
 
 import type { ApiClient } from '../../api/client';
@@ -61,6 +65,7 @@ export class FakeApiClient implements ApiClient {
   private readonly documents = new Map<string, StoredDocument>();
   private skipped: SkippedFile[];
   private failures = new Map<string, ApiError | Error>();
+  private readonly persistentFailures = new Map<string, ApiError | Error>();
   private counter = 0;
 
   constructor(options: FakeApiOptions = {}) {
@@ -76,6 +81,41 @@ export class FakeApiClient implements ApiClient {
   /** Make the next call to `method` reject with `error`. */
   failNext(method: keyof ApiClient, error: Error): void {
     this.failures.set(method, error);
+  }
+
+  /**
+   * Make every call to `method` reject until {@link stopFailing}.
+   *
+   * `failNext` is not enough for a retry loop, which by definition calls again (P1-10).
+   */
+  failAlways(method: keyof ApiClient, error: Error): void {
+    this.persistentFailures.set(method, error);
+  }
+
+  /** Let `method` work again. */
+  stopFailing(method: keyof ApiClient): void {
+    this.persistentFailures.delete(method);
+    this.failures.delete(method);
+  }
+
+  /**
+   * Change a document behind the app's back, the way another window or the agent would.
+   *
+   * This is how a version conflict is staged: the store moves on, and the next save from a
+   * client still holding the old version is refused with a `409` (D19).
+   */
+  writeBehindTheScenes(documentId: string, content: ProseMirrorDocument): number {
+    const stored = this.requireDocument(documentId);
+    const projection = project(content);
+    stored.content = content;
+    stored.meta = {
+      ...stored.meta,
+      version: stored.meta.version + 1,
+      word_count: projection.word_count,
+      headings: projection.headings,
+      updated_at: FIXED_NOW,
+    };
+    return stored.meta.version;
   }
 
   /** Create a project directly, without going through the client. Returns its id. */
@@ -221,6 +261,10 @@ export class FakeApiClient implements ApiClient {
 
   private record(method: keyof ApiClient): void {
     this.calls.push(method);
+    const persistent = this.persistentFailures.get(method);
+    if (persistent) {
+      throw persistent;
+    }
     const failure = this.failures.get(method);
     if (failure) {
       this.failures.delete(method);

@@ -8,11 +8,11 @@ chat panel sits on the other.
 React + TypeScript frontend, Python (FastAPI) backend, one SQLite file per project. Single user,
 localhost, Windows 11 primary.
 
-**Current state: Phase 1, Groups A and B complete** — the toolchain, configuration, project file
-schema, migration runner, project store, REST API, save protocol, and text projection are built
-and tested, on both sides. The browser page is still a placeholder: it reports whether the server
-is reachable and lists your projects. There is no editor and no AI yet; those are Group C of
-[Phase 1](specs/phase-1-plan.md) and the phases after it. See
+**Current state: Phase 1, Groups A, B, and C complete** — you can write in it. Create a
+project, add chapters, write formatted prose that saves itself and survives a reload, and move
+around the manuscript by its headings. There is no AI yet, no story bible, no search, and no
+export; those are Phase 2 onwards. What remains in [Phase 1](specs/phase-1-plan.md) is the
+single-process run mode and the phase's documentation. See
 [specs/project-outline.md](specs/project-outline.md) for the whole plan.
 
 ---
@@ -59,11 +59,47 @@ cd web
 npm run dev
 ```
 
-Then open <http://127.0.0.1:5173>. The page reports whether it can reach the server and lists
-whatever projects are in your data directory.
+Then open <http://127.0.0.1:5173>. You land on the project picker.
 
 A single-process mode — FastAPI serving the built `web/dist` from `http://127.0.0.1:8787`, which
 is the real target shape — arrives in work item `P1-14`.
+
+## Using it
+
+**The picker** lists every project in your data directory, most recently touched first, with its
+chapter and word counts. Type a title and *Create project* to start one; it opens straight into a
+writable first chapter. Projects you have opened before are offered as a *Recent* shortcut.
+
+**The workspace** has three regions: the outline panel, the manuscript, and the assistant panel
+(a placeholder until Phase 4). Drag the dividers between them, or focus one and use the keyboard:
+
+| Key | What it does |
+|---|---|
+| ← / → | Move the divider by 16px |
+| Shift + ← / → | Move it by 160px |
+| Home / End | Narrowest / widest |
+| Enter or Space | Collapse or expand the pane |
+
+Pane widths, which panes are collapsed, the active outline tab, and which project you had open
+are remembered in your browser. They are conveniences only — your manuscript lives in the project
+file, never in the browser.
+
+**Writing.** The editor offers paragraphs, headings 1–3, bold, italic, blockquote, bulleted and
+numbered lists, a horizontal rule that reads as a scene break, hard breaks, and undo/redo — and
+nothing else, deliberately. Markdown shortcuts work as you type: `# ` for a heading, `- ` for a
+bullet, `> ` for a quotation.
+
+**Saving** happens on its own: about a second and a half after you stop typing, when you leave
+the editor, and before anything that would take you away from the chapter. The indicator beside
+the chapter title always says where things stand — *Saved*, *Unsaved changes*, *Saving…*, or
+*Save failed*. A failed save keeps every word, says what went wrong, and keeps retrying; you can
+also retry immediately. If the chapter changed somewhere else while you were editing it, the save
+is refused and you are asked what to do — nothing is ever silently overwritten.
+
+**The contents tab** shows every chapter and its headings across the whole manuscript, with word
+counts. Click a heading to go to it, in this chapter or another one. The chapter you have open
+updates as you type; the rest come from the server. *New chapter* adds one at the end, and
+clicking the chapter title in the editor header renames it.
 
 ## Test and lint
 
@@ -109,7 +145,10 @@ Every failing response uses one envelope:
 { "error": { "code": "version_conflict", "message": "…", "detail": { "current_version": 7 } } }
 ```
 
-`code` is the stable name to branch on; `detail` is `null` when there is nothing to add.
+`code` is the stable name to branch on; `detail` is `null` when there is nothing to add. A `500`
+carries only a `request_id`, which is the one thing that crosses to the browser — every request is
+logged server-side with that id, its status, and how long it took, and the traceback stays in the
+log where it is useful.
 
 ### Saving
 

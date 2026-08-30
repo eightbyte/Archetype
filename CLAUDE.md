@@ -17,15 +17,18 @@ relational data plus keyword and vector indexes. Single user, localhost, Windows
 Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository directory is
 `WritingAssistant` — a path, not the product name.
 
-**Current state: Phase 1 in progress — Groups A and B (P1-1 → P1-8) complete.** All twenty
-decisions are resolved and binding. What exists: the two-sided scaffold, configuration and the
-secret guard, the project file schema with its migration runner, the ID generator, the project
-store, the whole Phase 1 REST surface with its uniform error envelope, the save protocol with the
-D19 version guard, the text projection and its client mirror, and the test harness on both sides
-including the shared projection cases and the contract fixtures. The frontend is still a
-placeholder shell — a health check and a read-only project list — with no editor and no AI. Next:
-Group C (P1-9 → P1-13), the three-region shell, the TipTap editor with autosave, the table of
-contents, and the project picker.
+**Current state: Phase 1 in progress — Groups A, B, and C (P1-1 → P1-13) complete.** All
+twenty decisions are resolved and binding. The app is now a place you can write: create a
+project, add chapters, write formatted prose that saves itself and survives a reload, and move
+around the manuscript by its headings. What exists on the server: configuration and the secret
+guard, the project file schema with its migration runner, the ID generator, the project store,
+the whole Phase 1 REST surface with its uniform error envelope and structured request logging,
+the save protocol with the D19 version guard, and the text projection. On the client: the
+three-region workspace with resizable keyboard-accessible dividers, the three contexts and their
+pure reducers, the TipTap editor over a closed schema with autosave, the live table of contents
+with jump-to-heading, the project picker, and error boundaries per region. There is no AI, no
+bible, no anchors, and no search — none of that is Phase 1. Next: Group D (P1-14, P1-15) — the
+single-process run mode, `specs/data-model.md`, `specs/api-contract.md`, and phase close-out.
 
 ## The specs are the contract
 
@@ -116,7 +119,7 @@ renumbered — a dropped item is marked **withdrawn**, not deleted.
 
 ## Commands
 
-Real as of Group B. `P1-15` finalises this section at phase close — the single-process run mode
+Real as of Group C. `P1-15` finalises this section at phase close — the single-process run mode
 (`P1-14`) is not built yet.
 
 ```powershell
@@ -154,6 +157,7 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/manuscript/documents.py` | `DocumentStore` — the only path by which manuscript text changes (`P1-6`, D19) |
 | `server/archetype/manuscript/locator.py` | Resolves a bare document id to the project file holding it |
 | `server/archetype/api/routes.py` | The `/api` router (`P1-5`) |
+| `server/archetype/api/logging.py` | Request logging: one line per request, with a request id (`P1-13`) |
 | `server/archetype/api/schemas.py` | Wire shapes, mirrored in `web/src/api/types.ts` |
 | `server/archetype/api/errors.py` | The uniform error envelope and its exception handlers |
 | `server/archetype/app.py` | `create_app()`; builds the store and locator onto `app.state` |
@@ -162,10 +166,17 @@ suite keeps a developer's real config out of its way.
 | `server/tests/fixtures/contract/` | API responses written by pytest, type-checked by vitest (`P1-8`) |
 | `server/tests/fakes/` | `FakeProvider` and `FakeEmbedder` land here in Phases 4 and 5 |
 | `web/src/api/` | The typed client, its interface, and the mirrored wire types |
+| `web/src/state/` | The three contexts and their pure reducers, plus toasts and `localStorage` (`P1-9`, D10) |
+| `web/src/shell/` | The workspace frame, the split dividers, the editor region, error boundaries, toasts |
+| `web/src/panels/` | The outline panel and its tabs, the table of contents, the agent placeholder, the picker |
+| `web/src/editor/extensions.ts` | The closed TipTap schema — a change here is a spec change (`P1-10`, D1) |
+| `web/src/editor/autosave.ts` | `SaveScheduler` — *when* a save happens, with no React in it (`P1-10`) |
 | `web/src/editor/projection.ts` | The client mirror of the projection, held to the server by shared fixtures |
+| `web/src/format.ts` | The display edge: the only place a UTC timestamp becomes words |
 | `web/src/__tests__/fakes/` | The hand-written typed fake API client (`P1-8`) |
+| `web/src/__tests__/harness.tsx` | The real provider stack with a fake client and a hurried autosave |
 
-**Invariants established in Groups A and B**, beyond those already listed above:
+**Invariants established in Groups A, B, and C**, beyond those already listed above:
 
 - **Transaction control is explicit.** Connections open with `isolation_level=None`; `BEGIN` and
   `COMMIT` are written, never implied. A migration carries its transaction *inside* the script
@@ -193,3 +204,26 @@ suite keeps a developer's real config out of its way.
 - **The contract fixtures are generated, normalised, and committed.** `pytest` rewrites them with
   ids and timestamps replaced by placeholders, so a run that changed no shape produces no diff and
   a run that did shows exactly what changed — and the frontend suite type-checks the same files.
+- **The editor schema is a closed list, and a test enforces it.** `web/src/editor/extensions.ts`
+  declares every node and mark, and `schema.test.ts` compares that declaration to the schema
+  TipTap actually built. Adding a node is a spec change — amend the P1-10 list and the constant
+  together — because each one is a case anchors, chunking, and Markdown export must each handle.
+- **Nothing switches chapters over unsaved work.** `openDocument` flushes first and, if the flush
+  did not leave the document clean, refuses to switch and says so. A failed save keeps the
+  content and retries with backoff; a `409` stops the loop and offers the server's copy — it
+  never merges, and typing on does not sneak past it (D19).
+- **The save loop reads a ref; the screen reads the reducer.** Both are advanced by the same pure
+  reducer through one function in `DocumentContext`, because a `useReducer` state is not readable
+  synchronously after a dispatch and a save presenting a stale `version` would be refused as a
+  conflict the client itself caused.
+- **Reducers are pure and hold no `localStorage`, no client, and no DOM.** Persistence is an
+  effect in the provider, so every rule P1-9 cares about is testable without a browser.
+- **Every value read back from `localStorage` is validated field by field.** A layout, an open
+  project, or a recent-projects list that cannot be read is forgotten, never repaired — none of
+  it is manuscript data, and none of it is worth failing over.
+- **Jump-to-heading resolves by ordinal, and only by ordinal.** The anchor record does not exist
+  until Phase 2; this is the seam it replaces.
+- **Each region has its own error boundary.** A panel that cannot draw takes itself down and
+  leaves the editor — which may be holding the only copy of a sentence — working.
+- **Every request is logged once, with a request id**, and that id is the only thing a `500`
+  tells the browser. The traceback stays in the log.

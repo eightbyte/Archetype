@@ -15,7 +15,8 @@ A route that raises :class:`~archetype.manuscript.documents.StaleVersionError` g
 status and body without knowing what HTTP is, which keeps the store usable from the agent loop
 in Phase 6 as well as from a request.
 
-Stack traces never reach the client. P1-13 adds structured request logging on top of this.
+Stack traces never reach the client. A ``500`` carries the request id and nothing else, so the
+envelope can be matched to the log line that has the traceback (P1-13).
 """
 
 from __future__ import annotations
@@ -37,6 +38,7 @@ from ..manuscript.documents import (
 )
 from ..manuscript.projection import InvalidDocumentError
 from ..projects.store import ProjectNotFoundError
+from .logging import request_id_of
 
 __all__ = [
     "ApiError",
@@ -159,10 +161,21 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     def _unhandled(request: Request, exc: Exception) -> JSONResponse:
-        # The traceback goes to the log, never to the browser. P1-13 hardens the logging around
-        # this; the envelope has to be uniform from P1-5 or "uniform" is not checkable.
-        logger.exception("unhandled error serving %s %s", request.method, request.url.path)
-        return error_response(500, "internal_error", "the server failed to handle the request")
+        # The traceback goes to the log, never to the browser. The request id does cross, and is
+        # the only thing that does: it is what turns "it broke" into a line in the log (P1-13).
+        request_id = request_id_of(request.scope)
+        logger.exception(
+            "unhandled error serving %s %s (request_id=%s)",
+            request.method,
+            request.url.path,
+            request_id,
+        )
+        return error_response(
+            500,
+            "internal_error",
+            "the server failed to handle the request",
+            {"request_id": request_id} if request_id else None,
+        )
 
 
 def _not_found(request: Request, exc: Exception, code: str, noun: str, param: str) -> JSONResponse:

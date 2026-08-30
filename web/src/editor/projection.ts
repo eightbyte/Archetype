@@ -41,19 +41,35 @@ const MAX_HEADING_LEVEL = 6;
  */
 const WORD_PATTERN = /[\p{L}\p{N}]+(?:['\u2019\u2010-\u2015-][\p{L}\p{N}]+)*/gu;
 
-/** A node in a ProseMirror/TipTap document. */
-export interface ProseMirrorNode {
+/** One mark on an inline node. The projection drops marks; the type exists so the editor
+ * and the wire agree about what it is dropping. */
+export type ProseMirrorMark = {
+  type: string;
+  attrs?: Record<string, unknown>;
+};
+
+/**
+ * A node in a ProseMirror/TipTap document.
+ *
+ * Written as a type alias rather than an interface deliberately: an alias carries an implicit
+ * index signature, which is what lets these values be handed to TipTap's `JSONContent` without a
+ * cast. The two describe the same JSON, and a cast at that boundary would be a place where they
+ * could quietly stop describing the same JSON.
+ */
+export type ProseMirrorNode = {
   type: string;
   attrs?: Record<string, unknown>;
   content?: ProseMirrorNode[];
-  marks?: unknown[];
+  marks?: ProseMirrorMark[];
   text?: string;
-}
+};
 
 /** A whole document. */
-export interface ProseMirrorDocument extends ProseMirrorNode {
+export type ProseMirrorDocument = {
   type: 'doc';
-}
+  attrs?: Record<string, unknown>;
+  content?: ProseMirrorNode[];
+};
 
 /** One heading, addressed by its position among the document's headings. */
 export interface Heading {
