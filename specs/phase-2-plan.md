@@ -1,6 +1,6 @@
 # Phase 2 — Manuscript Model & Anchors
 
-**Status:** **Draft — awaiting the § 2 rulings** · **Version:** 1.0 · **Date:** 2026-08-30
+**Status:** **Active — § 2 ruled, Group A complete** · **Version:** 1.1 · **Date:** 2026-08-30
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 **Writes:** `specs/anchors.md` (P2-4) · extends [`specs/data-model.md`](data-model.md) and
@@ -68,9 +68,11 @@ register entries, and two of them settle backlog questions that were due this ph
 
 ### Proposed register entries — D21 to D24
 
-**These are proposals, not yet binding.** They are written in register form so that approving them
-is one edit to [`specs/development-phases.md`](development-phases.md) § 1. Nothing in Group B
-should be built until D21 is ruled on.
+**Ruled by the writer on 2026-08-30, as recommended.** All four are now binding entries in
+[`specs/development-phases.md`](development-phases.md) § 1, and the table below is kept as the
+reasoning behind them. One clarification made when D22 met the code is recorded in § 7: the
+`orphaned` status is *derived* from `deleted_at` on read rather than written into the anchor row,
+which is what lets delete and restore stay correct without a second resolver.
 
 | ID | Proposed decision | Recommendation | Alternative considered | Where it bites if wrong |
 |---|---|---|---|---|
@@ -615,4 +617,24 @@ re-import it as a new chapter, and compare the two on screen.
 ## 7. As-Built Deviations
 
 *Every divergence from this plan is recorded here in the same change that makes it, with what
-happened and why (outline § 13). Empty until Phase 2 begins.*
+happened and why (outline § 13).*
+
+### Group A (P2-1 → P2-4), 2026-08-30
+
+| # | Item | Planned | As built, and why |
+|---|---|---|---|
+| **A1** | P2-1, P2-2 | `anchor.status` holds `ok \| stale \| orphaned`, and `delete()` "re-resolves the document's anchors to `orphaned`" | **`orphaned` is derived on read from `document.deleted_at`, never written to the anchor row.** The stored column holds the text-match answer only (`ok` \| `stale`); the rule lives in both its Python and its SQL form in `archetype/manuscript/anchors/status.py`, and `effective_status` **refuses** a stored `orphaned` rather than passing it through. The plan as written has no correct value for `restore()` to write back: a soft delete changes no text, so neither `ok` nor `stale` would be a fact anyone established, and the resolver that could establish one is P2-6 in Group B. Deriving it makes delete and restore write nothing at all to anchor rows, which is both exactly correct and testable today — the "orphaned, then `ok` again" round trip is asserted in `test_chapters.py` without a resolver existing. **Ruled by the writer before implementation**, so the plan's § 2 table records the reasoning and the D22 register entry is worded to match. Cost: P2-7's `?status=orphaned` filter joins `document` instead of reading the column. |
+| **A2** | P2-3 | `restore()` "captures `pre-restore`, then writes the snapshot's content back through `DocumentStore.save_content`", and is "refused on a stale version with nothing written" | Those two sentences conflict if taken in sequence: capturing first and then being refused leaves a snapshot behind. `save_content` therefore grew one keyword-only argument, `before_write`, which runs inside the save's own transaction **after** the version guard passes and **before** the row is overwritten. The `pre-restore` snapshot and the write it protects are one atomic act, so a refused restore leaves nothing — asserted directly in `test_snapshots.py`. The seam is documented as being for work that must share the transaction, **not** a second way to write manuscript text; `save_content` remains the only one of those (data-model § 6). The alternative — pre-flighting the guard, then compensating by deleting the snapshot when the real guard refuses — was rejected as a correctness rule implemented by cleanup. |
+| **A3** | P2-3 | Snapshots are "deduplicated by content hash" | **Only `handover` snapshots are deduplicated and pruned.** `manual` and every `pre-*` snapshot is always written and never pruned. Found by a failing test: a `pre-delete` snapshot was being suppressed because a `manual` mark of the same content preceded it. Two reasons to fix it rather than the test. A `manual` mark carries a **label**, and suppressing it because the words had not changed discards the only thing the writer was recording. And a `pre-*` snapshot is a **recovery guarantee**, not a history entry — deduplicating one against a `handover` would leave the only copy of destroyed text in the prunable pool, where a later run of edits could delete it; a data-loss path is a release blocker (outline § 9). D23's stated purpose for dedup is that "an unchanged chapter never accumulates snapshots", and `handover` is the only snapshot nobody asked for, so narrowing it to the automatic case keeps the rule's intent exactly. The D23 register entry is worded to match. |
+| **A4** | P2-2 | Four operations on `DocumentStore` | Two read helpers came with them, because a soft delete is not usable without a way to see what is deleted: `list_deleted()` (the restore surface, most recently deleted first) and `include_deleted=` on `list_meta` and `get` (previewing a chapter before restoring it). Both default to excluding deleted chapters, so the D22 predicate is what a caller gets unless it says otherwise. |
+| **A5** | P2-2 | — | **The project summary's `deleted_at` predicate is version-gated.** The directory scan reads project files **read-only and unmigrated** (D17), so a version-1 file in the projects directory does not have the column. Asking it for one would turn a perfectly readable project into a skipped one in the picker. `_read_summary` already knows the file's schema version and applies the filter only from version 2. |
+| **A6** | P2-1 | "Capture `v001_phase1.sqlite` … by the procedure in that directory's README" | The procedure is now a committed script, `tests/fixtures/db/capture_v001_phase1.py`, rather than a paragraph of instructions. It refuses to run unless the code is at the version it claims to capture, uses fixed ids and timestamps so a re-run is byte-identical, and folds the write-ahead log back in so what lands is one self-contained file. A fixture database is an opaque binary otherwise, and the next migration's fixture should be reviewable rather than trusted. |
+| **A7** | P2-4 | `specs/anchors.md` names `CONTEXT_CHARS` and `MAX_QUOTE_CHARS` | It names four more, because the plan asks it to fix "the exact tie-break scoring and thresholds" and those need names to be fixed: `MIN_CONTEXT_SCORE`, `WIN_MARGIN`, `MAX_SUGGESTION_CHARS`, and `RESOLUTION_BUDGET_MS`. Two design points were settled there that the plan left open, and either could change when P2-5 and P2-6 meet real text — § 11 of that document records both as extension points. **(a)** The suggestion for a `stale` anchor is computed from its *unedited surroundings* (two unique substring searches), not from a fuzzy match on its quote; fuzzy quote matching is the machinery that turns into automatic repointing under pressure, and this has no threshold to loosen. **(b)** `text_offset → pm_position` is specified as a **walk** of the block's inline nodes rather than as arithmetic, because the projection trims each line and drops empty ones — so a paragraph carrying a stray trailing space is shorter in `text_plain` than in the document, and arithmetic would point one character early for every character trimmed. Arithmetic stays a legal fast path for a block whose projected length matches its raw length, which is nearly all of them. |
+
+### Carried into Group B
+
+- **P2-2's delete and restore write nothing to anchor rows** (A1), so nothing in Group A needed the
+  resolver. What Group B must still do is the other half of D21: `save_content` re-resolving the
+  document's anchors inside its own transaction (P2-7). The `before_write` seam added in A2 is not
+  that — re-resolution runs after the write, against the new text, not before it.
+- **`RESOLUTION_BUDGET_MS` is named but not yet asserted.** The budget test is P2-7's.

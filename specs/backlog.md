@@ -1,6 +1,6 @@
 # Archetype — Backlog
 
-**Status:** Active · **Version:** 1.0 · **Date:** 2026-08-29
+**Status:** Active · **Version:** 1.1 · **Date:** 2026-08-30
 **Parent:** [`specs/project-outline.md`](project-outline.md)
 
 Where ideas go so they do not become scope creep (outline § 9). Two kinds live here: **open
@@ -16,11 +16,9 @@ Promoting anything from here into a phase means editing the outline first, then 
 
 | ID | Question | Leaning | Settle by |
 |---|---|---|---|
-| **Q1** | Are snapshots automatic on a timer, on chapter close, or only manual? | Automatic on close, plus a manual "mark version" | Phase 2 |
 | **Q2** | Do bible entries need soft-delete/trash, or is revision history enough? | Revision history is enough; `superseded` covers retcons | Phase 3 |
 | **Q3** | Should findings expire when the text they cite changes, or be re-checked? | Mark `outdated` when the cited anchor changes, offer a re-run | Phase 7 |
 | **Q4** | Does the agent get an external web-search tool? | No for 1.0 — offline story consistency is the product | Phase 6 |
-| **Q5** | Multi-tab safety: soft lock, last-write-wins with a warning, or ignore? | **Partly settled by D19** — a version guard returns `409` and the UI warns. Whether a soft lock is also wanted is open | Phase 2 |
 | **Q6** | Does the interaction chart get a node-link view alongside the matrix? | Matrix ships first (D14); the writer asked to revisit the design when the phase starts | Phase 8 |
 
 ---
@@ -60,8 +58,9 @@ needed to prove the system works end to end.
 
 ## 3. Promoted
 
-*Items that left this list for a phase plan. Empty so far.*
+*Items that left this list for a phase plan.*
 
-| ID | Promoted to | Date |
-|---|---|---|
-| — | — | — |
+| ID | Promoted to | Date | Ruling |
+|---|---|---|---|
+| **Q1** | Phase 2 — [D23](development-phases.md) | 2026-08-30 | **Settled as its leaning, and further.** Snapshots are taken on handover, on demand with a label, and before anything destructive (`pre-restore`, `pre-delete`, `pre-import`). A timer was rejected: it duplicates autosave's job while producing snapshots at moments that mean nothing. Only the automatic `handover` snapshots are deduplicated and pruned; deliberate ones are always written and kept. |
+| **Q5** | Phase 2 — [D24](development-phases.md) | 2026-08-30 | **Settled as no lock.** D19's version guard plus the P1-10 conflict surface are the whole answer, and snapshots make even a clobber recoverable. A soft lock was rejected as introducing a failure mode strictly worse than the one it prevents: a crashed tab holding a lock on a single-user machine, with no second party to release it. |

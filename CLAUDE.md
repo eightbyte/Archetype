@@ -17,27 +17,33 @@ relational data plus keyword and vector indexes. Single user, localhost, Windows
 Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository directory is
 `WritingAssistant` — a path, not the product name.
 
-**Current state: Phase 1 complete (2026-08-30) — all fifteen items (P1-1 → P1-15) delivered and
-accepted.** All
-twenty decisions are resolved and binding. The app is a place you can write: create a project,
-add chapters, write formatted prose that saves itself and survives a reload, and move around the
-manuscript by its headings. What exists on the server: configuration and the secret guard, the
-project file schema with its migration runner, the ID generator, the project store, the whole
-Phase 1 REST surface with its uniform error envelope and structured request logging, the save
-protocol with the D19 version guard, the text projection, and the static mount that lets one
-process serve both the API and the built app. On the client: the three-region workspace with
-resizable keyboard-accessible dividers, the three contexts and their pure reducers, the TipTap
-editor over a closed schema with autosave, the live table of contents with jump-to-heading, the
-project picker, and error boundaries per region. There is no AI, no bible, no anchors, and no
-search — none of that is Phase 1.
+**Current state: Phase 1 complete (2026-08-30); Phase 2 in progress — Group A (P2-1 → P2-4)
+delivered.** All twenty-four decisions are resolved and binding: the writer ruled D21–D24 on
+2026-08-30 as recommended, which also settles backlog `Q1` and `Q5`.
+
+The app is a place you can write: create a project, add chapters, write formatted prose that
+saves itself and survives a reload, and move around the manuscript by its headings. What exists
+on the server: configuration and the secret guard, the project file schema at **version 2** with
+its migration runner, the ID generator, the project store, the whole Phase 1 REST surface with
+its uniform error envelope and structured request logging, the save protocol with the D19 version
+guard, the text projection, the static mount that lets one process serve both the API and the
+built app, and — new in Group A — **chapter reorder, soft delete, and restore; snapshots with
+capture, history, and restore-through-the-save-path; and the `anchor` and `snapshot` tables.** On
+the client: the three-region workspace with resizable keyboard-accessible dividers, the three
+contexts and their pure reducers, the TipTap editor over a closed schema with autosave, the live
+table of contents with jump-to-heading, the project picker, and error boundaries per region.
 
 Every Phase 1 exit criterion is met, including the acceptance script run by hand against the
 single-process build; the results are in [specs/phase-1-plan.md](specs/phase-1-plan.md) § 6.
-**Next: Phase 2 — the manuscript model and anchors.** [specs/phase-2-plan.md](specs/phase-2-plan.md)
-is written and awaiting the writer's rulings on its § 2 — four proposed register entries
-(D21–D24, two of which settle backlog `Q1` and `Q5`) and one correction to a Phase 1 claim:
-heading jump stays resolved by ordinal rather than being replaced by anchors. `specs/anchors.md`
-is `P2-4`, written before the resolver it governs. No Phase 2 code exists yet.
+
+**Group A is store-level and spec-level only. There are no new routes and no new UI**, which is
+where the plan puts them: the chapter and snapshot routes arrive with the surfaces that use them
+(`P2-11`, `P2-12`), so `web/` is untouched and the wire schemas are still Phase 1-shaped.
+`specs/anchors.md` (`P2-4`) is written, in full, **before** the resolver it governs.
+
+**Next: Group B (P2-5 → P2-8) — the block index, the resolver, the anchor store and its routes,
+and the anchor test corpus.** There is no AI, no bible, and no search; there is an `anchor` table
+and a status vocabulary, but **nothing resolves an anchor yet** — that is `P2-6`.
 
 One thing that run surfaced, worth carrying forward: **the editor's visible failure states are
 hard to reach from the app.** Stopping the server mid-edit did not produce a failed save the
@@ -51,21 +57,28 @@ show up by using the app, so those tests are the only thing standing under them.
 - [specs/project-outline.md](specs/project-outline.md) — the root document: vision, architecture,
   phase list, testing strategy, risks. **Read this first.**
 - [specs/development-phases.md](specs/development-phases.md) — the **authoritative decision
-  register** (D1–D20) and the work breakdown across all phases. Cite these IDs.
+  register** (D1–D24) and the work breakdown across all phases. Cite these IDs.
 - [specs/phase-1-plan.md](specs/phase-1-plan.md) — Phase 1 work items (`P1-1` … `P1-15`), exit
   criteria, and the as-built deviations table.
-- [specs/phase-2-plan.md](specs/phase-2-plan.md) — Phase 2 work items (`P2-1` … `P2-15`). **Its § 2
-  rulings are not yet made**: D21–D24 are proposals, and Group B should not be built until
-  D21 is settled.
-- [specs/backlog.md](specs/backlog.md) — deferred features and open questions (`Q1`–`Q6`), each
-  with the phase it must be settled by.
-- [specs/data-model.md](specs/data-model.md) — storage as built: the project file, the two
-  tables, the projection rules, and the migration discipline. Its § 7 sketches later phases and
-  is **not** binding; the rest is a bug if it disagrees with the code.
+- [specs/phase-2-plan.md](specs/phase-2-plan.md) — Phase 2 work items (`P2-1` … `P2-15`). Its § 2
+  is **ruled** (D21–D24, 2026-08-30). Group A's seven as-built deviations are in its § 7 and are
+  worth reading before Group B — three of them change something the plan's later items assume.
+- [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
+  phase it must be settled by. `Q1` and `Q5` are promoted and closed; `Q2`, `Q3`, `Q4`, and `Q6`
+  are open.
+- [specs/data-model.md](specs/data-model.md) — storage as built at schema version 2: the project
+  file, the four tables, the projection rules, the soft-delete predicate, and the migration
+  discipline. Its § 7 sketches later phases and is **not** binding; the rest is a bug if it
+  disagrees with the code.
 - [specs/api-contract.md](specs/api-contract.md) — every route that exists, what it promises, and
   what it refuses. The generated OpenAPI schema is authoritative for types; this is authoritative
   for behaviour.
-- `specs/anchors.md`, `specs/agent-tools.md` — written as their phases begin (Phases 2 and 6).
+- [specs/anchors.md](specs/anchors.md) — what an anchor stores, the two coordinate systems and
+  the block index, the matching ladder with its exact thresholds, the whitespace normal form, the
+  suggestion protocol, and **what an anchor does not promise**. Written in `P2-4` before the code
+  it governs; `P2-8`'s corpus is written from it, not from the implementation. Read it before
+  touching anything in `manuscript/anchors/`.
+- `specs/agent-tools.md` — written as its phase begins (Phase 6).
 
 Work items carry stable IDs (`P3-4`) that commits and code comments reference. IDs are never
 renumbered — a dropped item is marked **withdrawn**, not deleted.
@@ -186,7 +199,9 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/projects/migrations/*.sql` | Numbered schema migrations |
 | `server/archetype/projects/store.py` | `ProjectStore`, `ProjectHandle`, the directory scan (D17) |
 | `server/archetype/manuscript/projection.py` | The pure text projection: rules, `text_plain`, headings, word count (`P1-7`, D18) |
-| `server/archetype/manuscript/documents.py` | `DocumentStore` — the only path by which manuscript text changes (`P1-6`, D19) |
+| `server/archetype/manuscript/documents.py` | `DocumentStore` — the only path by which manuscript text changes (`P1-6`, D19), plus reorder, soft delete, and restore (`P2-2`, D22) |
+| `server/archetype/manuscript/snapshots.py` | `SnapshotStore` — capture, history, and restore-as-an-ordinary-save (`P2-3`, D23) |
+| `server/archetype/manuscript/anchors/status.py` | The anchor status vocabulary and the one rule that derives `orphaned` (`P2-1`, D22) |
 | `server/archetype/manuscript/locator.py` | Resolves a bare document id to the project file holding it |
 | `server/archetype/api/routes.py` | The `/api` router (`P1-5`) |
 | `server/archetype/api/logging.py` | Request logging: one line per request, with a request id (`P1-13`) |
@@ -194,7 +209,7 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/api/static.py` | The single-process static mount and the `web_not_built` notice (`P1-14`) |
 | `server/archetype/api/errors.py` | The uniform error envelope and its exception handlers |
 | `server/archetype/app.py` | `create_app()`; builds the store and locator onto `app.state` |
-| `server/tests/fixtures/db/` | Databases captured at a known schema version, with their README |
+| `server/tests/fixtures/db/` | Databases captured at a known schema version, with their README and the script that captured `v001_phase1.sqlite` |
 | `server/tests/fixtures/projection/` | The shared projection cases — read by **both** suites (`P1-7`) |
 | `server/tests/fixtures/contract/` | API responses written by pytest, type-checked by vitest (`P1-8`) |
 | `server/tests/fakes/` | `FakeProvider` and `FakeEmbedder` land here in Phases 4 and 5 |
@@ -209,8 +224,11 @@ suite keeps a developer's real config out of its way.
 | `web/src/__tests__/fakes/` | The hand-written typed fake API client (`P1-8`) |
 | `web/src/__tests__/harness.tsx` | The real provider stack with a fake client and a hurried autosave |
 | `server/tests/test_static.py` | The run-mode tests; each builds its own miniature `dist` in `tmp_path` |
+| `server/tests/test_chapters.py` | Reorder, delete, restore, and the soft-delete predicate across all four read paths (`P2-2`) |
+| `server/tests/test_snapshots.py` | Capture, dedupe, retention, and restore (`P2-3`) |
 
-**Invariants established in Groups A, B, and C**, beyond those already listed above:
+**Invariants established in Phase 1's Groups A, B, and C, and in Phase 2's Group A**, beyond
+those already listed above:
 
 - **Transaction control is explicit.** Connections open with `isolation_level=None`; `BEGIN` and
   `COMMIT` are written, never implied. A migration carries its transaction *inside* the script
@@ -224,12 +242,37 @@ suite keeps a developer's real config out of its way.
 - **Secrets are unwritable, not just untested.** A `SecretStr` settings field that is not declared
   `Field(exclude=True)` raises at class-definition time, and the YAML layer refuses to supply one.
 - **`DocumentStore.save_content` is the only path by which manuscript text changes.** Routes,
-  tests, and the agent's accepted proposals (D12) all go through it, which is what makes "the
-  writer owns the words" structural rather than aspirational.
+  tests, restoring a snapshot, and the agent's accepted proposals (D12) all go through it, which
+  is what makes "the writer owns the words" structural rather than aspirational. Its `before_write`
+  hook runs inside the save's transaction, after the version guard and before the row is
+  overwritten; it exists so a `pre-restore` snapshot and the write it protects are one atomic act,
+  and it is **not** a second way to write text.
 - **A rejected save has written nothing.** Validation, the size check, and the projection all run
   before the transaction opens; the version guard is re-read under the write lock inside it.
-- **A rename does not bump `version`.** A rename is not a text edit, and invalidating an in-flight
-  autosave over one would cost the writer a keystroke.
+- **A rename does not bump `version`, and neither does a reorder, a delete, or a restore.** None
+  of them is a text edit, and invalidating an in-flight autosave over one would cost the writer a
+  keystroke. A reorder does not move any document's `updated_at` either — the order belongs to the
+  project, not to a chapter.
+- **Deleting a chapter is a soft delete, and `deleted_at IS NULL` is the whole of it.** The row,
+  its text, its snapshots, and its anchors all stay. Every read filters on that one predicate —
+  `list_meta`, `get`, `outline`, and the project summary's counts — and one test asserts absence
+  from all four together, because a query that forgets it surfaces as a wrong word count and gets
+  reported as a different bug. The summary's copy is version-gated: the scan reads unmigrated
+  files, and a version-1 file has no such column.
+- **`orphaned` is derived from `deleted_at`, never stored.** `anchor.status` holds the resolver's
+  text answer only (`ok` or `stale`), and `effective_status` refuses a stored `orphaned` rather
+  than passing it through. A soft delete changes no text, so delete and restore write nothing at
+  all to anchor rows and a restored chapter's anchors are exactly as they were.
+- **A reorder must present the complete live set.** That comparison *is* the concurrency guard,
+  which is why no project-level version column exists: a client on a stale chapter list cannot
+  produce a complete set, so it cannot reorder a chapter out of existence.
+- **Automatic snapshots are deduplicated and pruned; deliberate ones are not.** `handover` is the
+  only one nobody asked for. A `manual` mark carries a label, and a `pre-*` snapshot is a recovery
+  guarantee rather than a history entry — deduplicating one against a `handover` would leave the
+  only copy of destroyed text in the prunable pool.
+- **A `pre-*` snapshot is written inside the transaction of the thing it protects against**, so a
+  refused delete or a restore refused as stale leaves nothing behind — not even the snapshot that
+  was about to protect it.
 - **Routes carry no domain logic and stores carry no HTTP.** Domain exceptions are translated to
   the envelope by handlers in `api/errors.py`, so the same store serves a request and an agent run.
 - **The projection is one specification, two implementations.** The rules live in the docstring of
@@ -255,8 +298,12 @@ suite keeps a developer's real config out of its way.
 - **Every value read back from `localStorage` is validated field by field.** A layout, an open
   project, or a recent-projects list that cannot be read is forgotten, never repaired — none of
   it is manuscript data, and none of it is worth failing over.
-- **Jump-to-heading resolves by ordinal, and only by ordinal.** The anchor record does not exist
-  until Phase 2; this is the seam it replaces.
+- **Jump-to-heading resolves by ordinal, and only by ordinal — permanently.** Phase 2 adds
+  anchors *alongside* it and does not replace it. A heading is a structural position the
+  projection already numbers exactly and re-derives on every save; anchors are for cited passages
+  that no derived structure names. Minting an anchor row per heading on every save, to reproduce
+  an answer that is already free, is what the earlier "seam Phase 2 replaces" reading would have
+  cost (phase-2-plan § 2, ruling 1).
 - **Each region has its own error boundary.** A panel that cannot draw takes itself down and
   leaves the editor — which may be holding the only copy of a sentence — working.
 - **Every request is logged once, with a request id**, and that id is the only thing a `500`

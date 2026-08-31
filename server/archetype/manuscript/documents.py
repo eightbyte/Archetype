@@ -12,12 +12,30 @@ version writes nothing and raises :class:`StaleVersionError`.
 The derived projection (``text_plain``, the heading list, ``word_count``) is computed here, from
 :mod:`archetype.manuscript.projection`, on every write. The server's answer is authoritative
 (D18); the client's mirror is for liveness between saves.
+
+Ordering and deletion (P2-2, D22)
+---------------------------------
+
+Chapters are ordered by ``order_index`` and **deleting one is a soft delete**: ``deleted_at``
+goes from ``NULL`` to a timestamp, and the row and its text stay exactly where they were. Every
+read path in this module filters ``deleted_at IS NULL``, and so does the project summary's
+chapter and word count in :mod:`archetype.projects.store` - one predicate, applied in every
+place a deleted chapter could otherwise leak back into a list, an outline, or a count.
+
+A deleted chapter's anchors read as ``orphaned`` without anything being written to them; the
+rule lives in :mod:`archetype.manuscript.anchors.status` and is derived from this column.
+
+None of :meth:`DocumentStore.reorder`, :meth:`DocumentStore.delete`, or
+:meth:`DocumentStore.restore` bumps a document's content ``version``. None of them is a text
+edit, which is the rule :meth:`DocumentStore.rename` already follows: invalidating an in-flight
+autosave over a move or a title would cost the writer a keystroke.
 """
 
 from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,6 +46,7 @@ from .projection import Heading, InvalidDocumentError, Projection, empty_documen
 
 __all__ = [
     "DEFAULT_KIND",
+    "LIVE_ONLY",
     "MAX_CONTENT_BYTES",
     "MAX_TITLE_LENGTH",
     "ContentTooLargeError",
@@ -38,6 +57,7 @@ __all__ = [
     "DocumentStore",
     "InvalidDocumentError",
     "OutlineChapter",
+    "ReorderMismatchError",
     "SaveResult",
     "StaleVersionError",
 ]
@@ -53,12 +73,18 @@ MAX_TITLE_LENGTH = 200
 #: Phase 1 has one kind of document. Later phases add others; they never repurpose this one.
 DEFAULT_KIND = "chapter"
 
+#: The soft-delete predicate (D22). Written once and spliced into every read, so that adding a
+#: query and forgetting the filter is a visible omission rather than an invisible one.
+LIVE_ONLY = "deleted_at IS NULL"
+
 _FIRST_VERSION = 1
 
 _META_COLUMNS = (
     "id, project_id, order_index, title, kind, headings_json, word_count, "
-    "version, created_at, updated_at"
+    "version, created_at, updated_at, deleted_at"
 )
+
+_ORDERED = "ORDER BY order_index, created_at, id"
 
 
 class DocumentError(RuntimeError):
@@ -76,6 +102,36 @@ class ContentTooLargeError(DocumentError):
         super().__init__(f"document content is {size} bytes, over the {limit}-byte limit")
         self.size = size
         self.limit = limit
+
+
+class ReorderMismatchError(DocumentError):
+    """The presented order is not exactly this project's live chapters (P2-2).
+
+    Nothing was written. The completeness check *is* the concurrency guard: a client working
+    from a stale chapter list cannot present the complete set, so it is refused before it can
+    silently drop a chapter someone else created out of the order.
+    """
+
+    def __init__(
+        self,
+        *,
+        missing: Sequence[str] = (),
+        unexpected: Sequence[str] = (),
+        duplicated: Sequence[str] = (),
+    ) -> None:
+        parts = []
+        if missing:
+            parts.append(f"missing {list(missing)}")
+        if unexpected:
+            parts.append(f"not live chapters of this project: {list(unexpected)}")
+        if duplicated:
+            parts.append(f"listed more than once: {list(duplicated)}")
+        super().__init__(
+            "a reorder must present exactly this project's live chapters - " + "; ".join(parts)
+        )
+        self.missing = tuple(missing)
+        self.unexpected = tuple(unexpected)
+        self.duplicated = tuple(duplicated)
 
 
 class StaleVersionError(DocumentError):
@@ -116,6 +172,12 @@ class DocumentMeta:
     version: int
     created_at: str
     updated_at: str
+    #: ``None`` while the chapter is live; a UTC timestamp once it is soft-deleted (D22).
+    deleted_at: str | None = None
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,26 +259,55 @@ class DocumentStore:
     # write-ahead log left behind by an unclean shutdown, which would turn every read into an
     # error.
 
-    def list_meta(self) -> list[DocumentMeta]:
-        """Every document in this project, in order, without content."""
+    def list_meta(self, *, include_deleted: bool = False) -> list[DocumentMeta]:
+        """Every live document in this project, in order, without content.
+
+        Args:
+            include_deleted: Include soft-deleted chapters too. Off by default, because a
+                deleted chapter must be absent from every ordinary list (D22); the trash
+                surface asks for them explicitly through :meth:`list_deleted`.
+        """
+        predicate = "" if include_deleted else f" AND {LIVE_ONLY}"
         with self.handle.connect() as conn:
             rows = conn.execute(
-                f"SELECT {_META_COLUMNS} FROM document WHERE project_id = ? "
-                "ORDER BY order_index, created_at, id",
+                f"SELECT {_META_COLUMNS} FROM document WHERE project_id = ?{predicate} {_ORDERED}",
                 (self.handle.id,),
             ).fetchall()
         return [_meta_from_row(row) for row in rows]
 
-    def get(self, document_id: str) -> Document:
+    def list_deleted(self) -> list[DocumentMeta]:
+        """The soft-deleted chapters, most recently deleted first (D22).
+
+        What the restore surface reads. Deleting is one click and so is undoing it, which is
+        what lets the confirmation stay brief - the undo path carries the safety, not the
+        dialogue.
+        """
+        with self.handle.connect() as conn:
+            rows = conn.execute(
+                f"SELECT {_META_COLUMNS} FROM document "
+                "WHERE project_id = ? AND deleted_at IS NOT NULL "
+                "ORDER BY deleted_at DESC, id",
+                (self.handle.id,),
+            ).fetchall()
+        return [_meta_from_row(row) for row in rows]
+
+    def get(self, document_id: str, *, include_deleted: bool = False) -> Document:
         """One document including its content.
 
+        Args:
+            include_deleted: Read it even if it is soft-deleted. Off by default: a deleted
+                chapter is gone from every ordinary read (D22), and a caller that wants to
+                preview one before restoring it says so.
+
         Raises:
-            DocumentNotFoundError: If this project holds no such document.
+            DocumentNotFoundError: If this project holds no such document, or it is deleted
+                and ``include_deleted`` is false.
         """
+        predicate = "" if include_deleted else f" AND {LIVE_ONLY}"
         with self.handle.connect() as conn:
             row = conn.execute(
                 f"SELECT {_META_COLUMNS}, content_json, text_plain FROM document "
-                "WHERE id = ? AND project_id = ?",
+                f"WHERE id = ? AND project_id = ?{predicate}",
                 (document_id, self.handle.id),
             ).fetchone()
         if row is None:
@@ -236,7 +327,7 @@ class DocumentStore:
         with self.handle.connect() as conn:
             rows = conn.execute(
                 "SELECT id, title, order_index, headings_json, word_count FROM document "
-                "WHERE project_id = ? AND kind = ? ORDER BY order_index, created_at, id",
+                f"WHERE project_id = ? AND kind = ? AND {LIVE_ONLY} {_ORDERED}",
                 (self.handle.id, DEFAULT_KIND),
             ).fetchall()
         return [
@@ -279,14 +370,20 @@ class DocumentStore:
         document_id = new_id(IdPrefix.DOCUMENT)
 
         with self.handle.connect() as conn, transaction(conn):
+            # The next index is taken over *every* row, deleted ones included, so restoring a
+            # chapter can never land on an index a live one already holds. The default title
+            # counts only live chapters, because "Chapter 4" should follow the three the writer
+            # can see, not the three plus one they threw away.
             row = conn.execute(
                 "SELECT COALESCE(MAX(order_index) + 1, 0) AS next_index, "
-                "COUNT(*) AS existing FROM document WHERE project_id = ?",
+                "SUM(CASE WHEN deleted_at IS NULL THEN 1 ELSE 0 END) AS existing "
+                "FROM document WHERE project_id = ?",
                 (self.handle.id,),
             ).fetchone()
             order_index = int(row["next_index"])
+            live_count = int(row["existing"] or 0)
             resolved_title = (
-                clean_title(title) if title is not None else f"Chapter {int(row['existing']) + 1}"
+                clean_title(title) if title is not None else f"Chapter {live_count + 1}"
             )
             conn.execute(
                 "INSERT INTO document (id, project_id, order_index, title, kind, content_json, "
@@ -326,7 +423,14 @@ class DocumentStore:
             text_plain=projection.text_plain,
         )
 
-    def save_content(self, document_id: str, content: Any, version: int) -> SaveResult:
+    def save_content(
+        self,
+        document_id: str,
+        content: Any,
+        version: int,
+        *,
+        before_write: Callable[[sqlite3.Connection, int], None] | None = None,
+    ) -> SaveResult:
         """Save new content for a document (P1-6, D18, D19).
 
         Validation, the size check, and the projection all run **before** the transaction opens,
@@ -334,10 +438,19 @@ class DocumentStore:
         version is re-read and compared under the write lock, which is what makes the guard a
         guard rather than a race.
 
+        Args:
+            before_write: Run inside this save's transaction, after the version guard has
+                passed and before the row is overwritten, with the open connection and the
+                version being replaced. The seam exists so that snapshotting the outgoing text
+                and replacing it are one atomic act (P2-3): a save refused as stale leaves no
+                ``pre-restore`` snapshot behind. It is a hook for work that must share this
+                transaction, **not** a second way to write manuscript text - this method stays
+                the only one of those (data-model section 6).
+
         Raises:
             InvalidDocumentError: The content is not a well-formed document.
             ContentTooLargeError: The content is over :data:`MAX_CONTENT_BYTES`.
-            DocumentNotFoundError: This project holds no such document.
+            DocumentNotFoundError: This project holds no such live document.
             StaleVersionError: ``version`` is not the stored one. Nothing was written.
         """
         content_json = serialize_content(content)
@@ -346,7 +459,8 @@ class DocumentStore:
 
         with self.handle.connect() as conn, transaction(conn):
             row = conn.execute(
-                "SELECT version, updated_at FROM document WHERE id = ? AND project_id = ?",
+                "SELECT version, updated_at FROM document "
+                f"WHERE id = ? AND project_id = ? AND {LIVE_ONLY}",
                 (document_id, self.handle.id),
             ).fetchone()
             if row is None:
@@ -361,6 +475,9 @@ class DocumentStore:
                     current_version=stored_version,
                     updated_at=row["updated_at"],
                 )
+
+            if before_write is not None:
+                before_write(conn, stored_version)
 
             new_version = stored_version + 1
             conn.execute(
@@ -402,7 +519,8 @@ class DocumentStore:
 
         with self.handle.connect() as conn, transaction(conn):
             cursor = conn.execute(
-                "UPDATE document SET title = ?, updated_at = ? WHERE id = ? AND project_id = ?",
+                "UPDATE document SET title = ?, updated_at = ? "
+                f"WHERE id = ? AND project_id = ? AND {LIVE_ONLY}",
                 (resolved, now, document_id, self.handle.id),
             )
             if cursor.rowcount == 0:
@@ -415,6 +533,155 @@ class DocumentStore:
             ).fetchone()
 
         return _meta_from_row(row)
+
+    def reorder(self, document_ids: Sequence[str]) -> list[DocumentMeta]:
+        """Rewrite the order of this project's live chapters (P2-2).
+
+        Takes the **complete** ordered list and writes ``order_index`` ``0..n-1`` in one
+        transaction. A list that is not exactly the current live set - one missing, one extra,
+        one duplicated, one belonging to another project - is refused and nothing is written.
+
+        That completeness check is the concurrency guard, which is why no project-level version
+        column is needed: a client working from a stale chapter list cannot produce a complete
+        set, so it cannot silently reorder a chapter out of existence.
+
+        No document's ``version`` is bumped, and no document's ``updated_at`` is stamped: the
+        order is a property of the project rather than of any one chapter, and marking forty
+        chapters as edited because one moved would make "last edited" mean nothing.
+
+        Returns:
+            The live chapters in their new order.
+
+        Raises:
+            ReorderMismatchError: The presented list is not exactly the live set.
+        """
+        presented = list(document_ids)
+        duplicated = sorted({did for did in presented if presented.count(did) > 1})
+        now = utc_now()
+
+        with self.handle.connect() as conn, transaction(conn):
+            live = [
+                row["id"]
+                for row in conn.execute(
+                    f"SELECT id FROM document WHERE project_id = ? AND {LIVE_ONLY} {_ORDERED}",
+                    (self.handle.id,),
+                )
+            ]
+            missing = sorted(set(live) - set(presented))
+            unexpected = sorted(set(presented) - set(live))
+            if missing or unexpected or duplicated:
+                raise ReorderMismatchError(
+                    missing=missing, unexpected=unexpected, duplicated=duplicated
+                )
+
+            for index, ordered_id in enumerate(presented):
+                conn.execute(
+                    "UPDATE document SET order_index = ? WHERE id = ? AND project_id = ?",
+                    (index, ordered_id, self.handle.id),
+                )
+            _touch_project(conn, self.handle.id, now)
+            rows = conn.execute(
+                f"SELECT {_META_COLUMNS} FROM document "
+                f"WHERE project_id = ? AND {LIVE_ONLY} {_ORDERED}",
+                (self.handle.id,),
+            ).fetchall()
+
+        return [_meta_from_row(row) for row in rows]
+
+    def delete(self, document_id: str) -> DocumentMeta:
+        """Soft-delete a chapter (P2-2, D22).
+
+        Takes a ``pre-delete`` snapshot and sets ``deleted_at`` in **one** transaction, so a
+        chapter is never removed from the lists without the copy that undoes it, and a failure
+        anywhere leaves neither. The row, its content, its snapshots, and its anchors all stay;
+        the anchors read as ``orphaned`` until it is restored, without a single row being
+        rewritten (:mod:`archetype.manuscript.anchors.status`).
+
+        Raises:
+            DocumentNotFoundError: If this project holds no such live document.
+        """
+        # Deferred because snapshots.py imports this module: a snapshot is *of* a document, so
+        # that is the static edge. Deleting one happens to record a snapshot, which is the
+        # incidental direction and the one that gives way.
+        from .snapshots import SnapshotReason, capture_within
+
+        now = utc_now()
+        with self.handle.connect() as conn, transaction(conn):
+            row = conn.execute(
+                "SELECT content_json, word_count, version FROM document "
+                f"WHERE id = ? AND project_id = ? AND {LIVE_ONLY}",
+                (document_id, self.handle.id),
+            ).fetchone()
+            if row is None:
+                raise DocumentNotFoundError(
+                    f"no document {document_id!r} in project {self.handle.id}"
+                )
+            capture_within(
+                conn,
+                project_id=self.handle.id,
+                document_id=document_id,
+                content_json=row["content_json"],
+                word_count=int(row["word_count"]),
+                version=int(row["version"]),
+                reason=SnapshotReason.PRE_DELETE,
+                now=now,
+            )
+            conn.execute(
+                "UPDATE document SET deleted_at = ?, updated_at = ? "
+                "WHERE id = ? AND project_id = ?",
+                (now, now, document_id, self.handle.id),
+            )
+            _touch_project(conn, self.handle.id, now)
+            meta_row = conn.execute(
+                f"SELECT {_META_COLUMNS} FROM document WHERE id = ?", (document_id,)
+            ).fetchone()
+
+        return _meta_from_row(meta_row)
+
+    def restore(self, document_id: str) -> DocumentMeta:
+        """Bring a soft-deleted chapter back (P2-2, D22).
+
+        Clears ``deleted_at`` and appends the chapter at the end of the order rather than
+        guessing where it used to be - the surrounding chapters have moved on, and dropping it
+        back into a position it no longer fits is a worse answer than a visible one at the end.
+
+        Its text returns byte for byte, and its anchors return to the statuses they held before
+        the delete: a soft delete changes no text, so nothing about them ever became untrue.
+
+        Restoring a chapter that is already live is a no-op, not an error.
+
+        Raises:
+            DocumentNotFoundError: If this project holds no such document at all.
+        """
+        now = utc_now()
+        with self.handle.connect() as conn, transaction(conn):
+            row = conn.execute(
+                "SELECT deleted_at FROM document WHERE id = ? AND project_id = ?",
+                (document_id, self.handle.id),
+            ).fetchone()
+            if row is None:
+                raise DocumentNotFoundError(
+                    f"no document {document_id!r} in project {self.handle.id}"
+                )
+            if row["deleted_at"] is not None:
+                next_index = int(
+                    conn.execute(
+                        "SELECT COALESCE(MAX(order_index) + 1, 0) AS next_index FROM document "
+                        "WHERE project_id = ?",
+                        (self.handle.id,),
+                    ).fetchone()["next_index"]
+                )
+                conn.execute(
+                    "UPDATE document SET deleted_at = NULL, order_index = ?, updated_at = ? "
+                    "WHERE id = ? AND project_id = ?",
+                    (next_index, now, document_id, self.handle.id),
+                )
+                _touch_project(conn, self.handle.id, now)
+            meta_row = conn.execute(
+                f"SELECT {_META_COLUMNS} FROM document WHERE id = ?", (document_id,)
+            ).fetchone()
+
+        return _meta_from_row(meta_row)
 
 
 def _touch_project(conn: sqlite3.Connection, project_id: str, now: str) -> None:
@@ -450,4 +717,5 @@ def _meta_from_row(row: sqlite3.Row) -> DocumentMeta:
         version=int(row["version"]),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        deleted_at=row["deleted_at"],
     )

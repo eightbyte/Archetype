@@ -27,8 +27,12 @@ from fastapi.testclient import TestClient
 
 from archetype.app import create_app
 from archetype.config import CONFIG_FILE_ENV_VAR, Settings, reset_settings_cache
+from archetype.ids import IdPrefix, new_id
+from archetype.manuscript.anchors import EFFECTIVE_STATUS_SQL
 from archetype.manuscript.documents import DocumentStore
+from archetype.manuscript.snapshots import SnapshotStore
 from archetype.projects import ProjectHandle, ProjectStore, open_migrated
+from archetype.projects.db import transaction, utc_now
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 DB_FIXTURES_DIR = FIXTURES_DIR / "db"
@@ -157,6 +161,71 @@ def make_document(documents: DocumentStore):
         return documents.create(title, content=content)
 
     return factory
+
+
+@pytest.fixture
+def snapshots(project: ProjectHandle) -> SnapshotStore:
+    """The snapshot store for :func:`project` (P2-3)."""
+    return SnapshotStore(project)
+
+
+@pytest.fixture
+def make_anchor(project: ProjectHandle):
+    """Insert an anchor row directly, and return its id (P2-1).
+
+    Written as SQL rather than through a store because there is no ``AnchorStore`` until P2-7:
+    Group A owns the table and the soft-delete rule over it, not the resolver that fills it.
+    """
+
+    def factory(
+        document_id: str,
+        *,
+        quote: str = "the harbour was grey",
+        status: str = "ok",
+        from_pos: int = 1,
+        to_pos: int = 21,
+        version: int = 1,
+    ) -> str:
+        anchor_id = new_id(IdPrefix.ANCHOR)
+        now = utc_now()
+        with project.connect() as conn, transaction(conn):
+            conn.execute(
+                "INSERT INTO anchor (id, project_id, document_id, from_pos, to_pos, quote, "
+                "prefix, suffix, status, label, document_version, created_at, updated_at, "
+                "checked_at) VALUES (?, ?, ?, ?, ?, ?, '', '', ?, '', ?, ?, ?, ?)",
+                (
+                    anchor_id,
+                    project.id,
+                    document_id,
+                    from_pos,
+                    to_pos,
+                    quote,
+                    status,
+                    version,
+                    now,
+                    now,
+                    now,
+                ),
+            )
+        return anchor_id
+
+    return factory
+
+
+@pytest.fixture
+def read_anchor_status(project: ProjectHandle):
+    """The status a reader sees for one anchor, derived exactly as the code derives it (D22)."""
+
+    def read(anchor_id: str) -> str:
+        with project.connect() as conn:
+            row = conn.execute(
+                f"SELECT {EFFECTIVE_STATUS_SQL} AS status FROM anchor "
+                "JOIN document ON document.id = anchor.document_id WHERE anchor.id = ?",
+                (anchor_id,),
+            ).fetchone()
+        return row["status"]
+
+    return read
 
 
 def build_document(

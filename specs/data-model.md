@@ -1,8 +1,9 @@
 # Archetype — Data Model
 
-**Status:** Phase 1 tables as built; later phases sketched · **Version:** 1.0 · **Date:** 2026-08-30
+**Status:** Schema version 2 as built; later phases sketched · **Version:** 1.1 · **Date:** 2026-08-30
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
-**Decisions:** [`specs/development-phases.md`](development-phases.md) § 1 (D3, D18, D19, D20)
+**Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
+(D3, D18, D19, D20, D21, D22, D23)
 **Companion:** [`specs/api-contract.md`](api-contract.md) — the same vocabulary on the wire
 
 This document has two halves and they are not equally binding.
@@ -69,6 +70,7 @@ an ID survives being read out of a log line or spoken aloud.
 | `prj_` | project | Phase 1 |
 | `doc_` | document | Phase 1 |
 | `anc_` | anchor | Phase 2 |
+| `snp_` | snapshot | Phase 2 |
 | `ent_` | bible entry | Phase 3 |
 | `run_` | agent run | Phase 6 |
 
@@ -84,10 +86,11 @@ leak back into a comparison.
 
 ---
 
-## 3. Tables as built (schema version 1)
+## 3. Tables as built (schema version 2)
 
-Created by `archetype/projects/migrations/001_init.sql`. Types are SQLite's, which means `TEXT`
-holds UTF-8 and `INTEGER` holds a signed 64-bit integer.
+Created by `archetype/projects/migrations/001_init.sql` and extended by
+`002_anchors_and_snapshots.sql`. Types are SQLite's, which means `TEXT` holds UTF-8 and `INTEGER`
+holds a signed 64-bit integer.
 
 ### `schema_version`
 
@@ -133,11 +136,28 @@ touched when it was created.
 | `word_count` | `INTEGER NOT NULL` | Derived (D18) |
 | `version` | `INTEGER NOT NULL` | Concurrency guard (D19). Starts at 1 |
 | `created_at` | `TEXT NOT NULL` | UTC ISO-8601 |
-| `updated_at` | `TEXT NOT NULL` | Moved by a save **and** by a rename |
+| `updated_at` | `TEXT NOT NULL` | Moved by a save, a rename, a delete, and a restore — **not** by a reorder |
+| `deleted_at` | `TEXT` | `NULL` while the chapter is live; a UTC timestamp once soft-deleted (D22, migration 002) |
 
 Index: `idx_document_project_order ON document(project_id, order_index)` — the document list and
 the outline both read one project's chapters in that order. Deliberately **not** `UNIQUE`, because
-Phase 2's reorder needs to move rows through transient duplicate indices.
+the reorder moves rows through transient duplicate indices.
+
+**Deleting a chapter is a soft delete (D22).** The row and its content stay; `deleted_at` goes
+from `NULL` to a timestamp. Every read path filters `deleted_at IS NULL` — `list_meta`, `get`,
+`outline`, and the project summary's chapter and word counts — and the trash surface asks for the
+deleted ones explicitly through `list_deleted()`. One predicate in one place, because a single
+query that forgets it puts a ghost chapter into a count or an export and is then reported as a
+different bug entirely.
+
+The summary's predicate is **version-gated**: the directory scan reads files it has deliberately
+not migrated (§ 4), and asking a version-1 file for `deleted_at` would turn a perfectly readable
+project into a skipped one.
+
+**Reorder, delete, and restore do not bump `version`** — none of them is a text edit, which is the
+rule `rename` already follows (§ 6). Reorder does not move any document's `updated_at` either: the
+order is a property of the project, not of any one chapter, and stamping forty chapters because
+one moved would make "last edited" mean nothing.
 
 **`content_json` is the only authored column.** The four that follow it are derived from it on
 every write and are never written independently. Storing them is a deliberate denormalisation:
@@ -146,6 +166,80 @@ every write and are never written independently. Storing them is a deliberate de
 
 **Ordering is `ORDER BY order_index, created_at, id`.** The two tiebreakers make the order total
 even while duplicate indices exist, so a list never shuffles under a reader mid-reorder.
+
+### `anchor`
+
+A durable reference to a range of manuscript text. `specs/anchors.md` is the authority on how one
+resolves; this is what is stored.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `TEXT PRIMARY KEY` | `anc_…` |
+| `project_id` | `TEXT NOT NULL REFERENCES project(id)` | |
+| `document_id` | `TEXT NOT NULL REFERENCES document(id)` | An anchor lives in exactly one document |
+| `from_pos`, `to_pos` | `INTEGER NOT NULL` | ProseMirror positions. **The fast path, not the truth** |
+| `quote` | `TEXT NOT NULL` | The anchored text, from `text_plain`. What the anchor *means* |
+| `prefix`, `suffix` | `TEXT NOT NULL` | Up to `CONTEXT_CHARS` either side. What tells two identical sentences apart |
+| `status` | `TEXT NOT NULL` | `ok` or `stale` — the **text-match** answer only |
+| `label` | `TEXT NOT NULL DEFAULT ''` | The writer's note |
+| `document_version` | `INTEGER NOT NULL` | The version those positions were true at |
+| `created_at`, `updated_at` | `TEXT NOT NULL` | |
+| `checked_at` | `TEXT NOT NULL` | When resolution last ran, which may be long after `updated_at` |
+
+Indexes: `idx_anchor_document ON anchor(document_id, from_pos)` — the editor loads one document's
+anchors in position order; `idx_anchor_project_status ON anchor(project_id, status)` — the *Marks*
+tab finds what needs repair across the project.
+
+**`orphaned` is derived, never stored.** A reader sees `orphaned` when the owning document's
+`deleted_at` is set, and the stored column holds only what the resolver concluded about the text.
+The rule lives in exactly one module, in both its Python and its SQL form
+(`archetype/manuscript/anchors/status.py`), and `effective_status` refuses a stored `orphaned`
+rather than passing it through.
+
+The reason for the split is that a soft delete changes no text. The cached text answer is as true
+while the chapter is away as it was before it went, so restoring the chapter returns every anchor
+to the answer the resolver actually gave — with nothing re-derived, nothing invented, and no
+second resolver needed to undo a delete.
+
+### `snapshot`
+
+A versioned copy of one chapter (D23).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `TEXT PRIMARY KEY` | `snp_…` |
+| `project_id` | `TEXT NOT NULL REFERENCES project(id)` | |
+| `document_id` | `TEXT NOT NULL REFERENCES document(id)` | Kept when the chapter is soft-deleted, which is what makes the delete reversible |
+| `taken_at` | `TEXT NOT NULL` | UTC ISO-8601 |
+| `reason` | `TEXT NOT NULL` | `handover` \| `manual` \| `pre-restore` \| `pre-delete` \| `pre-import` |
+| `label` | `TEXT NOT NULL DEFAULT ''` | Set on a `manual` mark |
+| `content_json` | `TEXT NOT NULL` | The copy |
+| `content_hash` | `TEXT NOT NULL` | SHA-256 of `content_json`; the dedupe key |
+| `word_count` | `INTEGER NOT NULL` | Copied from the document row, not re-derived |
+| `version` | `INTEGER NOT NULL` | The document version this content was |
+
+Index: `idx_snapshot_document ON snapshot(document_id, taken_at DESC)` — the history reads one
+chapter, newest first.
+
+**Automatic and deliberate snapshots are stored differently.** `handover` is the only snapshot
+nobody asked for, and it is the only one that is deduplicated (nothing is written when the newest
+snapshot holds the same content) and the only one that is pruned (to the newest
+`HANDOVER_RETENTION` = 25 per document, in the same transaction that inserts). `manual` and every
+`pre-*` snapshot is always written and never pruned: a manual mark carries a label, and a `pre-*`
+snapshot is a recovery guarantee rather than a history entry — deduplicating one against a
+`handover` would leave the only copy of destroyed text sitting in the prunable pool.
+
+**A `pre-*` snapshot is written inside the transaction of the thing it protects against**, so a
+refused delete or a restore refused as stale leaves no snapshot behind. For a restore that means
+`save_content` takes a `before_write` hook that runs after the version guard passes and before the
+row is overwritten. The hook is for work that must share the transaction; it is **not** a second
+way to write manuscript text (§ 6).
+
+**Storage arithmetic**, written down so the ceiling is known rather than discovered: a
+20,000-word chapter is roughly 300 KB of ProseMirror JSON, so 25 `handover` snapshots is about
+7.5 MB per chapter at the ceiling. Dedup removes most of that in practice. If a real manuscript
+proves otherwise, compressing `content_json` into a BLOB is the lever, and it is a Phase 9
+measurement rather than a Phase 2 guess.
 
 ---
 
@@ -219,8 +313,15 @@ written and read only by us, always whole, and never queried across rows.
 ### One write path
 
 **`DocumentStore.save_content` is the only path by which manuscript text changes.** Routes go
-through it, tests go through it, and in Phase 6 the agent's accepted proposals go through it
-(D12). That is what makes "the writer owns the words" structural rather than aspirational.
+through it, tests go through it, restoring a snapshot goes through it, and in Phase 6 the agent's
+accepted proposals go through it (D12). That is what makes "the writer owns the words" structural
+rather than aspirational.
+
+Restoring a snapshot is worth naming because it is the case that looks like an exception and is
+not: `SnapshotStore.restore` writes the old content back **as an ordinary save**, so it increments
+`version`, re-derives the projection, re-resolves the anchors, and is refused with a `409` if the
+client is stale. Markdown import is the other one — it *creates* chapters and never replaces the
+text of an existing one ([phase-2-plan](phase-2-plan.md) § 2, ruling 5).
 
 ### A rejected save has written nothing
 
@@ -237,16 +338,27 @@ inventing a version, and accepting one would let a bug skip the guard entirely. 
 `StaleVersionError`, nothing is written, and the client is handed the current version and
 `updated_at` so it can offer a reload without a second round trip. There is no merge.
 
-### A rename does not bump `version`
+### Only a text edit bumps `version`
 
 `rename` moves `title` and `updated_at` and leaves `version` alone. A rename is not a text edit,
 and invalidating an in-flight autosave over a cosmetic change would cost the writer a keystroke —
-the exact failure the autosave protocol exists to prevent.
+the exact failure the autosave protocol exists to prevent. `reorder`, `delete`, and `restore`
+follow the same rule for the same reason.
+
+### A reorder presents the complete set
+
+`reorder` takes the **complete** ordered list of the project's live chapters and rewrites
+`order_index` to `0..n-1`. A list that is not exactly that set — one missing, one extra, one
+duplicated, one from another project — is refused and nothing is written.
+
+That set comparison **is** the concurrency guard, which is why there is no project-level version
+column: a client working from a stale chapter list cannot produce a complete set, so it cannot
+silently reorder a chapter out of existence.
 
 ### Every document write stamps the project
 
-`create`, `save_content`, and `rename` all update `project.updated_at` in the **same transaction**.
-The picker sorts on it.
+`create`, `save_content`, `rename`, `reorder`, `delete`, and `restore` all update
+`project.updated_at` in the **same transaction**. The picker sorts on it.
 
 ---
 
@@ -256,11 +368,6 @@ The outline § 5 sketch, carried forward. **Illustrative, not binding** — each
 own tables in its plan and amends this section in the same change.
 
 ```
--- Phase 2: anchors and snapshots
-snapshot(id, document_id, taken_at, reason, content_json)
-anchor(id, project_id, document_id, from_pos, to_pos,
-       quote, prefix, suffix, status, updated_at)
-
 -- Phase 3: the story bible
 entry(id, project_id, kind, name, summary, body_md, attributes_json,
       status, origin, created_at, updated_at)
@@ -280,16 +387,18 @@ proposal(id, run_id, kind, target_json, payload_json, status, decided_at)
 finding(id, run_id, kind, severity, message, citations_json, status)
 ```
 
-Two things Phase 1 has already settled for them:
+Two things the phases below inherit:
 
-- **Anchors will carry ProseMirror positions plus their own quote and context** (`quote`, `prefix`,
-  `suffix`), and are re-verified on load. An anchor that cannot be resolved becomes `stale` and is
-  surfaced — never silently re-pointed at the wrong passage. Phase 1 deliberately built no anchor
-  record: jump-to-heading resolves by heading ordinal alone (P1-11), which is the seam Phase 2
-  replaces.
+- **Anchors are for cited passages**, not for structure. A heading is a structural position the
+  projection already numbers exactly and re-derives on every save, so jump-to-heading resolves by
+  heading ordinal and continues to (P1-11, [phase-2-plan](phase-2-plan.md) § 2, ruling 1). An
+  earlier draft of this document called the heading ordinal "the seam Phase 2 replaces"; that
+  reading was wrong, and minting an anchor row per heading on every save to reproduce an answer
+  that is already free is what it would have cost.
 - **Chunking reads `text_plain`, not `content_json`.** That is why the projection's block rules —
   one blank line between blocks, scene breaks visible as text — are written down in § 5 rather
-  than left to whatever the current implementation happens to do.
+  than left to whatever the current implementation happens to do. Anchors read it too, which is
+  why changing a projection rule moves every anchor in every project and is a spec change.
 
 ---
 
