@@ -14,14 +14,22 @@ its threadpool, which is the honest way to do blocking work here.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, status
+from typing import Annotated
+
+from fastapi import APIRouter, Query, Request, status
 
 from .. import __version__
+from ..manuscript.anchors.store import AnchorStore
 from ..manuscript.documents import DocumentStore
 from ..projects.store import ProjectHandle
 from .deps import get_locator, get_project_store, open_project
 from .errors import error_responses
 from .schemas import (
+    AnchorCreateIn,
+    AnchorListOut,
+    AnchorOut,
+    AnchorPatchIn,
+    AnchorStatusFilter,
     DocumentCreateIn,
     DocumentListOut,
     DocumentMetaOut,
@@ -212,6 +220,119 @@ def rename_document(request: Request, document_id: str, body: DocumentRenameIn) 
     """Rename. The content ``version`` is untouched - a rename is not a text edit."""
     handle = get_locator(request).resolve(document_id)
     return DocumentMetaOut.of(DocumentStore(handle).rename(document_id, body.title))
+
+
+# -- anchors --------------------------------------------------------------------------------
+
+
+@router.post(
+    "/documents/{document_id}/anchors",
+    tags=["anchors"],
+    summary="Anchor a range of this document's text",
+    status_code=status.HTTP_201_CREATED,
+    response_model=AnchorOut,
+    responses=error_responses(404, 409, 422),
+)
+def create_anchor(request: Request, document_id: str, body: AnchorCreateIn) -> AnchorOut:
+    """Create an anchor from a range and a version (P2-7).
+
+    The client sends where, not what: the server reads the quote and its surrounding context out
+    of the stored content, so an anchor can never disagree with the manuscript. A range
+    presented against a stale version is refused with a ``409`` exactly as a save is - an anchor
+    over text that has since changed is an anchor over text nobody looked at (D19).
+    """
+    handle = get_locator(request).resolve(document_id)
+    anchor = AnchorStore(handle).create(
+        document_id,
+        from_pos=body.from_pos,
+        to_pos=body.to_pos,
+        version=body.version,
+        label=body.label,
+    )
+    return AnchorOut.of(anchor)
+
+
+@router.get(
+    "/documents/{document_id}/anchors",
+    tags=["anchors"],
+    summary="This document's anchors, resolved against its current text",
+    response_model=AnchorListOut,
+    responses=error_responses(404),
+)
+def list_document_anchors(request: Request, document_id: str) -> AnchorListOut:
+    """Resolved on read and **not** persisted (D21).
+
+    So a document opened after its file changed behind the app's back reports what is true now
+    rather than what was true at the last write. The stored columns are a cache of that write's
+    answer; the resolver is the answer.
+    """
+    handle = get_locator(request).resolve(document_id)
+    anchors = AnchorStore(handle).list_for_document(document_id)
+    return AnchorListOut(anchors=[AnchorOut.of(anchor) for anchor in anchors])
+
+
+@router.get(
+    "/projects/{project_id}/anchors",
+    tags=["anchors"],
+    summary="Every anchor in the project, filterable by status",
+    response_model=AnchorListOut,
+    responses=error_responses(404, 422),
+)
+def list_project_anchors(
+    request: Request,
+    project_id: str,
+    status_filter: Annotated[AnchorStatusFilter | None, Query(alias="status")] = None,
+) -> AnchorListOut:
+    """What the *Marks* tab reads, so "what is stale" is one click.
+
+    These are the cached answers, not a fresh resolution: re-resolving here would mean
+    projecting every chapter in the manuscript to draw one panel, which is what the document
+    list route exists not to do (P1-5, D2).
+    """
+    handle = open_project(request, project_id)
+    anchors = AnchorStore(handle).list_for_project(status=status_filter)
+    return AnchorListOut(anchors=[AnchorOut.of(anchor) for anchor in anchors])
+
+
+@router.patch(
+    "/anchors/{anchor_id}",
+    tags=["anchors"],
+    summary="Re-link an anchor to a new range, or change its label",
+    response_model=AnchorOut,
+    responses=error_responses(404, 409, 422),
+)
+def patch_anchor(request: Request, anchor_id: str, body: AnchorPatchIn) -> AnchorOut:
+    """The repair path (P2-10), and the same request whichever way the writer got here.
+
+    Accepting a suggestion and picking a passage by hand both come down to a range, so the
+    server cannot tell them apart and does not try. Nothing is ever repaired automatically.
+    """
+    handle = get_locator(request).resolve_anchor(anchor_id)
+    store = AnchorStore(handle)
+    anchor = store.get(anchor_id)
+    if body.relinks:
+        assert body.from_pos is not None and body.to_pos is not None and body.version is not None
+        anchor = store.relink(
+            anchor_id, from_pos=body.from_pos, to_pos=body.to_pos, version=body.version
+        )
+    if body.label is not None:
+        anchor = store.set_label(anchor_id, body.label)
+    return AnchorOut.of(anchor)
+
+
+@router.delete(
+    "/anchors/{anchor_id}",
+    tags=["anchors"],
+    summary="Remove an anchor",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=error_responses(404),
+)
+def delete_anchor(request: Request, anchor_id: str) -> None:
+    """The only way an anchor ever goes away (``specs/anchors.md`` section 9)."""
+    locator = get_locator(request)
+    handle = locator.resolve_anchor(anchor_id)
+    AnchorStore(handle).delete(anchor_id)
+    locator.forget(anchor_id)
 
 
 # -- helpers --------------------------------------------------------------------------------

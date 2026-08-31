@@ -246,6 +246,10 @@ export class FakeApiClient implements ApiClient {
       word_count: stored.meta.word_count,
       headings: stored.meta.headings.map((heading) => ({ ...heading })),
       updated_at: stored.meta.updated_at,
+      // The fake holds no anchors: nothing in the client creates one until P2-9, and a fake
+      // that invented resolutions would be a second resolver with no specification behind it.
+      // The field is here because the server always sends it (P2-7, D21).
+      anchors: [],
     };
   }
 

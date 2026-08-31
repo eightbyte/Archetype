@@ -100,13 +100,21 @@ export interface Document {
   updated_at: string;
 }
 
-/** What a successful `PUT /api/documents/{did}/content` returns (D18, D19). */
+/**
+ * What a successful `PUT /api/documents/{did}/content` returns (D18, D19).
+ *
+ * `anchors` carries every anchor the write **moved** — a changed status, a changed position, or
+ * both (P2-7, D21). An empty list is the ordinary answer, and it is the one that says the writer
+ * typed above their anchors rather than through them. Replace the client's own mapped positions
+ * with these: the mapping is for liveness, this is the truth.
+ */
 export interface SaveResult {
   document_id: string;
   version: number;
   word_count: number;
   headings: Heading[];
   updated_at: string;
+  anchors: Anchor[];
 }
 
 /** One chapter in the stitched table of contents. */
@@ -149,10 +157,67 @@ export interface VersionConflictDetail {
   updated_at: string;
 }
 
+
+/**
+ * Where a `stale` anchor's passage may have gone (`specs/anchors.md` § 6).
+ *
+ * Data on a finding, never an action. Nothing applies one; the writer accepts it, which sends a
+ * `PATCH` carrying the range like any other re-link.
+ */
+export interface AnchorSuggestion {
+  from_pos: number;
+  to_pos: number;
+  text: string;
+}
+
+/**
+ * A durable reference to a range of manuscript text (P2-7, D21).
+ *
+ * `status` is `ok` | `stale` | `orphaned`. The last is derived from the anchor's chapter being
+ * soft-deleted and is never stored (D22), so restoring the chapter brings back exactly the
+ * answer the resolver gave.
+ *
+ * `from_pos`/`to_pos` are the **server's** last conclusion, not a promise about the document
+ * this client is holding. The open document's decorations are rebased through ProseMirror's
+ * transaction mapping for liveness, and that rebasing is display-only: it is never sent, and it
+ * never overrides what a save answers (D21).
+ */
+export interface Anchor {
+  id: string;
+  project_id: string;
+  document_id: string;
+  from_pos: number;
+  to_pos: number;
+  quote: string;
+  prefix: string;
+  suffix: string;
+  status: string;
+  label: string;
+  document_version: number;
+  created_at: string;
+  updated_at: string;
+  checked_at: string;
+  suggestion: AnchorSuggestion | null;
+}
+
+/** `GET /api/documents/{did}/anchors` and `GET /api/projects/{pid}/anchors`. */
+export interface AnchorList {
+  anchors: Anchor[];
+}
+
+/** The statuses an anchor can report. `orphaned` is derived, never stored (D22). */
+export const ANCHOR_STATUSES = {
+  ok: 'ok',
+  stale: 'stale',
+  orphaned: 'orphaned',
+} as const;
+
 /** The `code` values the client branches on. Others are possible; treat them as unexpected. */
 export const ERROR_CODES = {
   projectNotFound: 'project_not_found',
   documentNotFound: 'document_not_found',
+  anchorNotFound: 'anchor_not_found',
+  invalidAnchorRange: 'invalid_anchor_range',
   versionConflict: 'version_conflict',
   invalidDocument: 'invalid_document',
   payloadTooLarge: 'payload_too_large',

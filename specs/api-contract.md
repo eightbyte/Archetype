@@ -1,8 +1,8 @@
 # Archetype — API Contract
 
-**Status:** Phase 1 surface as built · **Version:** 1.0 · **Date:** 2026-08-30
+**Status:** Phase 1 surface as built, plus Phase 2's anchor routes (P2-7) · **Version:** 1.1 · **Date:** 2026-08-30
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
-**Decisions:** [`specs/development-phases.md`](development-phases.md) § 1 (D7, D8, D18, D19)
+**Decisions:** [`specs/development-phases.md`](development-phases.md) § 1 (D7, D8, D18, D19, **D21**, **D22**)
 **Companion:** [`specs/data-model.md`](data-model.md) — the same vocabulary in storage
 
 This document covers **every route that exists**. Chat and streaming arrive in Phase 4, search in
@@ -69,11 +69,16 @@ cleanly. A wire-shape change fails a suite rather than the browser.
 | `GET` | `/api/documents/{document_id}` | `200` | `404` |
 | `PUT` | `/api/documents/{document_id}/content` | `200` | `400`, `404`, `409`, `413`, `422` |
 | `PATCH` | `/api/documents/{document_id}` | `200` | `404`, `422` |
+| `POST` | `/api/documents/{document_id}/anchors` | `201` | `404`, `409`, `422` |
+| `GET` | `/api/documents/{document_id}/anchors` | `200` | `404` |
+| `GET` | `/api/projects/{project_id}/anchors` | `200` | `404`, `422` |
+| `PATCH` | `/api/anchors/{anchor_id}` | `200` | `404`, `409`, `422` |
+| `DELETE` | `/api/anchors/{anchor_id}` | `204` | `404` |
 
 Any route can also answer `500` (§ 6).
 
-**Documents are addressed without naming a project.** Storage is one file per project (D3), so
-`manuscript/locator.py` resolves the bare id to a file; see data-model § 4. The alternative —
+**Documents and anchors are addressed without naming a project.** Storage is one file per project (D3), so
+`manuscript/locator.py` resolves the bare id to a file, for either table; see data-model § 4. The alternative —
 `/api/projects/{pid}/documents/{did}` — would have put a redundant, spoofable scope in every
 autosave URL.
 
@@ -268,12 +273,21 @@ and the word count from it, increments `version`, and writes. It answers:
   "version": 4,
   "word_count": 12,
   "headings": [{ "level": 1, "text": "Arrival", "ordinal": 0 }],
-  "updated_at": "2026-01-01T00:00:00Z"
+  "updated_at": "2026-01-01T00:00:00Z",
+  "anchors": []
 }
 ```
 
 The derived values in that response are **authoritative** and replace whatever the client's mirror
 had computed (D18).
+
+`anchors` (added in P2-7, extension-only) carries every anchor this write **moved** — a changed
+status, a changed position, or both — as full `Anchor` objects. The same transaction that wrote
+the text re-resolved them, so the list is what is true of the row that was just stored, and it
+saves the client a round trip on the request that happens most often. An **empty list is the
+ordinary answer**: it means the writer typed above their anchors rather than through them. A
+client replaces its own mapped positions with these; its mapping is for liveness, this is the
+truth (D21).
 
 **This route is the only way manuscript text changes.** Not "the only way the UI changes it" — the
 only way. That is what makes "the writer owns the words" a property of the system rather than a
@@ -355,14 +369,16 @@ uses one envelope:
 |---|---|---|
 | `project_not_found` | 404 | No project file in the directory holds that id |
 | `document_not_found` | 404 | No project file holds that document |
-| `version_conflict` | 409 | Stale save (D19). Nothing was written |
+| `anchor_not_found` | 404 | No project file holds that anchor (P2-7) |
+| `version_conflict` | 409 | Stale save, or a range presented against a stale version (D19). Nothing was written |
+| `invalid_anchor_range` | 422 | A range that cannot become an anchor (§ 7). The message is written to be shown |
 | `invalid_document` | 400 | Not a well-formed ProseMirror document |
 | `payload_too_large` | 413 | Over the 2 MiB per-document limit |
 | `validation_error` | 422 | Body or path failed validation; `detail` is pydantic's error list |
 | `not_found` | 404 | No such route |
 | `method_not_allowed` | 405 | Wrong method for an existing route |
 | `internal_error` | 500 | An unhandled exception (below) |
-| `web_not_built` | 404 | `GET /` with no frontend mounted (§ 7) — a diagnostic, not part of the API |
+| `web_not_built` | 404 | `GET /` with no frontend mounted (§ 8) — a diagnostic, not part of the API |
 
 **A `404` names only what was asked for.** The store's own message carries the projects directory;
 that goes to the log, and the client is told `no document 'doc_…' in this workspace`.
@@ -379,7 +395,113 @@ request is logged with that same id, its status, and its duration.
 
 ---
 
-## 7. Serving the app itself (P1-14)
+## 7. Anchors (P2-7, D21, D22)
+
+A durable reference to a range of manuscript text. `specs/anchors.md` is the authority on how one
+resolves; this is what the routes promise.
+
+### `Anchor`
+
+```json
+{
+  "id": "anc_000000000001",
+  "project_id": "prj_000000000001",
+  "document_id": "doc_000000000001",
+  "from_pos": 24,
+  "to_pos": 40,
+  "quote": "harbour was grey",
+  "prefix": "Arrival\n\nThe Quay\n\nThe ",
+  "suffix": ".\n\nHe did not look back.",
+  "status": "ok",
+  "label": "the harbour",
+  "document_version": 2,
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "checked_at": "2026-01-01T00:00:00Z",
+  "suggestion": null
+}
+```
+
+`status` is `ok`, `stale`, or `orphaned`. The first two are the resolver's answer about the text;
+**`orphaned` is derived from the chapter being soft-deleted and is never stored** (D22), which is
+why restoring a chapter returns every one of its anchors to exactly the answer the resolver gave.
+
+`from_pos`/`to_pos` are a **cache of the last resolution's conclusion**, not a promise about the
+document a client is holding. `quote` is what the anchor *means*. `checked_at` is when resolution
+last ran, which may be long after `updated_at`.
+
+`suggestion` is `null`, or `{from_pos, to_pos, text}` — where a `stale` anchor's passage may have
+gone, computed from its unedited surroundings. **Nothing on the server ever applies one.** It is
+data on a finding; accepting it is a `PATCH` the writer asks for.
+
+### `POST /api/documents/{document_id}/anchors`
+
+```json
+{ "from_pos": 24, "to_pos": 40, "version": 2, "label": "the harbour" }
+```
+
+A range and a version, and nothing else — `label` is optional and defaults to empty.
+**The server derives `quote`, `prefix`, and `suffix` from the stored content**, so a client
+cannot create an anchor whose quote disagrees with the manuscript: it is never asked what the
+manuscript says. Answers `201` with the `Anchor`.
+
+The stored positions are the ones the *quote* occupies, which is not always the range that was
+sent: a selection that ran into the whitespace at the end of a paragraph, or began before the
+first block, is trimmed onto the words it enclosed.
+
+| Status | `code` | When |
+|---|---|---|
+| `409` | `version_conflict` | `version` is not the document's current one. Same `detail` as a save's — an anchor over text that has since changed is an anchor over text nobody looked at (D19) |
+| `422` | `invalid_anchor_range` | A zero-length or backwards range; a range outside the document; a range beginning, ending, or spanning a scene break; a quote over 4,000 characters; a quote that is empty or only whitespace. The `message` is written to be shown to the writer |
+| `404` | `document_not_found` | No live document with that id. A soft-deleted chapter is gone from this path like every other |
+
+### `GET /api/documents/{document_id}/anchors`
+
+`{ "anchors": [...] }`, in position order. **Resolved on read and not persisted**, so a document
+opened after its file changed behind the app's back reports what is true *now* rather than what
+was true at the last write. `404 document_not_found` for a missing or soft-deleted chapter.
+
+### `GET /api/projects/{project_id}/anchors`
+
+Every anchor in the project, in chapter order then position order. `?status=ok|stale|orphaned`
+filters on the **effective** status, so `orphaned` finds the anchors of deleted chapters — which
+is how the *Marks* tab finds what needs attention. An unrecognised value is a `422`.
+
+Unlike the per-document route, this **reports the stored answers** rather than re-resolving:
+re-resolving here would mean projecting every chapter in the manuscript to draw one panel, which
+is the thing the document-list route exists not to do. A chapter's answers are refreshed the
+moment it is opened or saved.
+
+### `PATCH /api/anchors/{anchor_id}`
+
+```json
+{ "from_pos": 24, "to_pos": 43, "version": 3 }
+```
+
+Re-link, re-label, or both. A re-link carries **all three** of `from_pos`, `to_pos`, and
+`version` or none of them — two of the three is a client that has lost track of which version it
+is looking at, and it is refused as a `422`. A re-link re-derives the quote and context from the
+new range and returns the anchor to `ok`; `label` alone presents no version, because a label is
+not a text change.
+
+Accepting a suggestion and picking a passage by hand are the same request. The server cannot tell
+them apart and does not try: **nothing is ever repaired automatically.**
+
+`409` on a stale version, `422` for a refused range, `404 anchor_not_found` for a missing anchor,
+`404 document_not_found` when the anchor's chapter is soft-deleted — an orphaned anchor is
+repaired by restoring its chapter, not by re-linking it.
+
+### `DELETE /api/anchors/{anchor_id}`
+
+`204`, no body. The only way an anchor ever goes away. `404 anchor_not_found` otherwise.
+
+An anchor is addressed by a bare id, without naming its document or its project, for the same
+reason a document is: the *Marks* tab holds anchors from every chapter at once, and making the
+client carry a project id would put it in charge of a fact the server already knows.
+
+---
+
+## 8. Serving the app itself (P1-14)
 
 Not an API route, but part of the contract for how the server is reached.
 
@@ -404,14 +526,16 @@ the README tells you to open is a bad way to learn you skipped a build step.
 
 ---
 
-## 8. What is deliberately absent in Phase 1
+## 9. What is deliberately absent
 
 Named, because each is a plausible thing to reach for and find missing:
 
 | Absent | Arrives |
 |---|---|
-| Chapter reorder and delete | Phase 2, with the snapshot that makes deletion safe |
-| Snapshots, anchors, Markdown import/export | Phase 2 |
+| Chapter reorder, delete, and restore | Phase 2 — built in the store (P2-2); the routes land with the surfaces that drive them (P2-11) |
+| Snapshot capture, history, and restore | Phase 2 — built in the store (P2-3); the routes land with P2-12 |
+| Markdown import and export | Phase 2 (P2-13, P2-14) |
+| ~~Anchors~~ | **Arrived** — § 7 above (P2-7) |
 | Bible entries, links, revisions | Phase 3 |
 | Chat, streaming, provider settings | Phase 4 |
 | Search — keyword, semantic, or hybrid | Phase 5 |

@@ -22,6 +22,8 @@
 
 import { describe, expect, test } from 'vitest';
 import type {
+  Anchor,
+  AnchorList,
   Document,
   DocumentList,
   DocumentMeta,
@@ -70,7 +72,25 @@ const KEYS = {
     'updated_at',
   ],
   heading: ['level', 'text', 'ordinal'],
-  saveResult: ['document_id', 'version', 'word_count', 'headings', 'updated_at'],
+  saveResult: ['document_id', 'version', 'word_count', 'headings', 'updated_at', 'anchors'],
+  anchor: [
+    'id',
+    'project_id',
+    'document_id',
+    'from_pos',
+    'to_pos',
+    'quote',
+    'prefix',
+    'suffix',
+    'status',
+    'label',
+    'document_version',
+    'created_at',
+    'updated_at',
+    'checked_at',
+    'suggestion',
+  ],
+  anchorSuggestion: ['from_pos', 'to_pos', 'text'],
   outlineChapter: ['document_id', 'title', 'order_index', 'word_count', 'headings'],
   errorBody: ['code', 'message', 'detail'],
   versionConflictDetail: [
@@ -172,6 +192,45 @@ describe('document shapes', () => {
       for (const heading of chapter.headings) {
         expectKeys(heading, KEYS.heading);
       }
+    }
+  });
+});
+
+describe('anchor shapes (P2-7, D21)', () => {
+  test('an anchor the resolver is happy with', () => {
+    const body: Anchor = load('anchor');
+    expectKeys(body, KEYS.anchor);
+    expect(body.status).toBe('ok');
+    expect(body.suggestion).toBeNull();
+    expect(body.quote.length).toBeGreaterThan(0);
+    expect(body.to_pos).toBeGreaterThan(body.from_pos);
+  });
+
+  test('a save carries back the anchors it moved, with their suggestions', () => {
+    const body: SaveResult = load('save_result_anchors');
+    expectKeys(body, KEYS.saveResult);
+    expect(body.anchors.length).toBeGreaterThan(0);
+
+    for (const moved of body.anchors) {
+      expectKeys(moved, KEYS.anchor);
+      expect(moved.status).toBe('stale');
+      expect(moved.suggestion).not.toBeNull();
+      expectKeys(moved.suggestion, KEYS.anchorSuggestion);
+    }
+  });
+
+  test('a save that moved nothing sends an empty list, not an absent field', () => {
+    const body: SaveResult = load('save_result');
+    expect(body.anchors).toEqual([]);
+  });
+
+  test('the project list is every anchor, whatever its status', () => {
+    const body: AnchorList = load('anchor_list');
+    expectKeys(body, ['anchors']);
+    expect(body.anchors.length).toBeGreaterThan(0);
+    for (const anchor of body.anchors) {
+      expectKeys(anchor, KEYS.anchor);
+      expect(['ok', 'stale', 'orphaned']).toContain(anchor.status);
     }
   });
 });

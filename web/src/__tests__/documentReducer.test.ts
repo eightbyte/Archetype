@@ -59,6 +59,7 @@ function saveResult(overrides: Partial<SaveResult> = {}): SaveResult {
     word_count: 4,
     headings: [],
     updated_at: '2026-01-01T00:01:00Z',
+    anchors: [],
     ...overrides,
   };
 }

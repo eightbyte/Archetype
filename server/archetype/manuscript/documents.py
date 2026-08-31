@@ -29,6 +29,16 @@ None of :meth:`DocumentStore.reorder`, :meth:`DocumentStore.delete`, or
 :meth:`DocumentStore.restore` bumps a document's content ``version``. None of them is a text
 edit, which is the rule :meth:`DocumentStore.rename` already follows: invalidating an in-flight
 autosave over a move or a title would cost the writer a keystroke.
+
+Anchors (P2-7, D21)
+-------------------
+
+A text write is the one thing that can move an anchor, so :meth:`DocumentStore.save_content`
+re-resolves the document's anchors inside its own transaction and reports the ones that moved on
+:class:`SaveResult`. That is D18's rule applied to anchors: the server owns the derived truth,
+the client mirrors it for liveness. The re-resolution lives in
+:mod:`archetype.manuscript.anchors.rewrite` so that this module can call it without the anchor
+store - which needs this module's errors - having to be importable from here.
 """
 
 from __future__ import annotations
@@ -42,6 +52,8 @@ from typing import Any
 from ..ids import IdPrefix, new_id
 from ..projects.db import transaction, utc_now
 from ..projects.store import ProjectHandle
+from .anchors.records import Anchor
+from .anchors.rewrite import resolve_within
 from .projection import Heading, InvalidDocumentError, Projection, empty_document, project
 
 __all__ = [
@@ -198,6 +210,11 @@ class SaveResult:
     word_count: int
     headings: tuple[Heading, ...]
     updated_at: str
+    #: Every anchor whose status or position moved in this write (P2-7, D21). Empty is the
+    #: ordinary answer - it means the writer typed above their anchors rather than through
+    #: them. The client replaces its own mapped positions with these, because the server's
+    #: answer is the authoritative one.
+    anchors: tuple[Anchor, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -494,6 +511,18 @@ class DocumentStore:
                     self.handle.id,
                 ),
             )
+            # D21: the server re-resolves this document's anchors from the text that has just
+            # replaced the old, in the same transaction that wrote it. Whoever the writer was -
+            # the editor, an import, a snapshot restore, a Phase 6 accepted proposal - the
+            # anchor rows are correct when the transaction commits, or nothing happened at all.
+            moved = resolve_within(
+                conn,
+                project_id=self.handle.id,
+                document_id=document_id,
+                projection=projection,
+                version=new_version,
+                now=now,
+            )
             _touch_project(conn, self.handle.id, now)
 
         return SaveResult(
@@ -502,6 +531,7 @@ class DocumentStore:
             word_count=projection.word_count,
             headings=projection.headings,
             updated_at=now,
+            anchors=tuple(moved),
         )
 
     def rename(self, document_id: str, title: str) -> DocumentMeta:

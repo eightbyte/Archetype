@@ -1,6 +1,6 @@
 # Archetype — Anchors
 
-**Status:** Specification, written before the resolver (P2-4) · **Version:** 1.0 · **Date:** 2026-08-30
+**Status:** Specification · built in P2-5 to P2-8, and corrected where it met the code · **Version:** 1.1 · **Date:** 2026-08-30
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1 (D1, D18, **D21**, **D22**)
 **Plan:** [`specs/phase-2-plan.md`](phase-2-plan.md) — this document is `P2-4`; it governs `P2-5`
@@ -134,6 +134,7 @@ the project subtly wrong at once.
 | `pm_from`, `pm_to` | The ProseMirror positions of the block's **content** — for a text block, one past the position of the node itself |
 | `text_from`, `text_to` | The block's span in `text_plain`, excluding the separators around it |
 | `mappable` | Whether an anchor may begin or end inside this block, and whether an offset in it converts to a position |
+| `raw` | The block's inline text *before* the projection trimmed it. Not part of the index as such: it is what makes the walk below a function of the projection alone, so nothing downstream has to hold the document JSON to convert a position (phase-2-plan § 7, B1) |
 
 **`mappable` is false for a `horizontalRule`.** It reads as five characters that nobody typed and
 occupies one position; there is no honest correspondence between the two, and no anchor may begin
@@ -167,6 +168,20 @@ inside a non-mappable block has no position.
 different blocks is a real range; the text span runs from the first to the last and includes the
 separators between them.
 
+An end that falls where there is no mappable text — before the first block, inside an empty
+paragraph, in the structure between two blocks — snaps toward the text the range **encloses**: a
+start forward, an end backward. Snapping both ends backward, which is what "the same, in reverse"
+says if read literally, would mean *select all* (`from_pos = 0`, a position inside no block at
+all) yields no range, so an anchor over the whole of a first paragraph could not be made. The
+directional snap can only shrink a range onto real words; it never widens one, and it never
+invents text (phase-2-plan § 7, B2).
+
+A range that **spans** a scene break is refused by this conversion rather than only at creation
+(§ 8), so the rule lives in one place. The distinction it draws is the block's *text*: a
+`horizontalRule` reads as five characters nobody typed, so a quote across one would carry them,
+while an empty paragraph contributes nothing and spanning one is ordinary. Both are non-mappable;
+only the first is unspannable (phase-2-plan § 7, B3).
+
 ---
 
 ## 3. Constants
@@ -179,7 +194,7 @@ Every one of these appears in the code under the name it has here.
 | `MAX_QUOTE_CHARS` | `4000` | About two long paragraphs. An anchor over more than that is really "a section", which Phase 2 deliberately does not have (§ 1). It also bounds the per-anchor cost of the scan |
 | `MIN_CONTEXT_SCORE` | `12` | The least surrounding agreement that counts as disambiguation in step 4 — two or three words. Below that, "context" is a coincidence of common words |
 | `WIN_MARGIN` | `8` | How far the winner must beat the runner-up by. Two candidates in near-identical surroundings both lose, and the writer is asked |
-| `MAX_SUGGESTION_CHARS` | `4 × len(quote) + 2 × CONTEXT_CHARS` | The largest span that may be offered as a suggestion (§ 6). Beyond it, the writer replaced far more than the anchored passage and pointing at all of it is noise |
+| `MAX_SUGGESTION_CHARS` | `4 × len(quote) + 2 × CONTEXT_CHARS` | The largest span that may be offered as a suggestion (§ 6). Beyond it, the writer replaced far more than the anchored passage and pointing at all of it is noise. Spelled in the code as `max_suggestion_chars(quote)`, a function: its value depends on the anchor, and a module constant cannot |
 | `RESOLUTION_BUDGET_MS` | `250` | The whole-document budget in `P2-7`'s test: 200 anchors over 100,000 characters, median of five runs. It exists to catch a **change of algorithmic class**, not to benchmark a machine, so it is set generously and a failure means the resolver got cleverer and slower |
 
 Module constants, not settings: a setting is a promise to support every value of it, and none of
@@ -456,12 +471,22 @@ minimum:
 | The quote deleted | `stale` |
 | The quote duplicated elsewhere afterwards | `ok` — context decides (step 4) |
 | The quote already appearing twice at creation | `ok` — created with distinguishing context |
-| A paragraph split through the range | `stale` |
+| A paragraph split through the range, with nothing added | `ok` — the separator normalises, exactly as it does for a merge |
+| A paragraph split through the range, with new words written into the gap | `stale` |
 | Two paragraphs merged across it | `ok` — the separator normalises |
 | A reflow changing only whitespace | `ok`, same characters |
 | The document emptied | `stale` |
 | The document emptied and restored by undo | `ok` again — status is not latched |
 | The chapter deleted, then restored | `orphaned`, then exactly the status it held before |
+
+> **Corrected in P2-6.** This table first said a paragraph split through the range yields
+> `stale`, which contradicts both the row beneath it and § 4. A split and a merge are the same
+> operation seen from two sides — one turns a space into a separator, the other a separator into
+> a space — and a normal form cannot collapse whitespace in one direction only. Keeping the
+> original reading would mean matching on block structure as well as characters, which makes the
+> *merge* case stale too and gives up the reflow guarantee § 4 exists for. What is genuinely
+> stale is a split with **new words written into the gap**, because then the passage is no longer
+> contiguous; the corpus carries both (phase-2-plan § 7, B4).
 
 Plus:
 

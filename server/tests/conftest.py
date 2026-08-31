@@ -38,6 +38,7 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 DB_FIXTURES_DIR = FIXTURES_DIR / "db"
 PROJECTION_FIXTURES_DIR = FIXTURES_DIR / "projection"
 CONTRACT_FIXTURES_DIR = FIXTURES_DIR / "contract"
+ANCHOR_FIXTURES_DIR = FIXTURES_DIR / "anchors"
 
 
 @pytest.fixture(autouse=True)
@@ -173,8 +174,10 @@ def snapshots(project: ProjectHandle) -> SnapshotStore:
 def make_anchor(project: ProjectHandle):
     """Insert an anchor row directly, and return its id (P2-1).
 
-    Written as SQL rather than through a store because there is no ``AnchorStore`` until P2-7:
-    Group A owns the table and the soft-delete rule over it, not the resolver that fills it.
+    Deliberately SQL rather than :class:`~archetype.manuscript.anchors.store.AnchorStore`, even
+    now that one exists: what ``test_chapters.py`` and ``test_anchor_status.py`` are about is the
+    derivation rule over a row, and going through the store would make those tests depend on the
+    resolver agreeing with them about the text. The store has its own tests.
     """
 
     def factory(
@@ -251,6 +254,35 @@ def text_node(text: str, marks: list[str] | None = None) -> dict[str, Any]:
 
 
 # -- shared fixture data --------------------------------------------------------------------
+
+
+def build_blocks(blocks: list[str]) -> dict[str, Any]:
+    """A document from the compact block notation the anchor corpus uses (P2-8).
+
+    A plain string is a paragraph, ``"---"`` is a ``horizontalRule``, and a newline inside a
+    string is a ``hardBreak``. The node vocabulary itself is the projection corpus's business;
+    these cases are about text, and spelling every one of them as ProseMirror JSON would bury
+    the passage each case is actually about.
+    """
+    nodes: list[dict[str, Any]] = []
+    for block in blocks:
+        if block == "---":
+            nodes.append({"type": "horizontalRule"})
+            continue
+        content: list[dict[str, Any]] = []
+        for index, line in enumerate(block.split("\n")):
+            if index:
+                content.append({"type": "hardBreak"})
+            if line:
+                content.append(text_node(line))
+        nodes.append({"type": "paragraph", "content": content})
+    return {"type": "doc", "content": nodes or [{"type": "paragraph"}]}
+
+
+def load_anchor_cases() -> list[dict[str, Any]]:
+    """The anchor corpus (P2-8), written from ``specs/anchors.md`` rather than from the code."""
+    raw = (ANCHOR_FIXTURES_DIR / "cases.json").read_text(encoding="utf-8")
+    return json.loads(raw)["cases"]
 
 
 def load_projection_cases() -> list[dict[str, Any]]:

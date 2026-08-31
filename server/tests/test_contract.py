@@ -20,6 +20,8 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from archetype.manuscript.projection import project, text_offset_to_pm_position
+
 from .conftest import CONTRACT_FIXTURES_DIR, build_document
 
 _ID_PATTERN = re.compile(r"\b(prj|doc|anc|ent|run)_[0-9a-z]{8,}\b")
@@ -31,6 +33,23 @@ PROSE = build_document(
     headings=[(1, "Arrival"), (2, "The Quay")],
     paragraphs=["The harbour was grey.", "He did not look back."],
 )
+
+#: The same chapter with the anchored passage rewritten, so that one fixture carries a stale
+#: anchor and the suggestion that goes with it.
+BROKEN_PROSE = build_document(
+    headings=[(1, "Arrival"), (2, "The Quay")],
+    paragraphs=["The harbour was calm.", "He did not look back."],
+)
+
+
+def _range_over(document: Any, passage: str) -> tuple[int, int]:
+    """The ProseMirror range a client selecting ``passage`` would send."""
+    projection = project(document)
+    text_from = projection.text_plain.index(passage)
+    from_pos = text_offset_to_pm_position(projection, text_from)
+    to_pos = text_offset_to_pm_position(projection, text_from + len(passage))
+    assert from_pos is not None and to_pos is not None
+    return from_pos, to_pos
 
 
 class Normaliser:
@@ -133,6 +152,32 @@ def test_contract_fixtures_round_trip(client: TestClient) -> None:
         client.put(f"/api/documents/{first_document}/content", json={"content_json": PROSE}),
     )
 
+    # Anchors last, so that adding them changed no fixture that already existed (P2-7). The
+    # three between them cover both shapes the client has to read: an anchor the resolver is
+    # happy with, and one a save broke, carrying the suggestion for repairing it.
+    from_pos, to_pos = _range_over(PROSE, "harbour was grey")
+    anchor = capture(
+        "anchor",
+        client.post(
+            f"/api/documents/{first_document}/anchors",
+            json={
+                "from_pos": from_pos,
+                "to_pos": to_pos,
+                "version": 2,
+                "label": "the harbour",
+            },
+        ),
+    )
+    capture(
+        "save_result_anchors",
+        client.put(
+            f"/api/documents/{first_document}/content",
+            json={"content_json": BROKEN_PROSE, "version": 2},
+        ),
+    )
+    capture("anchor_list", client.get(f"/api/projects/{project_id}/anchors"))
+    assert anchor["status"] == "ok"
+
     # The round trip: everything written parses back to what was written.
     for name, body in written.items():
         path = CONTRACT_FIXTURES_DIR / f"{name}.json"
@@ -142,6 +187,8 @@ def test_contract_fixtures_round_trip(client: TestClient) -> None:
 def test_every_fixture_is_one_the_test_writes() -> None:
     """A fixture left behind by a deleted route would silently pass forever on the client."""
     expected = {
+        "anchor",
+        "anchor_list",
         "document",
         "document_list",
         "document_meta",
@@ -153,6 +200,7 @@ def test_every_fixture_is_one_the_test_writes() -> None:
         "project_detail",
         "project_list",
         "save_result",
+        "save_result_anchors",
     }
     found = {path.stem for path in CONTRACT_FIXTURES_DIR.glob("*.json")}
     assert found == expected

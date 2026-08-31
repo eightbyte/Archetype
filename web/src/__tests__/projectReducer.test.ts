@@ -83,6 +83,7 @@ describe('a save landing', () => {
       word_count: 55,
       headings: [{ level: 1, text: 'Arrival', ordinal: 0 }],
       updated_at: '2026-01-02T00:00:00Z',
+      anchors: [],
     };
     const state = projectReducer(loaded(), { type: 'document-saved', result });
 
@@ -102,6 +103,7 @@ describe('a save landing', () => {
         word_count: 55,
         headings: [],
         updated_at: '2026-01-02T00:00:00Z',
+        anchors: [],
       },
     });
 

@@ -31,6 +31,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from ..manuscript.anchors.resolve import AnchorRangeError
+from ..manuscript.anchors.store import AnchorNotFoundError
 from ..manuscript.documents import (
     ContentTooLargeError,
     DocumentNotFoundError,
@@ -118,6 +120,16 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DocumentNotFoundError)
     def _document_not_found(request: Request, exc: DocumentNotFoundError) -> JSONResponse:
         return _not_found(request, exc, "document_not_found", "document", "document_id")
+
+    @app.exception_handler(AnchorNotFoundError)
+    def _anchor_not_found(request: Request, exc: AnchorNotFoundError) -> JSONResponse:
+        return _not_found(request, exc, "anchor_not_found", "anchor", "anchor_id")
+
+    @app.exception_handler(AnchorRangeError)
+    def _anchor_range(_: Request, exc: AnchorRangeError) -> JSONResponse:
+        # Every refusal in specs/anchors.md section 8. The message is written to be shown: the
+        # writer selected something, and "invalid range" would not tell them what to do next.
+        return error_response(422, "invalid_anchor_range", str(exc))
 
     @app.exception_handler(StaleVersionError)
     def _stale_version(_: Request, exc: StaleVersionError) -> JSONResponse:

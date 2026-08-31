@@ -17,9 +17,9 @@ relational data plus keyword and vector indexes. Single user, localhost, Windows
 Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository directory is
 `WritingAssistant` — a path, not the product name.
 
-**Current state: Phase 1 complete (2026-08-30); Phase 2 in progress — Group A (P2-1 → P2-4)
-delivered.** All twenty-four decisions are resolved and binding: the writer ruled D21–D24 on
-2026-08-30 as recommended, which also settles backlog `Q1` and `Q5`.
+**Current state: Phase 1 complete (2026-08-30); Phase 2 in progress — Groups A (P2-1 → P2-4)
+and B (P2-5 → P2-8) delivered.** All twenty-four decisions are resolved and binding: the writer
+ruled D21–D24 on 2026-08-30 as recommended, which also settles backlog `Q1` and `Q5`.
 
 The app is a place you can write: create a project, add chapters, write formatted prose that
 saves itself and survives a reload, and move around the manuscript by its headings. What exists
@@ -27,23 +27,35 @@ on the server: configuration and the secret guard, the project file schema at **
 its migration runner, the ID generator, the project store, the whole Phase 1 REST surface with
 its uniform error envelope and structured request logging, the save protocol with the D19 version
 guard, the text projection, the static mount that lets one process serve both the API and the
-built app, and — new in Group A — **chapter reorder, soft delete, and restore; snapshots with
-capture, history, and restore-through-the-save-path; and the `anchor` and `snapshot` tables.** On
-the client: the three-region workspace with resizable keyboard-accessible dividers, the three
-contexts and their pure reducers, the TipTap editor over a closed schema with autosave, the live
-table of contents with jump-to-heading, the project picker, and error boundaries per region.
+built app; Group A's **chapter reorder, soft delete, and restore; snapshots with capture, history,
+and restore-through-the-save-path; and the `anchor` and `snapshot` tables**; and — new in Group B
+— **the block index over the projection, the anchor resolver and its corpus, the anchor store with
+its five routes, and re-resolution inside every save's transaction.** On the client: the
+three-region workspace with resizable keyboard-accessible dividers, the three contexts and their
+pure reducers, the TipTap editor over a closed schema with autosave, the live table of contents
+with jump-to-heading, the project picker, and error boundaries per region.
 
 Every Phase 1 exit criterion is met, including the acceptance script run by hand against the
 single-process build; the results are in [specs/phase-1-plan.md](specs/phase-1-plan.md) § 6.
 
-**Group A is store-level and spec-level only. There are no new routes and no new UI**, which is
-where the plan puts them: the chapter and snapshot routes arrive with the surfaces that use them
-(`P2-11`, `P2-12`), so `web/` is untouched and the wire schemas are still Phase 1-shaped.
-`specs/anchors.md` (`P2-4`) is written, in full, **before** the resolver it governs.
+**Anchors work end to end on the server, and are invisible in the browser.** You can create one
+over a range, edit around it, watch a save move it or report it `stale` with a suggestion, repair
+it by hand, and see it go `orphaned` when its chapter is deleted — all through the API. The only
+client-side change is typed: `SaveResult` grew its `anchors` field and `web/src/api/types.ts`
+mirrors it, held to the server by contract fixtures. **Drawing anchors is Group C** (`P2-9`,
+`P2-10`), which is also where the chapter and snapshot routes land (`P2-11`, `P2-12`).
 
-**Next: Group B (P2-5 → P2-8) — the block index, the resolver, the anchor store and its routes,
-and the anchor test corpus.** There is no AI, no bible, and no search; there is an `anchor` table
-and a status vocabulary, but **nothing resolves an anchor yet** — that is `P2-6`.
+**Next: Group C (P2-9 → P2-12) — anchors in the editor, the *Marks* tab and re-linking, chapter
+management in the UI, and snapshot history.** There is still no AI, no bible, no search, and no
+Markdown.
+
+**One Group B correction is worth knowing before Group C:** deviation `B4` in
+[specs/phase-2-plan.md](specs/phase-2-plan.md) § 7. `specs/anchors.md` § 10 said a paragraph split
+through an anchored range yields `stale`, while its own neighbouring row said a *merge* across one
+stays `ok` "because the separator normalises". Those cannot both hold — a split and a merge are
+the same operation seen from two sides. **Ruled by the writer on 2026-08-30 as built:** a bare
+split keeps the anchor, and only a split with new words written into the gap breaks it. So an
+anchor can legitimately span a block boundary, which P2-9's decorations have to handle.
 
 One thing that run surfaced, worth carrying forward: **the editor's visible failure states are
 hard to reach from the app.** Stopping the server mid-edit did not produce a failed save the
@@ -62,7 +74,8 @@ show up by using the app, so those tests are the only thing standing under them.
   criteria, and the as-built deviations table.
 - [specs/phase-2-plan.md](specs/phase-2-plan.md) — Phase 2 work items (`P2-1` … `P2-15`). Its § 2
   is **ruled** (D21–D24, 2026-08-30). Group A's seven as-built deviations are in its § 7 and are
-  worth reading before Group B — three of them change something the plan's later items assume.
+  worth reading before Group C, along with Group B's twelve — `B4` is a product decision, not
+  an implementation detail.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
   phase it must be settled by. `Q1` and `Q5` are promoted and closed; `Q2`, `Q3`, `Q4`, and `Q6`
   are open.
@@ -71,13 +84,14 @@ show up by using the app, so those tests are the only thing standing under them.
   discipline. Its § 7 sketches later phases and is **not** binding; the rest is a bug if it
   disagrees with the code.
 - [specs/api-contract.md](specs/api-contract.md) — every route that exists, what it promises, and
-  what it refuses. The generated OpenAPI schema is authoritative for types; this is authoritative
-  for behaviour.
+  what it refuses, including § 7's five anchor routes and the extended save response. The
+  generated OpenAPI schema is authoritative for types; this is authoritative for behaviour.
 - [specs/anchors.md](specs/anchors.md) — what an anchor stores, the two coordinate systems and
   the block index, the matching ladder with its exact thresholds, the whitespace normal form, the
   suggestion protocol, and **what an anchor does not promise**. Written in `P2-4` before the code
   it governs; `P2-8`'s corpus is written from it, not from the implementation. Read it before
-  touching anything in `manuscript/anchors/`.
+  touching anything in `manuscript/anchors/`. Four places where the code corrected it are marked
+  and cross-referenced to the phase plan's `B1`–`B5`.
 - `specs/agent-tools.md` — written as its phase begins (Phase 6).
 
 Work items carry stable IDs (`P3-4`) that commits and code comments reference. IDs are never
@@ -198,10 +212,14 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/projects/migrations.py` | The forward-only migration runner (D20) |
 | `server/archetype/projects/migrations/*.sql` | Numbered schema migrations |
 | `server/archetype/projects/store.py` | `ProjectStore`, `ProjectHandle`, the directory scan (D17) |
-| `server/archetype/manuscript/projection.py` | The pure text projection: rules, `text_plain`, headings, word count (`P1-7`, D18) |
+| `server/archetype/manuscript/projection.py` | The pure text projection: rules, `text_plain`, headings, word count (`P1-7`, D18), plus the block index and the two coordinate conversions (`P2-5`) |
 | `server/archetype/manuscript/documents.py` | `DocumentStore` — the only path by which manuscript text changes (`P1-6`, D19), plus reorder, soft delete, and restore (`P2-2`, D22) |
 | `server/archetype/manuscript/snapshots.py` | `SnapshotStore` — capture, history, and restore-as-an-ordinary-save (`P2-3`, D23) |
 | `server/archetype/manuscript/anchors/status.py` | The anchor status vocabulary and the one rule that derives `orphaned` (`P2-1`, D22) |
+| `server/archetype/manuscript/anchors/resolve.py` | The matching ladder, the normal form, the suggestion protocol, and the constants — **pure**, no I/O (`P2-6`) |
+| `server/archetype/manuscript/anchors/records.py` | The stored anchor, and the one place a row becomes one |
+| `server/archetype/manuscript/anchors/rewrite.py` | Re-resolution inside the transaction of the save that caused it (`P2-7`, D21) |
+| `server/archetype/manuscript/anchors/store.py` | `AnchorStore` — create from a range, read, re-link, delete (`P2-7`) |
 | `server/archetype/manuscript/locator.py` | Resolves a bare document id to the project file holding it |
 | `server/archetype/api/routes.py` | The `/api` router (`P1-5`) |
 | `server/archetype/api/logging.py` | Request logging: one line per request, with a request id (`P1-13`) |
@@ -210,7 +228,8 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/api/errors.py` | The uniform error envelope and its exception handlers |
 | `server/archetype/app.py` | `create_app()`; builds the store and locator onto `app.state` |
 | `server/tests/fixtures/db/` | Databases captured at a known schema version, with their README and the script that captured `v001_phase1.sqlite` |
-| `server/tests/fixtures/projection/` | The shared projection cases — read by **both** suites (`P1-7`) |
+| `server/tests/fixtures/projection/` | The shared projection cases, now with the block index — read by **both** suites (`P1-7`, `P2-5`) |
+| `server/tests/fixtures/anchors/` | The anchor corpus, hand-written from `specs/anchors.md` (`P2-8`) |
 | `server/tests/fixtures/contract/` | API responses written by pytest, type-checked by vitest (`P1-8`) |
 | `server/tests/fakes/` | `FakeProvider` and `FakeEmbedder` land here in Phases 4 and 5 |
 | `web/src/api/` | The typed client, its interface, and the mirrored wire types |
@@ -226,9 +245,13 @@ suite keeps a developer's real config out of its way.
 | `server/tests/test_static.py` | The run-mode tests; each builds its own miniature `dist` in `tmp_path` |
 | `server/tests/test_chapters.py` | Reorder, delete, restore, and the soft-delete predicate across all four read paths (`P2-2`) |
 | `server/tests/test_snapshots.py` | Capture, dedupe, retention, and restore (`P2-3`) |
+| `server/tests/test_block_index.py` | The index against the shared cases, and the conversions at their edges (`P2-5`) |
+| `server/tests/test_anchors.py` | The corpus, the properties, and the resolver's refusals (`P2-6`, `P2-8`) |
+| `server/tests/test_anchor_store.py` | The store, re-resolution on write, and the resolution budget (`P2-7`) |
+| `server/tests/test_anchor_routes.py` | The five anchor routes over the real application (`P2-7`) |
 
-**Invariants established in Phase 1's Groups A, B, and C, and in Phase 2's Group A**, beyond
-those already listed above:
+**Invariants established in Phase 1's Groups A, B, and C, and in Phase 2's Groups A and B**,
+beyond those already listed above:
 
 - **Transaction control is explicit.** Connections open with `isolation_level=None`; `BEGIN` and
   `COMMIT` are written, never implied. A migration carries its transaction *inside* the script
@@ -273,6 +296,53 @@ those already listed above:
 - **A `pre-*` snapshot is written inside the transaction of the thing it protects against**, so a
   refused delete or a restore refused as stale leaves nothing behind — not even the snapshot that
   was about to protect it.
+- **An anchor that reports `ok` points at text equal to its quote — there is no case in which the
+  resolver returns `ok` and is wrong.** Every step of the ladder that would answer `ok` goes
+  through one gate, `_confirmed`, which re-reads the text at the span it is about to return and
+  compares it to the quote. The property is asserted **once over the whole corpus** rather than
+  per case, so a case added later is covered without anyone remembering, and again over seeded
+  random edits that deliberately reach into the anchored text. Everything else in Phase 2 can be
+  fixed later; a wrong anchor does not fail, so it cannot be detected later.
+- **A fuzzy match is a suggestion, never an outcome.** Steps 2 to 4 are exact string searches;
+  step 4's scoring decides *between* exact occurrences, never whether an inexact one is close
+  enough. A `stale` anchor's suggestion is computed from its **unedited surroundings** — two
+  exact substring searches, no threshold to tune — precisely because a quote matcher is the
+  machinery that turns into automatic repointing under pressure.
+- **The block index is produced by the walk that produces `text_plain`**, not alongside it. Two
+  walks over one tree are two chances to disagree about what a block is, and an index that
+  disagrees with the text it indexes makes every anchor in the project subtly wrong at once. The
+  shared fixture states both, so the two cannot drift apart in one suite and not the other.
+- **A conversion between the two coordinate spaces is a walk, not arithmetic** — the projection
+  trims each line and drops empty ones, so a paragraph carrying a stray trailing space is shorter
+  in `text_plain` than in the document. Arithmetic is a legal fast path exactly when the block's
+  projected length equals its raw length, which is nearly always, and the check is one comparison.
+- **`text_plain` and ProseMirror positions have no honest correspondence inside a scene break.**
+  An offset in one has no position, and a range that spans one is refused rather than quoted with
+  five characters nobody typed. An empty paragraph is also non-mappable but *is* spannable,
+  because it contributes no text at all.
+- **The server derives an anchor's quote; the client sends only a range and a version.** A client
+  cannot create an anchor that disagrees with the manuscript, because it is never asked what the
+  manuscript says — and a range against a stale version is refused with the same `409` a save is.
+- **`save_content` re-resolves the document's anchors inside its own transaction, and its answer
+  is authoritative** (D21). Whoever wrote — the editor, an import, a restore, a Phase 6 accepted
+  proposal — the rows are correct when it commits or nothing happened at all. The client's
+  ProseMirror mapping is display-only: it is never sent and never overrides a text match.
+- **Status is recomputed, never latched.** Nothing in the resolver reads an anchor's stored
+  status. An undo that restores a deleted passage returns its anchor to `ok` on the next save,
+  and a `stale` anchor keeps the positions it had rather than moving somewhere approximately
+  right.
+- **Every anchor of a document is checked on every save, not just the ones that moved** — a
+  status is a statement about the text as it is now, and a row nobody looked at cannot make one.
+  Only the movers are reported back, and only an `ok` anchor's `document_version` advances,
+  because a `stale` anchor's positions are true at no version.
+- **Re-resolution is budgeted, not assumed.** 200 anchors over 100,000 characters, median of five
+  runs, under `RESOLUTION_BUDGET_MS` — currently 27.5 ms against 250. It exists to catch a change
+  of algorithmic class, so a resolver that gets cleverer and slower fails the suite rather than a
+  writer whose typing has started to stutter.
+- **The anchor package's import direction is one-way and load-bearing.** `resolve.py` and
+  `status.py` are pure; `rewrite.py` is what `DocumentStore` calls and must not import it back;
+  `store.py` sits above both and raises the document store's own `StaleVersionError`. The package
+  `__init__` exports only the pure halves — importing the store from it re-creates the cycle.
 - **Routes carry no domain logic and stores carry no HTTP.** Domain exceptions are translated to
   the envelope by handlers in `api/errors.py`, so the same store serves a request and an agent run.
 - **The projection is one specification, two implementations.** The rules live in the docstring of

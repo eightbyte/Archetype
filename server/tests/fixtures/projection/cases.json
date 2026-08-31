@@ -1,26 +1,31 @@
 {
-  "_readme": "Shared projection cases (P1-7, D18). Read by tests/test_projection.py on the server and by web/src/__tests__/projection.test.ts in the browser suite. Both implementations must agree on every case, so a rule that changes on one side and not the other fails a test instead of confusing a writer's table of contents. Expected values are hand-written: they are the specification, not a recording of what the code happens to do.",
+  "_readme": "Shared projection cases (P1-7, D18). Read by tests/test_projection.py on the server and by web/src/__tests__/projection.test.ts in the browser suite. Both implementations must agree on every case, so a rule that changes on one side and not the other fails a test instead of confusing a writer's table of contents. Expected values are hand-written: they are the specification, not a recording of what the code happens to do. The `blocks` key is the block index (P2-5): the same cases seen in both coordinate systems, hand-derived from ProseMirror's position arithmetic. The client mirror has no index and reads named keys, so it ignores it.",
   "cases": [
     {
       "name": "an empty editor projects to nothing",
       "doc": { "type": "doc", "content": [{ "type": "paragraph" }] },
       "text_plain": "",
       "headings": [],
-      "word_count": 0
+      "word_count": 0,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 1, "text_from": 0, "text_to": 0, "mappable": false }
+      ]
     },
     {
       "name": "a document with no blocks at all",
       "doc": { "type": "doc", "content": [] },
       "text_plain": "",
       "headings": [],
-      "word_count": 0
+      "word_count": 0,
+      "blocks": []
     },
     {
       "name": "a document with no content key",
       "doc": { "type": "doc" },
       "text_plain": "",
       "headings": [],
-      "word_count": 0
+      "word_count": 0,
+      "blocks": []
     },
     {
       "name": "paragraphs are separated by exactly one blank line",
@@ -33,7 +38,11 @@
       },
       "text_plain": "The harbour was grey.\n\nHe did not look back.",
       "headings": [],
-      "word_count": 9
+      "word_count": 9,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 22, "text_from": 0, "text_to": 21, "mappable": true },
+        { "pm_from": 24, "pm_to": 45, "text_from": 23, "text_to": 44, "mappable": true }
+      ]
     },
     {
       "name": "an empty paragraph does not widen the gap",
@@ -47,7 +56,12 @@
       },
       "text_plain": "One.\n\nTwo.",
       "headings": [],
-      "word_count": 2
+      "word_count": 2,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 5, "text_from": 0, "text_to": 4, "mappable": true },
+        { "pm_from": 7, "pm_to": 7, "text_from": 4, "text_to": 4, "mappable": false },
+        { "pm_from": 9, "pm_to": 13, "text_from": 6, "text_to": 10, "mappable": true }
+      ]
     },
     {
       "name": "headings carry level, text, and ordinal",
@@ -73,7 +87,13 @@
         { "level": 1, "text": "Part One", "ordinal": 0 },
         { "level": 2, "text": "Arrival", "ordinal": 1 }
       ],
-      "word_count": 6
+      "word_count": 6,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 9, "text_from": 0, "text_to": 8, "mappable": true },
+        { "pm_from": 11, "pm_to": 17, "text_from": 10, "text_to": 16, "mappable": true },
+        { "pm_from": 19, "pm_to": 26, "text_from": 18, "text_to": 25, "mappable": true },
+        { "pm_from": 28, "pm_to": 39, "text_from": 27, "text_to": 38, "mappable": true }
+      ]
     },
     {
       "name": "marks inside a heading do not reach the text",
@@ -93,7 +113,10 @@
       },
       "text_plain": "The Long Road",
       "headings": [{ "level": 1, "text": "The Long Road", "ordinal": 0 }],
-      "word_count": 3
+      "word_count": 3,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 14, "text_from": 0, "text_to": 13, "mappable": true }
+      ]
     },
     {
       "name": "an empty heading still takes an ordinal",
@@ -119,7 +142,12 @@
         { "level": 2, "text": "", "ordinal": 1 },
         { "level": 1, "text": "Next", "ordinal": 2 }
       ],
-      "word_count": 2
+      "word_count": 2,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 8, "text_from": 0, "text_to": 7, "mappable": true },
+        { "pm_from": 10, "pm_to": 10, "text_from": 7, "text_to": 7, "mappable": false },
+        { "pm_from": 12, "pm_to": 16, "text_from": 9, "text_to": 13, "mappable": true }
+      ]
     },
     {
       "name": "a heading with no level reads as level one",
@@ -129,7 +157,10 @@
       },
       "text_plain": "Untitled",
       "headings": [{ "level": 1, "text": "Untitled", "ordinal": 0 }],
-      "word_count": 1
+      "word_count": 1,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 9, "text_from": 0, "text_to": 8, "mappable": true }
+      ]
     },
     {
       "name": "a blockquote contributes its paragraphs undecorated",
@@ -147,7 +178,11 @@
       },
       "text_plain": "First line.\n\nSecond line.",
       "headings": [],
-      "word_count": 4
+      "word_count": 4,
+      "blocks": [
+        { "pm_from": 2, "pm_to": 13, "text_from": 0, "text_to": 11, "mappable": true },
+        { "pm_from": 15, "pm_to": 27, "text_from": 13, "text_to": 25, "mappable": true }
+      ]
     },
     {
       "name": "list items are blocks without bullets",
@@ -178,7 +213,11 @@
       },
       "text_plain": "Salt.\n\nRope and canvas.",
       "headings": [],
-      "word_count": 4
+      "word_count": 4,
+      "blocks": [
+        { "pm_from": 3, "pm_to": 8, "text_from": 0, "text_to": 5, "mappable": true },
+        { "pm_from": 12, "pm_to": 28, "text_from": 7, "text_to": 23, "mappable": true }
+      ]
     },
     {
       "name": "an ordered list behaves the same way",
@@ -207,7 +246,11 @@
       },
       "text_plain": "First.\n\nSecond.",
       "headings": [],
-      "word_count": 2
+      "word_count": 2,
+      "blocks": [
+        { "pm_from": 3, "pm_to": 9, "text_from": 0, "text_to": 6, "mappable": true },
+        { "pm_from": 13, "pm_to": 20, "text_from": 8, "text_to": 15, "mappable": true }
+      ]
     },
     {
       "name": "nesting is walked all the way down",
@@ -248,7 +291,11 @@
       },
       "text_plain": "Deep.\n\nDeeper.",
       "headings": [],
-      "word_count": 2
+      "word_count": 2,
+      "blocks": [
+        { "pm_from": 4, "pm_to": 9, "text_from": 0, "text_to": 5, "mappable": true },
+        { "pm_from": 14, "pm_to": 21, "text_from": 7, "text_to": 14, "mappable": true }
+      ]
     },
     {
       "name": "a horizontal rule is a scene break and costs no words",
@@ -262,7 +309,12 @@
       },
       "text_plain": "Before.\n\n* * *\n\nAfter.",
       "headings": [],
-      "word_count": 2
+      "word_count": 2,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 8, "text_from": 0, "text_to": 7, "mappable": true },
+        { "pm_from": 9, "pm_to": 10, "text_from": 9, "text_to": 14, "mappable": false },
+        { "pm_from": 11, "pm_to": 17, "text_from": 16, "text_to": 22, "mappable": true }
+      ]
     },
     {
       "name": "a hard break is a line inside one block",
@@ -281,7 +333,10 @@
       },
       "text_plain": "Roses are red\nviolets are blue",
       "headings": [],
-      "word_count": 6
+      "word_count": 6,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 31, "text_from": 0, "text_to": 30, "mappable": true }
+      ]
     },
     {
       "name": "a run of hard breaks cannot forge a block boundary",
@@ -301,7 +356,10 @@
       },
       "text_plain": "One\nTwo",
       "headings": [],
-      "word_count": 2
+      "word_count": 2,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 9, "text_from": 0, "text_to": 7, "mappable": true }
+      ]
     },
     {
       "name": "whitespace around a block is trimmed, inside it is left alone",
@@ -316,7 +374,10 @@
       },
       "text_plain": "The  harbour was grey.",
       "headings": [],
-      "word_count": 4
+      "word_count": 4,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 29, "text_from": 0, "text_to": 22, "mappable": true }
+      ]
     },
     {
       "name": "words are letters and digits joined by apostrophes and dashes",
@@ -336,7 +397,10 @@
       },
       "text_plain": "He didn't look back -- the well-known road, 1984, * * *",
       "headings": [],
-      "word_count": 8
+      "word_count": 8,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 56, "text_from": 0, "text_to": 55, "mappable": true }
+      ]
     },
     {
       "name": "non-ascii words count once each",
@@ -351,7 +415,10 @@
       },
       "text_plain": "naïve café Ωmega résumé don’t",
       "headings": [],
-      "word_count": 5
+      "word_count": 5,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 30, "text_from": 0, "text_to": 29, "mappable": true }
+      ]
     },
     {
       "name": "an unknown node still yields its text",
@@ -368,7 +435,10 @@
       },
       "text_plain": "Held back.",
       "headings": [],
-      "word_count": 2
+      "word_count": 2,
+      "blocks": [
+        { "pm_from": 2, "pm_to": 12, "text_from": 0, "text_to": 10, "mappable": true }
+      ]
     },
     {
       "name": "a whole chapter, as the editor would produce it",
@@ -434,7 +504,18 @@
         { "level": 2, "text": "The Customs House", "ordinal": 1 },
         { "level": 3, "text": "Later", "ordinal": 2 }
       ],
-      "word_count": 27
+      "word_count": 27,
+      "blocks": [
+        { "pm_from": 1, "pm_to": 13, "text_from": 0, "text_to": 12, "mappable": true },
+        { "pm_from": 15, "pm_to": 67, "text_from": 14, "text_to": 66, "mappable": true },
+        { "pm_from": 68, "pm_to": 69, "text_from": 68, "text_to": 73, "mappable": false },
+        { "pm_from": 70, "pm_to": 87, "text_from": 75, "text_to": 92, "mappable": true },
+        { "pm_from": 90, "pm_to": 109, "text_from": 94, "text_to": 113, "mappable": true },
+        { "pm_from": 114, "pm_to": 119, "text_from": 115, "text_to": 120, "mappable": true },
+        { "pm_from": 123, "pm_to": 128, "text_from": 122, "text_to": 127, "mappable": true },
+        { "pm_from": 132, "pm_to": 137, "text_from": 129, "text_to": 134, "mappable": true },
+        { "pm_from": 139, "pm_to": 160, "text_from": 136, "text_to": 157, "mappable": true }
+      ]
     }
   ]
 }
