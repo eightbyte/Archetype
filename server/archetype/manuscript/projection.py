@@ -97,6 +97,7 @@ __all__ = [
     "pm_range_to_text_span",
     "project",
     "text_offset_to_pm_position",
+    "tidy_block",
     "validate_document",
 ]
 
@@ -410,9 +411,18 @@ def _inline_scan(node: Mapping[str, Any]) -> tuple[str, int]:
     return "".join(parts), size
 
 
-def _tidy(text: str) -> str:
-    """Trim each line and drop the empty ones - a block may not contain a blank line."""
+def tidy_block(text: str) -> str:
+    """Trim each line and drop the empty ones - a block may not contain a blank line.
+
+    Public because the Markdown serializer (P2-13) needs the *same* rule: a chapter exported to
+    Markdown and stripped of its syntax must read as its ``text_plain``, and Markdown has no
+    representation for a blank line inside a block anyway. One implementation, cited from both.
+    """
     return _tidy_scan(text)[0]
+
+
+def _tidy(text: str) -> str:
+    return tidy_block(text)
 
 
 def _tidy_scan(raw: str) -> tuple[str, tuple[tuple[int, int, int], ...]]:

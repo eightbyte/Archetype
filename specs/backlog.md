@@ -1,6 +1,6 @@
 # Archetype — Backlog
 
-**Status:** Active · **Version:** 1.1 · **Date:** 2026-08-30
+**Status:** Active · **Version:** 1.2 · **Date:** 2026-08-31
 **Parent:** [`specs/project-outline.md`](project-outline.md)
 
 Where ideas go so they do not become scope creep (outline § 9). Two kinds live here: **open
@@ -50,7 +50,13 @@ needed to prove the system works end to end.
 - Multi-user, collaboration, presence, accounts (outline § 2).
 - Home-server or internet-facing deployment, HTTPS, auth (D7).
 - Mobile and tablet layouts.
-- DOCX / EPUB / PDF export (D15).
+- DOCX / EPUB / PDF export, and the full project bundle (D15; Markdown per chapter and
+  combined shipped in Phase 2, P2-13).
+- A round-trip promise for the **combined** Markdown export ([phase-2-plan](phase-2-plan.md)
+  § 2, ruling 4) — it needs a chapter boundary the schema has no node for, and inventing one
+  would be a private format wearing Markdown's clothes.
+- Import **replacing** a chapter's text rather than appending one (ruling 5). The `pre-import`
+  snapshot reason exists for the phase that adds it; import-then-delete does the job today.
 - Local model hosting inside the app — the app talks to an endpoint; what serves it is the
   writer's business.
 
@@ -62,5 +68,5 @@ needed to prove the system works end to end.
 
 | ID | Promoted to | Date | Ruling |
 |---|---|---|---|
-| **Q1** | Phase 2 — [D23](development-phases.md) | 2026-08-30 | **Settled as its leaning, and further.** Snapshots are taken on handover, on demand with a label, and before anything destructive (`pre-restore`, `pre-delete`, `pre-import`). A timer was rejected: it duplicates autosave's job while producing snapshots at moments that mean nothing. Only the automatic `handover` snapshots are deduplicated and pruned; deliberate ones are always written and kept. |
+| **Q1** | Phase 2 — [D23](development-phases.md) | 2026-08-30 | **Settled as its leaning, and further.** Snapshots are taken on handover, on demand with a label, and before anything destructive (`pre-restore`, `pre-delete`, `pre-import`). A timer was rejected: it duplicates autosave's job while producing snapshots at moments that mean nothing. Only the automatic `handover` snapshots are deduplicated and pruned; deliberate ones are always written and kept. `pre-import` is registered but has no writer yet: import **creates** chapters and never replaces one, so nothing an import does can destroy text ([phase-2-plan](phase-2-plan.md) § 7, `D1`). |
 | **Q5** | Phase 2 — [D24](development-phases.md) | 2026-08-30 | **Settled as no lock.** D19's version guard plus the P1-10 conflict surface are the whole answer, and snapshots make even a clobber recoverable. A soft lock was rejected as introducing a failure mode strictly worse than the one it prevents: a crashed tab holding a lock on a single-user machine, with no second party to release it. |

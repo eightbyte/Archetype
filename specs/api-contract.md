@@ -1,14 +1,14 @@
 # Archetype — API Contract
 
-**Status:** Phase 1 surface as built, plus Phase 2's anchors (P2-7), chapter operations, and
-snapshots (P2-11, P2-12) · **Version:** 1.2 · **Date:** 2026-08-30
+**Status:** The Phase 2 surface as built — every route that exists · **Version:** 1.3 ·
+**Date:** 2026-08-31
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
-**Decisions:** [`specs/development-phases.md`](development-phases.md) § 1 (D7, D8, D18, D19, **D21**, **D22**, **D23**)
+**Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
+(D7, D8, **D15**, D18, D19, **D21**, **D22**, **D23**)
 **Companion:** [`specs/data-model.md`](data-model.md) — the same vocabulary in storage
 
-This document covers **every route that exists**. Markdown export and import arrive with P2-13
-and P2-14, chat and streaming in Phase 4, search in Phase 5, agent runs in Phase 6; each extends
-this document as it lands.
+This document covers **every route that exists**. Chat and streaming arrive in Phase 4, search
+in Phase 5, agent runs in Phase 6; each extends this document as it lands.
 
 The generated OpenAPI schema at `http://127.0.0.1:8787/openapi.json` (browsable at `/docs`) is
 produced from the same pydantic models and is authoritative for exact types. This document is
@@ -22,7 +22,9 @@ authoritative for **behaviour** — what a route promises, what it refuses, and 
 single user, no auth, no HTTPS, no CORS (D7). There is **no authentication**, because there is no
 second party. Anything reaching this port is already inside the writer's machine.
 
-**JSON in, JSON out.** UTF-8 throughout. Request bodies are `application/json`.
+**JSON in, JSON out.** UTF-8 throughout. Request bodies are `application/json`. The two
+Markdown exports are the **one exception**, and § 9 says why; their failures are still the
+envelope.
 
 **Timestamps** are UTC ISO-8601 with a `Z`: `2026-08-30T20:40:52Z`. They are formatted for
 display only at the client's edge (`web/src/format.ts`).
@@ -84,6 +86,9 @@ cleanly. A wire-shape change fails a suite rather than the browser.
 | `POST` | `/api/documents/{document_id}/snapshots` | `200` | `404`, `422` |
 | `GET` | `/api/snapshots/{snapshot_id}` | `200` | `404` |
 | `POST` | `/api/snapshots/{snapshot_id}/restore` | `200` | `404`, `409`, `422` |
+| `GET` | `/api/documents/{document_id}/markdown` | `200` | `404` |
+| `GET` | `/api/projects/{project_id}/markdown` | `200` | `404` |
+| `POST` | `/api/projects/{project_id}/import` | `201` | `404`, `413`, `422` |
 
 Any route can also answer `500` (§ 6).
 
@@ -666,7 +671,113 @@ version; `404` if the snapshot or its chapter is gone.
 
 ---
 
-## 9. Serving the app itself (P1-14)
+## 9. Markdown (P2-13, P2-14, D15)
+
+Two exports and one import. The exports are **the one non-JSON corner of this API** — see § 1's
+ground rules and the exception below.
+
+### The non-JSON exception
+
+`GET /api/documents/{document_id}/markdown` and `GET /api/projects/{project_id}/markdown` answer
+with `Content-Type: text/markdown; charset=utf-8` and a `Content-Disposition: attachment` naming
+the file. § 1 says "JSON in, JSON out"; this is the exception, and it is written down here rather
+than left to be discovered.
+
+An export is a **file a person saves**, not a payload a client parses. Wrapping it in JSON to
+honour a ground rule would make every client unwrap it, and would cost the app the thing that
+makes the client for it trivial: with an attachment, the control is an ordinary `<a href download>`
+and the browser does the saving and the naming.
+
+The disposition carries the name twice — an ASCII fallback and the RFC 5987 `filename*` form — so
+a chapter called *Départ* saves under its own name where the browser understands it and under a
+readable one where it does not. Everything a filesystem or a header would object to becomes a
+hyphen; a title that reduces to nothing becomes `chapter.md`.
+
+A failure is still the JSON envelope: a missing or deleted chapter is the ordinary `404`.
+
+### `GET /api/documents/{document_id}/markdown` — one chapter
+
+The chapter's content as Markdown, ending in a newline. **The title is not in the body.** This is
+the round-trip artifact — importing this file back produces the same document, which is the
+phase's sixth exit criterion — and a title written into the text would come back as a heading the
+writer never typed. It travels in the filename instead.
+
+The syntax is fixed in `archetype/manuscript/markdown/serialize.py` and stated case by case in
+`server/tests/fixtures/markdown/cases.json`: `#`/`##`/`###`, `**`, `*`, `>`, `-`, `1.`, `* * *`
+for a scene break (the same `SCENE_BREAK` the projection uses), and a trailing backslash for a
+hard break. A paragraph that begins with a block marker, or that the writer typed as three
+asterisks, is escaped and comes back as itself.
+
+`404` if the chapter does not exist or has been deleted — a deleted chapter is absent from every
+read (D22), and an export is a read.
+
+### `GET /api/projects/{project_id}/markdown` — the whole manuscript
+
+Every **live** chapter in order, each preceded by its title as an H1.
+
+**No round trip is promised here** (phase-2 plan § 2, ruling 4). The file needs a chapter boundary
+the schema has no node for, so reading it back would mean inventing a container syntax and parsing
+it — a private format wearing Markdown's clothes. It is a reading and hand-off artifact.
+`split-on-h1` will read one back into chapters because that is a useful thing to do with a file
+shaped like this, not because there is a promise attached.
+
+Deleted chapters are absent, from the one predicate every read applies.
+
+### `POST /api/projects/{project_id}/import` — create chapters from Markdown
+
+```json
+{ "markdown": "# Ashore\n\nThe tide turned.\n", "mode": "split-on-h1", "title": null }
+```
+
+| Field | |
+|---|---|
+| `markdown` | The file's text. Anything is valid input — a plain text file is valid Markdown, and a writer will try one |
+| `mode` | `one-chapter` or `split-on-h1`. Anything else is a `422` |
+| `title` | Optional. Names the single chapter `one-chapter` creates; `split-on-h1` takes each title from its own heading and ignores this. Omitted or `null`, the store names the chapter as it names any new one |
+
+`one-chapter` keeps a leading H1 **in the text**. Eating it would be reasonable and would break
+the round trip, which is the stronger rule. `split-on-h1` cuts at every top-level H1, takes it as
+the chapter's title, and gives any text before the first one a chapter of its own.
+
+**`201`**, with the chapters that were created and what could not be kept:
+
+```json
+{
+  "documents": [ { "id": "doc_…", "title": "Ashore", "…": "…" } ],
+  "dropped": [
+    { "element": "code fence", "line": 5,
+      "detail": "the text was kept as a paragraph; the code formatting was not" }
+  ]
+}
+```
+
+`documents` are `DocumentMeta` (§ 3) — metadata, not whole documents, because an import of a long
+file would otherwise return the whole manuscript to a client that is about to redraw a chapter
+list from it.
+
+`dropped` is **never an error and never empty of meaning**. Where a construct carried words, the
+words are in the chapter and only the construct is gone — a code fence becomes a paragraph, a
+link keeps its text and loses its target, an image leaves its alt text, a heading below level 3 is
+imported at level 3. `element` names it, `line` is 1-based into the file the writer chose, and
+`detail` says what actually happened. A file this server wrote drops nothing.
+
+A table, a footnote, and raw HTML produce **no** entry, because nothing is dropped: the parser is
+strict CommonMark with HTML off, so none of them is syntax it knows and every character survives
+as prose.
+
+**Import creates chapters; it never replaces the text of one** (ruling 5), which is what keeps
+`PUT /api/documents/{did}/content` the only route by which existing manuscript text changes.
+Replacing a chapter is import-then-delete, and both are already recoverable.
+
+| Refusal | |
+|---|---|
+| `404` | No such project |
+| `413` | The file is over 8 MiB, or one chapter it describes is over `MAX_CONTENT_BYTES`. **Nothing was created** — every chapter is measured before the first is written |
+| `422` | An unknown `mode`, a title too long, or an undeclared field |
+
+---
+
+## 10. Serving the app itself (P1-14)
 
 Not an API route, but part of the contract for how the server is reached.
 
@@ -691,15 +802,15 @@ the README tells you to open is a bad way to learn you skipped a build step.
 
 ---
 
-## 10. What is deliberately absent
+## 11. What is deliberately absent
 
 Named, because each is a plausible thing to reach for and find missing:
 
 | Absent | Arrives |
 |---|---|
-| Chapter reorder, delete, and restore | Phase 2 — built in the store (P2-2); the routes land with the surfaces that drive them (P2-11) |
-| Snapshot capture, history, and restore | Phase 2 — built in the store (P2-3); the routes land with P2-12 |
-| Markdown import and export | Phase 2 (P2-13, P2-14) |
+| ~~Chapter reorder, delete, and restore~~ | **Arrived** — § 5 above (P2-2, P2-11) |
+| ~~Snapshot capture, history, and restore~~ | **Arrived** — § 8 above (P2-3, P2-12) |
+| ~~Markdown import and export~~ | **Arrived** — § 9 above (P2-13, P2-14) |
 | ~~Anchors~~ | **Arrived** — § 7 above (P2-7) |
 | Bible entries, links, revisions | Phase 3 |
 | Chat, streaming, provider settings | Phase 4 |

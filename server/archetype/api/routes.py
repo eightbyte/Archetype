@@ -14,13 +14,18 @@ its threadpool, which is the honest way to do blocking work here.
 
 from __future__ import annotations
 
+import re
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import APIRouter, Query, Request, status
+from fastapi.responses import Response
 
 from .. import __version__
 from ..manuscript.anchors.store import AnchorStore
 from ..manuscript.documents import DocumentStore
+from ..manuscript.markdown import chapters_to_markdown, document_to_markdown
+from ..manuscript.markdown.importer import import_markdown
 from ..manuscript.snapshots import SnapshotStore
 from ..projects.store import ProjectHandle
 from .deps import get_locator, get_project_store, open_project
@@ -38,6 +43,9 @@ from .schemas import (
     DocumentRenameIn,
     DocumentReorderIn,
     DocumentSaveIn,
+    ImportNoticeOut,
+    MarkdownImportIn,
+    MarkdownImportOut,
     OutlineChapterOut,
     OutlineOut,
     ProjectCreateIn,
@@ -57,6 +65,9 @@ from .schemas import (
 __all__ = ["router"]
 
 router = APIRouter(prefix="/api")
+
+#: How a Markdown export is served. The one non-JSON response in the API (P2-13, ruling 9).
+MARKDOWN_MEDIA_TYPE = "text/markdown"
 
 
 # -- meta -----------------------------------------------------------------------------------
@@ -508,7 +519,135 @@ def delete_anchor(request: Request, anchor_id: str) -> None:
     locator.forget(anchor_id)
 
 
+# -- Markdown (P2-13, P2-14, D15) -------------------------------------------------------------
+#
+# The one non-JSON corner of this API (phase-2 plan section 2, ruling 9). An export is a file a
+# person saves, not a payload a client parses, and wrapping it in JSON to honour "JSON in, JSON
+# out" would make every client unwrap it. Import is ordinary JSON in both directions.
+
+
+@router.get(
+    "/documents/{document_id}/markdown",
+    tags=["markdown"],
+    summary="One chapter as a Markdown file",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {MARKDOWN_MEDIA_TYPE: {"schema": {"type": "string"}}},
+            "description": "The chapter as Markdown.",
+        },
+        **error_responses(404),
+    },
+)
+def export_document_markdown(request: Request, document_id: str) -> Response:
+    """A chapter as Markdown (P2-13, D15).
+
+    The **title is not in the body**. This is the round-trip artifact - importing it back gives
+    the same document, which is P2-14's acceptance bar - and a title written into the text would
+    come back as a heading the writer never typed. It travels in the filename instead.
+    """
+    handle = get_locator(request).resolve(document_id)
+    document = DocumentStore(handle).get(document_id)
+    return _markdown_response(document_to_markdown(document.content), document.meta.title)
+
+
+@router.get(
+    "/projects/{project_id}/markdown",
+    tags=["markdown"],
+    summary="Every live chapter as one Markdown file",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {MARKDOWN_MEDIA_TYPE: {"schema": {"type": "string"}}},
+            "description": "The manuscript as Markdown, each chapter under its title.",
+        },
+        **error_responses(404),
+    },
+)
+def export_project_markdown(request: Request, project_id: str) -> Response:
+    """The whole manuscript in order, each chapter preceded by its title as an H1 (P2-13, D15).
+
+    A reading and hand-off artifact, and **no round trip is promised** (ruling 4): the chapter
+    boundaries are H1s, and the schema has no node that means "chapter". Deleted chapters are
+    absent, from the one predicate every read in the document store applies (D22).
+    """
+    handle = open_project(request, project_id)
+    body = chapters_to_markdown(DocumentStore(handle).list_content())
+    return _markdown_response(body, handle.title)
+
+
+@router.post(
+    "/projects/{project_id}/import",
+    tags=["markdown"],
+    summary="Create chapters from a Markdown file",
+    status_code=status.HTTP_201_CREATED,
+    response_model=MarkdownImportOut,
+    responses=error_responses(404, 413, 422),
+)
+def import_project_markdown(
+    request: Request, project_id: str, body: MarkdownImportIn
+) -> MarkdownImportOut:
+    """Append the chapters a Markdown file describes (P2-14, D15).
+
+    **Creates; never replaces.** Every chapter is appended through the store's ``create``, so
+    ``save_content`` stays the only path by which existing manuscript text changes (ruling 5).
+    Replacing a chapter is import-then-delete, and both are already recoverable.
+
+    Nothing is created until every chapter has been measured, so a file holding one oversized
+    chapter is a ``413`` with an empty project rather than half an import. What the closed schema
+    could not hold comes back in ``dropped`` - never as an error, and never silently.
+    """
+    handle = open_project(request, project_id)
+    outcome = import_markdown(
+        DocumentStore(handle), body.markdown, mode=body.mode, title=body.title
+    )
+    return MarkdownImportOut(
+        documents=[DocumentMetaOut.of(document.meta) for document in outcome.documents],
+        dropped=[ImportNoticeOut.of(notice) for notice in outcome.notices],
+    )
+
+
 # -- helpers --------------------------------------------------------------------------------
+
+
+def _markdown_response(body: str, name: str) -> Response:
+    """A Markdown file, named after what it holds.
+
+    A trailing newline is added because a text file ends with one; the importer does not care
+    either way, and every other reader does. The filename is given twice - an ASCII fallback and
+    the RFC 5987 form - so a chapter called "Départ" downloads under its own name in a browser
+    that understands it and under a readable one in a browser that does not.
+    """
+    text = f"{body}\n" if body else ""
+    stem = _filename_stem(name)
+    ascii_stem = stem.encode("ascii", "replace").decode("ascii").replace("?", "_")
+    disposition = (
+        f"attachment; filename=\"{ascii_stem}.md\"; filename*=UTF-8''{quote(stem, safe='')}.md"
+    )
+    return Response(
+        content=text,
+        media_type=f"{MARKDOWN_MEDIA_TYPE}; charset=utf-8",
+        headers={"Content-Disposition": disposition},
+    )
+
+
+def _filename_stem(name: str) -> str:
+    """A title, made safe to put in a filename and in a header.
+
+    Everything a filesystem or a header would object to becomes a hyphen. A title that reduces
+    to nothing at all becomes ``chapter``, because a download named ``.md`` is not a download
+    anybody can find again.
+    """
+    stem = _UNSAFE_IN_FILENAME.sub("-", name)
+    return _RUN_OF_HYPHENS.sub("-", stem).strip(" .-")[:_MAX_FILENAME_STEM] or "chapter"
+
+
+#: Path separators, the characters Windows refuses in a name, control characters, and the quote
+#: and semicolon that would end a `Content-Disposition` value early. Surrounding whitespace goes
+#: with them, and the hyphens that leaves are collapsed, so `A/B: "quoted"` is `A-B-quoted`.
+_UNSAFE_IN_FILENAME = re.compile(r'\s*[\\/:*?"<>|;,\x00-\x1f]+\s*')
+_RUN_OF_HYPHENS = re.compile(r"-{2,}")
+_MAX_FILENAME_STEM = 80
 
 
 def _project_detail(handle: ProjectHandle, store: DocumentStore) -> ProjectDetailOut:

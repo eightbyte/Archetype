@@ -1,6 +1,7 @@
 # Archetype — Data Model
 
-**Status:** Schema version 2 as built; later phases sketched · **Version:** 1.1 · **Date:** 2026-08-30
+**Status:** Schema version 2 as built; later phases sketched · **Version:** 1.2 ·
+**Date:** 2026-08-31
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 (D3, D18, D19, D20, D21, D22, D23)
@@ -145,10 +146,11 @@ the reorder moves rows through transient duplicate indices.
 
 **Deleting a chapter is a soft delete (D22).** The row and its content stay; `deleted_at` goes
 from `NULL` to a timestamp. Every read path filters `deleted_at IS NULL` — `list_meta`, `get`,
-`outline`, and the project summary's chapter and word counts — and the trash surface asks for the
-deleted ones explicitly through `list_deleted()`. One predicate in one place, because a single
-query that forgets it puts a ghost chapter into a count or an export and is then reported as a
-different bug entirely.
+`outline`, `list_content` (which is what the combined Markdown export reads, P2-13), and the
+project summary's chapter and word counts — and the trash surface asks for the deleted ones
+explicitly through `list_deleted()`. One predicate in one place, because a single query that
+forgets it puts a ghost chapter into a count or into a file somebody has already sent to a
+reader, and is then reported as a different bug entirely.
 
 The summary's predicate is **version-gated**: the directory scan reads files it has deliberately
 not migrated (§ 4), and asking a version-1 file for `deleted_at` would turn a perfectly readable

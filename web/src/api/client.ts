@@ -18,6 +18,8 @@ import type {
   DocumentList,
   DocumentMeta,
   Health,
+  ImportMode,
+  MarkdownImport,
   Outline,
   ProjectDetail,
   ProjectList,
@@ -99,6 +101,31 @@ export interface ApiClient {
   ): Promise<Anchor>;
   patchAnchor(anchorId: string, patch: AnchorPatch, signal?: AbortSignal): Promise<Anchor>;
   deleteAnchor(anchorId: string, signal?: AbortSignal): Promise<void>;
+
+  /**
+   * Where a chapter's Markdown lives, as a URL rather than as text (P2-13).
+   *
+   * The export is the one non-JSON response in the API and it is served as an attachment, so
+   * the honest client for it is an ordinary link: the browser saves the file, names it from the
+   * `Content-Disposition` the server already set, and the app neither holds the bytes nor
+   * reimplements a filename. Everything else here fetches; these two are addresses.
+   */
+  documentMarkdownUrl(documentId: string): string;
+  /** Where the whole manuscript's Markdown lives. Same reasoning. */
+  projectMarkdownUrl(projectId: string): string;
+  /**
+   * Create chapters from a Markdown file (P2-14).
+   *
+   * Appends; never replaces. `title` names the single chapter of `one-chapter` mode and is
+   * ignored by `split-on-h1`, which takes each title from its own heading.
+   */
+  importMarkdown(
+    projectId: string,
+    markdown: string,
+    mode: ImportMode,
+    title?: string,
+    signal?: AbortSignal,
+  ): Promise<MarkdownImport>;
 
   listSnapshots(documentId: string, signal?: AbortSignal): Promise<SnapshotList>;
   captureSnapshot(
@@ -306,6 +333,18 @@ export function createApiClient(baseUrl = ''): ApiClient {
       ),
     deleteAnchor: (anchorId, signal) =>
       request('DELETE', `/api/anchors/${encodeURIComponent(anchorId)}`, undefined, signal),
+
+    documentMarkdownUrl: (documentId) =>
+      `${baseUrl}/api/documents/${encodeURIComponent(documentId)}/markdown`,
+    projectMarkdownUrl: (projectId) =>
+      `${baseUrl}/api/projects/${encodeURIComponent(projectId)}/markdown`,
+    importMarkdown: (projectId, markdown, mode, title, signal) =>
+      request(
+        'POST',
+        `/api/projects/${encodeURIComponent(projectId)}/import`,
+        { markdown, mode, title: title ?? null },
+        signal,
+      ),
 
     listSnapshots: (documentId, signal) =>
       request(

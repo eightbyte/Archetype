@@ -27,6 +27,7 @@ from ..manuscript.documents import (
     SaveResult,
     clean_title,
 )
+from ..manuscript.markdown.parse import Notice
 from ..manuscript.projection import Heading
 from ..manuscript.snapshots import MAX_LABEL_LENGTH as MAX_SNAPSHOT_LABEL_LENGTH
 from ..manuscript.snapshots import Snapshot, SnapshotMeta
@@ -35,6 +36,10 @@ from ..projects.store import ProjectHandle, ProjectSummary, SkippedFile
 
 __all__ = [
     "AnchorCreateIn",
+    "ImportModeIn",
+    "ImportNoticeOut",
+    "MarkdownImportIn",
+    "MarkdownImportOut",
     "AnchorStatusFilter",
     "AnchorListOut",
     "AnchorOut",
@@ -617,3 +622,61 @@ class OutlineOut(_Wire):
 
     project_id: str
     chapters: list[OutlineChapterOut]
+
+
+# -- Markdown import (P2-14) ------------------------------------------------------------------
+
+
+ImportModeIn = Literal["one-chapter", "split-on-h1"]
+
+
+class MarkdownImportIn(_Wire):
+    """``POST /api/projects/{pid}/import``.
+
+    ``one-chapter`` makes the whole file one chapter, keeping a leading heading in the text -
+    eating it would be reasonable and would break the round trip P2-14 promises. ``split-on-h1``
+    cuts at every top-level H1 and takes each chapter's title from it, which is the shape the
+    combined export writes.
+
+    ``title`` names the single chapter ``one-chapter`` creates. ``split-on-h1`` takes each
+    title from its own heading and ignores this; omitting it in either mode leaves the store to
+    name the chapter, exactly as creating one by hand does.
+    """
+
+    markdown: str
+    mode: ImportModeIn = "one-chapter"
+    title: str | None = Field(default=None, max_length=MAX_TITLE_LENGTH)
+
+    @field_validator("title")
+    @classmethod
+    def _clean(cls, value: str | None) -> str | None:
+        return None if value is None else clean_title(value)
+
+
+class ImportNoticeOut(_Wire):
+    """One thing the closed schema could not hold, and what became of it.
+
+    Never an error. Where the construct carried words, the words are in the chapter and only the
+    construct is gone; ``detail`` says which happened. The list is what stops an import being a
+    silent edit of somebody's file.
+    """
+
+    element: str
+    line: int
+    detail: str
+
+    @classmethod
+    def of(cls, notice: Notice) -> ImportNoticeOut:
+        return cls(element=notice.element, line=notice.line, detail=notice.detail)
+
+
+class MarkdownImportOut(_Wire):
+    """What an import created, and what it could not keep.
+
+    The chapters come back as metadata rather than as whole documents: an import of a long file
+    would otherwise return the whole manuscript to a client that is about to redraw a chapter
+    list from it. ``dropped`` is empty for a file this server wrote.
+    """
+
+    documents: list[DocumentMetaOut]
+    dropped: list[ImportNoticeOut]

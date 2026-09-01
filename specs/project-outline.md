@@ -1,19 +1,22 @@
 # Archetype — Project Outline
 
-**Status:** Phase 1 closed — all fifteen work items delivered and accepted · **Version:** 1.2 · **Date:** 2026-08-30
-**Phase:** 2 (Manuscript Model & Anchors) — plan drafted, awaiting its § 2 rulings
+**Status:** Phase 2 built — all fifteen work items delivered, both suites green · **Version:** 1.3 · **Date:** 2026-08-31
+**Phase:** 2 (Manuscript Model & Anchors) — awaiting the manual acceptance run in its § 8; then Phase 3
 **Child documents:**
-- [`specs/development-phases.md`](development-phases.md) — binding decision register (D1–D20) and the work breakdown across all phases
+- [`specs/development-phases.md`](development-phases.md) — binding decision register (D1–D24) and the work breakdown across all phases
 - [`specs/phase-1-plan.md`](phase-1-plan.md) — Phase 1 work items
-- [`specs/phase-2-plan.md`](phase-2-plan.md) — Phase 2 work items; its § 2 carries the rulings (D21–D24) this phase needs before code
+- [`specs/phase-2-plan.md`](phase-2-plan.md) — Phase 2 work items; its § 2 carries the rulings (D21–D24), its § 7 the as-built deviations, its § 8 the acceptance run
 - [`specs/backlog.md`](backlog.md) — deferred ideas and revisit list
-- [`specs/data-model.md`](data-model.md) — storage: the Phase 1 tables as built, later phases sketched
+- [`specs/data-model.md`](data-model.md) — storage at schema version 2 as built, later phases sketched
 - [`specs/api-contract.md`](api-contract.md) — the HTTP surface as built
-- `specs/anchors.md`, `specs/agent-tools.md` *(written as their phases begin)*
+- [`specs/anchors.md`](anchors.md) — what an anchor stores, the two coordinate systems, the matching ladder, and what an anchor does **not** promise (written at `P2-4`, before the code it governs)
+- `specs/agent-tools.md` *(written as its phase begins)*
 
 > This is the root planning document. Every phase plan links back to it, and any change to
 > scope, architecture, or phase boundaries is recorded **here first**, then propagated to the
 > affected phase plan and to `CLAUDE.md`.
+
+**Changes in 1.3 (2026-08-31):** **Phase 2 built.** All fifteen items (`P2-1` … `P2-15`) delivered across four groups; both suites green (864 backend, 399 frontend). The four proposed register entries were ruled as recommended on 2026-08-30 and are binding — D21 anchor resolution authority, D22 soft chapter delete, D23 the snapshot policy (settling `Q1`), D24 no multi-tab lock (settling `Q5`) — and `specs/anchors.md` now exists. Two things this document said are corrected below: § 5's sketch is superseded for the four tables that now exist, and § 6's Phase 2 row is brought level with what shipped. One scope addition was put to the writer and ruled: Group D carries a **client surface for Markdown** that P2-13 and P2-14 did not budget, because the acceptance script ends "compare the two on screen". No phase boundary moved and no decision changed. The phase is **built, not closed**: its manual acceptance script (phase-2 plan § 8) is the remaining act, and it covers the two surfaces no test reaches — the pointer gestures, and heavy editing against the real resolver.
 
 **Changes in 1.2 (2026-08-30):** `specs/phase-2-plan.md` written — fifteen items (`P2-1` … `P2-15`) in four groups, exit criteria, and a manual acceptance script. No scope changed and no phase boundary moved. The plan **proposes** four register entries (D21 anchor resolution authority, D22 soft chapter delete, D23 the snapshot policy settling `Q1`, D24 no multi-tab lock settling `Q5`) and one correction to a Phase 1 claim: heading jump stays resolved by ordinal, and anchors are added alongside it rather than replacing it. None of the four is binding until ruled on and promoted to the register.
 
@@ -308,16 +311,16 @@ Three resizable regions plus a settings screen.
 
 ## 5. Data Model Sketch
 
-**Superseded for the tables that exist.** [`specs/data-model.md`](data-model.md) documents `project`, `document`, and `schema_version` as built, and is the authority on them. What is below stays as the sketch for the tables later phases will add — illustrative, not final:
+**Superseded for the tables that exist.** [`specs/data-model.md`](data-model.md) documents `project`, `document`, `anchor`, `snapshot`, and `schema_version` **as built at schema version 2**, and is the authority on them. The five below are kept only as the shape they were sketched in; where the sketch and the data model disagree, the data model is right and the sketch is history. Two differences are worth naming because they are decisions rather than drift: `document` carries a nullable `deleted_at`, because deleting a chapter is a **soft** delete (D22); and `anchor.status` holds the resolver's text answer alone — `orphaned` is **derived** from the chapter's `deleted_at` on read and never written into the row.
+
+What is below stays as the sketch for the tables later phases will add — illustrative, not final:
 
 ```
-project(id, title, created_at, settings_json)
-
-document(id, project_id, order_index, title, kind, content_json,
+project(id, title, created_at, settings_json)                        -- built, see data-model § 3
+document(id, project_id, order_index, title, kind, content_json,     -- built, plus deleted_at
          text_plain, word_count, updated_at)
-snapshot(id, document_id, taken_at, reason, content_json)
-
-anchor(id, project_id, document_id, from_pos, to_pos,
+snapshot(id, document_id, taken_at, reason, content_json)            -- built, plus label + hash
+anchor(id, project_id, document_id, from_pos, to_pos,                -- built, plus document_version
        quote, prefix, suffix, status, updated_at)
 
 entry(id, project_id, kind, name, summary, body_md, attributes_json,
@@ -348,7 +351,7 @@ full test suite is green.
 |---|---|---|---|
 | **0** | **Planning & Specs** | This outline, resolved decisions (§ 11), `CLAUDE.md`, plan for Phase 1 | Decisions answered; Phase 1 plan approved |
 | **1** | **Skeleton & Editor** | Repo scaffold (server + web), config, project SQLite store, three-pane shell, rich-text editor, autosave, load/save, TOC from headings, jump-to-heading. Test harness on both sides. | Write, format, and reload a multi-chapter document; navigate by TOC; `pytest` and `vitest` green |
-| **2** | **Manuscript Model & Anchors** | Chapter CRUD + reorder, snapshots, Markdown import/export, the anchor service with rebasing, staleness detection, re-linking UI | An anchor created before an editing session still resolves to the right passage after heavy editing above, below, and around it; deleted text yields `stale`, never a wrong match |
+| **2** | **Manuscript Model & Anchors** | Chapter CRUD + reorder + soft delete/restore, snapshots (handover, manual, and before anything destructive), Markdown import and export both ways over a round-trip corpus, the anchor service with server-side re-resolution and client-side rebasing, staleness detection, the *Marks* tab and its re-linking flow | An anchor created before an editing session still resolves to the right passage after heavy editing above, below, and around it; deleted text yields `stale`, never a wrong match |
 | **3** | **Story Bible (manual)** | Entry schema + CRUD for all kinds, links, revisions/retcon, anchors from selection, bible browser, search, character roster with structured detail | Build a bible for a test story entirely by hand; retcon an entry and see dependents flagged |
 | **4** | **LLM Provider Layer & Chat** | Provider port, Anthropic + OpenAI-compatible adapters, settings UI, streaming chat panel, selection-as-context, single-pass proofread / tone / rewrite with accept-reject diffs | Highlight a paragraph, ask a question, get a streamed answer; swap providers in settings with no code change |
 | **5** | **Retrieval & Indexing** | Chunking, embeddings, sqlite-vec + FTS5, incremental reindex, hybrid search API + UI | Search a 50k-word manuscript by meaning and by exact phrase; edits reindex within seconds |

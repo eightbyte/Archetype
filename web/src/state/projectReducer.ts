@@ -58,6 +58,14 @@ export type ProjectAction =
   | { type: 'loaded'; detail: ProjectDetail; chapters: OutlineChapter[]; anchors: Anchor[] }
   | { type: 'load-failed'; message: string }
   | { type: 'document-created'; document: Document }
+  /**
+   * Chapters an import created, appended in one go (P2-14).
+   *
+   * One action rather than one per chapter: an import of a long file would otherwise
+   * rebuild the ordered lists once per chapter and redraw the panel each time, and the
+   * intermediate states are not states the project was ever in.
+   */
+  | { type: 'documents-imported'; documents: DocumentMeta[] }
   | { type: 'document-renamed'; documentId: string; title: string }
   | { type: 'document-saved'; result: SaveResult }
   | { type: 'documents-reordered'; documents: DocumentMeta[] }
@@ -117,6 +125,20 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
       const documents = ordered([...state.documents, meta]);
       const chapters = ordered([...state.chapters, chapterOf(meta)]);
+      return {
+        ...state,
+        documents,
+        chapters,
+        project: withCounts(state.project, documents.length, chapters),
+      };
+    }
+
+    case 'documents-imported': {
+      if (action.documents.length === 0) {
+        return state;
+      }
+      const documents = ordered([...state.documents, ...action.documents]);
+      const chapters = ordered([...state.chapters, ...action.documents.map(chapterOf)]);
       return {
         ...state,
         documents,

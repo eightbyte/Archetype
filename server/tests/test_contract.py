@@ -38,6 +38,10 @@ PROSE = build_document(
     paragraphs=["The harbour was grey.", "He did not look back."],
 )
 
+#: A small Markdown file carrying one thing the closed schema cannot hold, so the import fixture
+#: is drawn with an entry in ``dropped`` rather than an empty list - the client renders both.
+MARKDOWN_TO_IMPORT = "# Ashore\n\nThe tide turned.\n\n```\nnot prose\n```\n"
+
 #: The same chapter with the anchored passage rewritten, so that one fixture carries a stale
 #: anchor and the suggestion that goes with it.
 BROKEN_PROSE = build_document(
@@ -205,6 +209,22 @@ def test_contract_fixtures_round_trip(client: TestClient) -> None:
     capture("document_list_deleted", client.get(f"/api/projects/{project_id}/documents/deleted"))
     client.post(f"/api/documents/{second['id']}/restore")
 
+    # Group D. Only the import has a fixture: the two exports are `text/markdown` (section 2,
+    # ruling 9), so there is no JSON shape for a client to type-check and their body is asserted
+    # directly in `test_markdown_routes.py`. The file imported here carries something the closed
+    # schema cannot hold, so `dropped` is drawn with an entry in it rather than empty - the
+    # client has to render both.
+    capture(
+        "markdown_import",
+        client.post(
+            f"/api/projects/{project_id}/import",
+            json={
+                "markdown": MARKDOWN_TO_IMPORT,
+                "mode": "split-on-h1",
+            },
+        ),
+    )
+
     # The round trip: everything written parses back to what was written.
     for name, body in written.items():
         path = CONTRACT_FIXTURES_DIR / f"{name}.json"
@@ -225,6 +245,7 @@ def test_every_fixture_is_one_the_test_writes() -> None:
         "error_validation",
         "error_version_conflict",
         "health",
+        "markdown_import",
         "outline",
         "project_detail",
         "project_list",

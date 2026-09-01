@@ -1,10 +1,12 @@
 # Archetype — Anchors
 
-**Status:** Specification · built in P2-5 to P2-8, and corrected where it met the code · **Version:** 1.1 · **Date:** 2026-08-30
+**Status:** Specification · built in P2-5 to P2-8, reconciled with the code at P2-15 ·
+**Version:** 1.2 · **Date:** 2026-08-31
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1 (D1, D18, **D21**, **D22**)
 **Plan:** [`specs/phase-2-plan.md`](phase-2-plan.md) — this document is `P2-4`; it governs `P2-5`
-through `P2-8` and is reconciled with what was built at `P2-15`
+through `P2-8`, and the four places the code corrected it are marked here and cross-referenced to
+that plan's § 7 (`B1`–`B5`)
 **Companions:** [`specs/data-model.md`](data-model.md) § 3 (the `anchor` table) ·
 `server/archetype/manuscript/projection.py` (the docstring that fixes `text_plain`)
 
@@ -374,11 +376,18 @@ imports nothing from `archetype.projects` and nothing from `archetype.api`.
 It runs in exactly two places:
 
 - **Inside the save transaction**, for every anchor of the document being written, so the stored
-  status is right no matter who wrote — the editor, an import, a snapshot restore, or a Phase 6
-  accepted proposal (D21). `SaveResultOut` carries back every anchor whose status or position
-  moved, which saves the client a round trip on the request that happens most often.
+  status is right no matter who wrote — the editor, a snapshot restore, a file changed behind the
+  app's back, or a Phase 6 accepted proposal (D21). `SaveResultOut` carries back every anchor
+  whose status or position moved, which saves the client a round trip on the request that happens
+  most often.
 - **On read**, without persisting, so a document opened after its file changed behind the app's
   back reports what is true now rather than what was true at the last write.
+
+Markdown **import** is not in that list, and the reason is worth stating: it goes through
+`DocumentStore.create`, never `save_content` (phase-2 plan § 2, ruling 5). A chapter an import
+has just made has no anchors in it, so there is nothing to resolve. That stays true only while
+import creates rather than replaces; the day it can overwrite a chapter it will be a save like
+any other, and re-resolution will already be waiting for it.
 
 **There is one implementation, not two.** Unlike the projection, the client gets no mirror: for
 the open document ProseMirror's transaction mapping is exact and free, and after a reload the

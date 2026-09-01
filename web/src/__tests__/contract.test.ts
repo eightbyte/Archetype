@@ -29,6 +29,7 @@ import type {
   DocumentMeta,
   ErrorResponse,
   Health,
+  MarkdownImport,
   Outline,
   ProjectDetail,
   ProjectList,
@@ -96,6 +97,7 @@ const KEYS = {
     'suggestion',
   ],
   anchorSuggestion: ['from_pos', 'to_pos', 'text'],
+  importNotice: ['element', 'line', 'detail'],
   outlineChapter: ['document_id', 'title', 'order_index', 'word_count', 'headings'],
   snapshotMeta: [
     'id',
@@ -300,6 +302,34 @@ describe('snapshot shapes (P2-3, D23)', () => {
     const body: Snapshot = load('snapshot');
     expectKeys(body, KEYS.snapshot);
     expect(body.content_json.type).toBe('doc');
+  });
+});
+
+describe('markdown (P2-13, P2-14)', () => {
+  test('an import answers with the chapters it made and what it could not keep', () => {
+    const body: MarkdownImport = load('markdown_import');
+    expectKeys(body, ['documents', 'dropped']);
+    expect(body.documents.length).toBeGreaterThan(0);
+    for (const meta of body.documents) {
+      expectKeys(meta, KEYS.documentMeta);
+    }
+  });
+
+  test('a dropped element says what it was, where, and what became of it', () => {
+    const body: MarkdownImport = load('markdown_import');
+    expect(body.dropped.length).toBeGreaterThan(0);
+    for (const notice of body.dropped) {
+      expectKeys(notice, KEYS.importNotice);
+      expect(notice.line).toBeGreaterThan(0);
+      expect(notice.detail).not.toHaveLength(0);
+    }
+  });
+
+  test('the two exports have no fixture, because they are not JSON', () => {
+    // Section 2, ruling 9: an export is `text/markdown`, so there is no wire shape for this
+    // suite to type-check. Written down here rather than left as a gap somebody fills in later
+    // by adding one — the body is asserted in `server/tests/test_markdown_routes.py`.
+    expect(() => load('markdown_export')).toThrow(/shared fixture not found/);
   });
 });
 

@@ -27,6 +27,13 @@
  * What it *does* do is **extract**: `createAnchor` reads the quote out of the stored content at
  * the range it was given, because that is a store's job and because a client never sends a
  * quote. Extraction has no thresholds, no candidates, and no status in it.
+ *
+ * **It does not parse Markdown either, for the same reason** (P2-14). There is one parser, it is
+ * `markdown-it-py` behind the server's importer, and it has a round-trip corpus behind it. So
+ * `importMarkdown` records what it was asked and creates whatever a test has staged through
+ * {@link FakeApiClient.stageImport} - one plainly-named chapter by default. What the client is
+ * responsible for is collecting the file, sending the mode, and drawing what came back; that is
+ * what these tests are for.
  */
 
 import type { AnchorPatch, AnchorRange, ApiClient } from '../../api/client';
@@ -40,6 +47,9 @@ import type {
   DocumentList,
   DocumentMeta,
   Health,
+  ImportMode,
+  ImportNotice,
+  MarkdownImport,
   Outline,
   ProjectDetail,
   ProjectList,
@@ -81,6 +91,22 @@ export interface StagedResolution {
   suggestion?: AnchorSuggestion | null;
 }
 
+/** What a test says an import creates, standing in for a parser the fake does not have. */
+export interface StagedImport {
+  /** One entry per chapter the server would create, in order. */
+  chapters: { title?: string; paragraphs?: string[] }[];
+  /** What the server reports it could not keep. Empty unless a test says otherwise. */
+  dropped?: ImportNotice[];
+}
+
+/** What an import was asked to do, so a test can assert the client sent the right thing. */
+export interface ImportCall {
+  projectId: string;
+  markdown: string;
+  mode: ImportMode;
+  title: string | null;
+}
+
 /** Options for seeding a fake with something already in it. */
 export interface FakeApiOptions {
   /** Titles of projects that already exist, each with one empty chapter. */
@@ -100,6 +126,8 @@ export interface FakeApiOptions {
  */
 export class FakeApiClient implements ApiClient {
   readonly calls: string[] = [];
+  /** Every import the app asked for, in order. */
+  readonly imports: ImportCall[] = [];
 
   private readonly version: string;
   private readonly projects = new Map<string, ProjectSummary>();
@@ -107,6 +135,7 @@ export class FakeApiClient implements ApiClient {
   private readonly anchors = new Map<string, Anchor>();
   private readonly snapshots = new Map<string, StoredSnapshot>();
   private readonly staged = new Map<string, StagedResolution[]>();
+  private readonly stagedImports: StagedImport[] = [];
   private skipped: SkippedFile[];
   private failures = new Map<string, ApiError | Error>();
   private readonly persistentFailures = new Map<string, ApiError | Error>();
@@ -500,6 +529,56 @@ export class FakeApiClient implements ApiClient {
     this.record('deleteAnchor');
     this.requireAnchor(anchorId);
     this.anchors.delete(anchorId);
+  }
+
+  // -- markdown -----------------------------------------------------------------------------
+
+  documentMarkdownUrl(documentId: string): string {
+    return `/api/documents/${encodeURIComponent(documentId)}/markdown`;
+  }
+
+  projectMarkdownUrl(projectId: string): string {
+    return `/api/projects/${encodeURIComponent(projectId)}/markdown`;
+  }
+
+  /** Say what the next import creates. Without one it makes a single, plainly-named chapter. */
+  stageImport(staged: StagedImport): void {
+    this.stagedImports.push(staged);
+  }
+
+  async importMarkdown(
+    projectId: string,
+    markdown: string,
+    mode: ImportMode,
+    title?: string,
+  ): Promise<MarkdownImport> {
+    this.record('importMarkdown');
+    this.requireProject(projectId);
+    this.imports.push({ projectId, markdown, mode, title: title ?? null });
+
+    const staged: StagedImport =
+      this.stagedImports.shift() ?? { chapters: [title === undefined ? {} : { title }] };
+    const documents = staged.chapters.map((chapter) => {
+      const id = this.addDocument(projectId, chapter.title);
+      const stored = this.documents.get(id)!;
+      if (chapter.paragraphs?.length) {
+        stored.content = {
+          type: 'doc',
+          content: chapter.paragraphs.map((text) => ({
+            type: 'paragraph',
+            content: [{ type: 'text', text }],
+          })),
+        };
+        const projection = project(stored.content);
+        stored.meta = {
+          ...stored.meta,
+          headings: projection.headings,
+          word_count: projection.word_count,
+        };
+      }
+      return stored.meta;
+    });
+    return { documents, dropped: staged.dropped ?? [] };
   }
 
   // -- snapshots ----------------------------------------------------------------------------

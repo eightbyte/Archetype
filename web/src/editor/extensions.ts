@@ -4,11 +4,14 @@
  * Paragraphs, headings 1–3, bold, italic, blockquote, bullet and ordered lists, a horizontal
  * rule that reads as a scene break, hard breaks, and undo/redo. Nothing else.
  *
- * The restraint is the point. Every node type is a case that anchors (Phase 2), chunking
- * (Phase 5), and Markdown export (Phase 9) must each handle correctly, and each of those is
- * harder than it looks. So the schema stays small until something earns its way in, and adding
- * to it is a spec change — the phase plan's closed list and {@link ALLOWED_NODES} below must be
- * edited together, and `schema.test.ts` fails if they disagree with what TipTap actually built.
+ * The restraint is the point. Every node type is a case that anchors (Phase 2), Markdown export
+ * and import (P2-13, P2-14), and chunking (Phase 5) must each handle correctly, and each of those
+ * is harder than it looks. So the schema stays small until something earns its way in, and adding
+ * to it is a spec change: the phase plan's closed list, {@link ALLOWED_NODES} below, and the
+ * shared fixture at `server/tests/fixtures/schema/closed_schema.json` must be edited together.
+ * `schema.test.ts` fails if the built schema disagrees with either, and the server's
+ * `test_markdown.py` fails if the Markdown serializer has not been taught the new node — which is
+ * the failure that would otherwise stay silent until somebody exported a chapter.
  *
  * StarterKit brings more than this, so the surplus is switched off by name rather than left to
  * be noticed later: code, code blocks, and strikethrough. Dropcursor and gapcursor stay — they

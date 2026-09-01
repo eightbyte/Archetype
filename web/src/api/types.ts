@@ -287,6 +287,40 @@ export const SNAPSHOT_REASONS = {
 export type SnapshotReasonIn = 'handover' | 'manual';
 
 /**
+ * How a Markdown file becomes chapters (P2-14).
+ *
+ * `one-chapter` makes the whole file one chapter and keeps a leading heading in the text -
+ * eating it would be reasonable and would break the round trip the two halves promise each
+ * other. `split-on-h1` cuts at every top-level H1 and takes each chapter's title from it, which
+ * is the shape the combined export writes.
+ */
+export const IMPORT_MODES = {
+  oneChapter: 'one-chapter',
+  splitOnH1: 'split-on-h1',
+} as const;
+
+export type ImportMode = (typeof IMPORT_MODES)[keyof typeof IMPORT_MODES];
+
+/**
+ * One thing an import could not keep, and what became of it (P2-14).
+ *
+ * Never an error. Where the construct carried words, the words are in the chapter and only the
+ * formatting is gone; `detail` says which happened, and `line` points into the file the writer
+ * chose. This list is what stops an import being a silent edit of somebody's file.
+ */
+export interface ImportNotice {
+  element: string;
+  line: number;
+  detail: string;
+}
+
+/** What an import created, and what it could not keep. `dropped` is empty far more often. */
+export interface MarkdownImport {
+  documents: DocumentMeta[];
+  dropped: ImportNotice[];
+}
+
+/**
  * What a refused reorder carries (P2-2).
  *
  * The completeness check is the concurrency guard, so the refusal says which way the presented

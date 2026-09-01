@@ -13,6 +13,12 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "pyyaml>=6.0",
+    # P2-14, phase-2-plan section 2 ruling 3. The first new runtime dependency since P1-1,
+    # and the only parser in the project we did not write: CommonMark is a specification with
+    # corners (nested emphasis, lazy continuation, setext headings, list tightness) that a
+    # hand-rolled parser gets subtly wrong in ways nobody notices until an import mangles a
+    # chapter. Pure Python; pulls one 10 KB transitive, mdurl.
+    "markdown-it-py>=3.0",
 ]
 
 # Dependency budget is fixed by the Phase 1 plan (P1-1). Anything not listed here is an

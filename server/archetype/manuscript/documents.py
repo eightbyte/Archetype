@@ -335,6 +335,24 @@ class DocumentStore:
             text_plain=row["text_plain"],
         )
 
+    def list_content(self) -> list[tuple[str, dict[str, Any]]]:
+        """Every live chapter's title and content, in order (P2-13).
+
+        The one read in this store that deliberately loads the whole manuscript, because the
+        combined Markdown export is the one thing that needs it. It is a single statement rather
+        than a loop of :meth:`get` for the same reason the outline is: forty chapters should not
+        be forty connections, and the soft-delete predicate should be written once where a
+        reviewer can see it - a combined export that quietly included a deleted chapter is
+        exactly the leak the phase plan's risk table names.
+        """
+        with self.handle.connect() as conn:
+            rows = conn.execute(
+                "SELECT title, content_json FROM document "
+                f"WHERE project_id = ? AND {LIVE_ONLY} {_ORDERED}",
+                (self.handle.id,),
+            ).fetchall()
+        return [(row["title"], json.loads(row["content_json"])) for row in rows]
+
     def outline(self) -> list[OutlineChapter]:
         """The stitched table of contents across every chapter (P1-11).
 

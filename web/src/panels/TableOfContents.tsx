@@ -41,6 +41,7 @@ import { formatDateTime, plural } from '../format';
 import { useDocument } from '../state/DocumentContext';
 import { useProject } from '../state/ProjectContext';
 import { anchorCountOf } from '../state/projectReducer';
+import { MarkdownTransfer } from './MarkdownTransfer';
 import { useToasts } from '../state/ToastContext';
 
 export function TableOfContents() {
@@ -52,6 +53,7 @@ export function TableOfContents() {
     deleteChapter,
     restoreChapter,
     loadDeleted,
+    chapterMarkdownUrl,
     reload,
   } = useProject();
   const { state: documentState, openDocument, rename: renameOpen } = useDocument();
@@ -355,6 +357,14 @@ export function TableOfContents() {
                   >
                     Rename
                   </button>
+                  <a
+                    className="toc-export"
+                    href={chapterMarkdownUrl(chapter.document_id)}
+                    download
+                    aria-label={`${chapter.title}: export as Markdown`}
+                  >
+                    Export
+                  </a>
                   <button
                     type="button"
                     aria-label={`${chapter.title}: delete`}
@@ -424,6 +434,8 @@ export function TableOfContents() {
           Deleted chapters
         </button>
       </div>
+
+      <MarkdownTransfer onOpen={(documentId) => void goTo(documentId)} />
 
       {showDeleted && (
         <div className="toc-deleted">

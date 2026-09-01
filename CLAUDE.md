@@ -17,16 +17,18 @@ relational data plus keyword and vector indexes. Single user, localhost, Windows
 Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository directory is
 `WritingAssistant` — a path, not the product name.
 
-**Current state: Phase 1 complete (2026-08-30); Phase 2 in progress — Groups A (P2-1 → P2-4),
-B (P2-5 → P2-8), and C (P2-9 → P2-12) delivered.** All twenty-four decisions are resolved and
-binding: the writer ruled D21–D24 on 2026-08-30 as recommended, which also settles backlog `Q1`
-and `Q5`.
+**Current state: Phase 1 complete (2026-08-30); Phase 2 built (2026-08-31) — all four groups
+delivered, both suites green, awaiting its manual acceptance run.** All twenty-four decisions are
+resolved and binding: the writer ruled D21–D24 on 2026-08-30 as recommended, which also settles
+backlog `Q1` and `Q5`.
 
-The app is a place you can write, and now a place you can **maintain** what you wrote: create a
-project, add chapters, reorder them by drag or by keyboard, rename them in place, delete one
-recoverably and restore it; mark a passage and watch the highlight follow it as you type around
-it; find every mark in the *Marks* tab, see which have gone stale, and repair one by hand; mark a
-version of a chapter, read it beside what is there now, and restore it.
+The app is a place you can write, a place you can **maintain** what you wrote, and now a place
+you can get words **in and out of**: create a project, add chapters, reorder them by drag or by
+keyboard, rename them in place, delete one recoverably and restore it; mark a passage and watch
+the highlight follow it as you type around it; find every mark in the *Marks* tab, see which have
+gone stale, and repair one by hand; mark a version of a chapter, read it beside what is there now,
+and restore it; export a chapter or the whole manuscript to Markdown, and import a Markdown file
+back as chapters — with a list of anything it could not keep.
 
 What exists on the server: configuration and the secret guard, the project file schema at
 **version 2** with its migration runner, the ID generator, the project store, the whole Phase 1
@@ -35,25 +37,33 @@ with the D19 version guard, the text projection, the static mount that lets one 
 the API and the built app; Group A's **chapter reorder, soft delete, and restore; snapshots with
 capture, history, and restore-through-the-save-path; and the `anchor` and `snapshot` tables**;
 Group B's **block index over the projection, anchor resolver and corpus, anchor store with its
-five routes, and re-resolution inside every save's transaction**; and — new in Group C — the
-**nine chapter and snapshot routes** those stores had been waiting for.
+five routes, and re-resolution inside every save's transaction**; Group C's **nine chapter and
+snapshot routes**; and — new in Group D — the **Markdown serializer and parser, their round-trip
+corpus, and the two export routes and one import route** over them.
 
 On the client: the three-region workspace with resizable keyboard-accessible dividers, the three
 contexts and their pure reducers, the TipTap editor over a closed schema with autosave, the live
-table of contents with jump-to-heading, the project picker, error boundaries per region; and —
-new in Group C — **anchor decorations mapped live through every transaction, the selection
-control that marks and re-links a passage, the fifth outline tab (*Marks*) with its filters and
-repair flow, chapter management in the Contents tab, and the per-chapter history panel**.
+table of contents with jump-to-heading, the project picker, error boundaries per region; Group C's
+**anchor decorations mapped live through every transaction, the selection control that marks and
+re-links a passage, the fifth outline tab (*Marks*) with its filters and repair flow, chapter
+management in the Contents tab, and the per-chapter history panel**; and — new in Group D —
+**Markdown export links per chapter and for the manuscript, and an import form that takes a pasted
+or dropped file, offers the two modes, and shows what the import left behind**.
 
 Every Phase 1 exit criterion is met, including the acceptance script run by hand against the
 single-process build; the results are in [specs/phase-1-plan.md](specs/phase-1-plan.md) § 6.
-**Phase 2's acceptance script has not been run** — it is Group D's, and it is the only thing that
-covers the pointer gestures and heavy editing against the real resolver.
 
-**Next: Group D (P2-13 → P2-15) — Markdown export, Markdown import, and the close-out.** There is
-still no AI, no bible, no search, and no Markdown.
+**Phase 2's exit criteria 1–8 are met by the suites. Criterion 9 is met by this documentation
+pass. What is left is the manual acceptance run** — [specs/phase-2-plan.md](specs/phase-2-plan.md)
+§ 8, written out step by step with what each step must show, and where its results go. It is the
+phase-boundary act because it is the only thing standing under the two surfaces no test reaches:
+the pointer gestures, and heavy editing against the real resolver rather than a staged answer.
+**Do not mark Phase 2 complete until it has been run by the writer and its results recorded.**
 
-**Two corrections worth knowing before Group D:**
+**Next: Phase 3 — the story bible**, once § 8 is run. There is still no AI, no bible, and no
+search.
+
+**Three rulings worth knowing, each a product decision rather than an implementation detail:**
 
 - Deviation `B4` in [specs/phase-2-plan.md](specs/phase-2-plan.md) § 7. `specs/anchors.md` § 10
   said a paragraph split through an anchored range yields `stale`, while its own neighbouring row
@@ -61,21 +71,27 @@ still no AI, no bible, no search, and no Markdown.
   — a split and a merge are the same operation seen from two sides. **Ruled by the writer on
   2026-08-30 as built:** a bare split keeps the anchor, and only a split with new words written
   into the gap breaks it. So an anchor can legitimately span a block boundary, which is why the
-  editor draws one as an *inline* decoration. `anchors.md` still carries the old wording; carrying
-  the ruling into it is P2-15's.
-- Deviation `C3`: the snapshot capture route accepts only `handover` and `manual`. The three
-  `pre-*` reasons are the server's own, written inside the transaction of the operation each
-  protects against, so Markdown import's `pre-import` snapshot (P2-14) is taken by the import
-  itself and not asked for over the wire.
+  editor draws one as an *inline* decoration. `anchors.md` now carries the ruling.
+- Deviation `D1`: **no `pre-import` snapshot is ever taken, and none can be.** § 2's ruling 5 says
+  import *creates* chapters and never replaces one, so nothing an import does can destroy text and
+  a snapshot before it would record that nothing happened. The reason stays registered for the
+  phase that lets an import overwrite a chapter. (This corrects `C3`, which was written before
+  P2-14 met ruling 5 and said the import took one itself.) The snapshot *capture route* still
+  accepts only `handover` and `manual` — the `pre-*` reasons are the server's own.
+- Deviation `D12`: **Group D carries a client surface for Markdown that P2-13 and P2-14 did not
+  budget**, ruled by the writer on 2026-08-31. Without it the acceptance script's last step —
+  "compare the two on screen" — has nothing on screen to compare.
 
 One thing the Phase 1 run surfaced, still true and now larger: **some of the app's surfaces are
 hard or impossible to reach from a test.** Stopping the server mid-edit did not produce a failed
 save the writer could see — the retry loop absorbed the outage. Group C adds a second kind: jsdom
 has no native editing, so a text selection cannot be made through the DOM, and the mark and
-re-link gestures are covered in two halves that meet at a typed boundary (deviation `C7`). *Save
-failed*, the backoff ladder, the `409` reload prompt, and now the selection control are exercised
-only by the frontend suite; a regression in them will not show up by using the app, so those tests
-and the manual acceptance script are the only things standing under them.
+re-link gestures are covered in two halves that meet at a typed boundary (deviation `C7`). Group D
+adds a third, smaller one: a file *drop* is a pointer gesture too, and the import is tested by
+pasting rather than dropping. *Save failed*, the backoff ladder, the `409` reload prompt, the
+selection control, and the drop target are exercised only by the frontend suite; a regression in
+them will not show up by using the app, so those tests and the § 8 acceptance run are the only
+things standing under them.
 
 ## The specs are the contract
 
@@ -86,9 +102,10 @@ and the manual acceptance script are the only things standing under them.
 - [specs/phase-1-plan.md](specs/phase-1-plan.md) — Phase 1 work items (`P1-1` … `P1-15`), exit
   criteria, and the as-built deviations table.
 - [specs/phase-2-plan.md](specs/phase-2-plan.md) — Phase 2 work items (`P2-1` … `P2-15`). Its § 2
-  is **ruled** (D21–D24, 2026-08-30). Its § 7 holds thirty-five as-built deviations across Groups
-  A, B, and C, and is worth reading before Group D — `B4` and `C3` are product decisions, not
-  implementation details, and `C7` says which surfaces no test reaches.
+  is **ruled** (D21–D24, 2026-08-30). Its § 7 holds forty-nine as-built deviations across all four
+  groups — `B4`, `D1`, and `D12` are product decisions rather than implementation details, and
+  `C7` and `C8` say which surfaces no test reaches. **Its § 8 is the manual acceptance run**: the
+  script step by step, what each step must show, and where the results go. It has not been run.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
   phase it must be settled by. `Q1` and `Q5` are promoted and closed; `Q2`, `Q3`, `Q4`, and `Q6`
   are open.
@@ -98,15 +115,21 @@ and the manual acceptance script are the only things standing under them.
   disagrees with the code.
 - [specs/api-contract.md](specs/api-contract.md) — every route that exists, what it promises, and
   what it refuses: § 5's chapter operations, § 7's five anchor routes and the extended save
-  response, and § 8's four snapshot routes. The generated OpenAPI schema is authoritative for
-  types; this is authoritative for behaviour.
+  response, § 8's four snapshot routes, and § 9's two Markdown exports and one import — including
+  the **one non-JSON response in the API** and why it is one. The generated OpenAPI schema is
+  authoritative for types; this is authoritative for behaviour.
 - [specs/anchors.md](specs/anchors.md) — what an anchor stores, the two coordinate systems and
   the block index, the matching ladder with its exact thresholds, the whitespace normal form, the
   suggestion protocol, and **what an anchor does not promise**. Written in `P2-4` before the code
   it governs; `P2-8`'s corpus is written from it, not from the implementation. Read it before
   touching anything in `manuscript/anchors/`. Four places where the code corrected it are marked
-  and cross-referenced to the phase plan's `B1`–`B5`.
+  and cross-referenced to the phase plan's `B1`–`B5`; its § 7 says why a Markdown import is
+  *not* one of the writes that re-resolves an anchor.
 - `specs/agent-tools.md` — written as its phase begins (Phase 6).
+
+There is no `specs/markdown.md`, deliberately. The syntax is a docstring
+(`manuscript/markdown/serialize.py`) and a corpus (`tests/fixtures/markdown/cases.json`); the
+routes are api-contract § 9. A third place to state it would be a third place to disagree.
 
 Work items carry stable IDs (`P3-4`) that commits and code comments reference. IDs are never
 renumbered — a dropped item is marked **withdrawn**, not deleted.
@@ -234,8 +257,12 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/manuscript/anchors/records.py` | The stored anchor, and the one place a row becomes one |
 | `server/archetype/manuscript/anchors/rewrite.py` | Re-resolution inside the transaction of the save that caused it (`P2-7`, D21) |
 | `server/archetype/manuscript/anchors/store.py` | `AnchorStore` — create from a range, read, re-link, delete (`P2-7`) |
+| `server/archetype/manuscript/markdown/schema.py` | The server's mirror of the editor's closed node list, held to it by a shared fixture (`P2-13`, D1) |
+| `server/archetype/manuscript/markdown/serialize.py` | Closed schema in, Markdown out — total by construction, and where the escaping rules live (`P2-13`, D15) |
+| `server/archetype/manuscript/markdown/parse.py` | CommonMark in, closed schema out, over `markdown-it-py`; and the notice for everything it could not keep (`P2-14`) |
+| `server/archetype/manuscript/markdown/importer.py` | The part of an import that writes: measure every chapter, then create them (`P2-14`) |
 | `server/archetype/manuscript/locator.py` | Resolves a bare document, anchor, or snapshot id to the project file holding it |
-| `server/archetype/api/routes.py` | The `/api` router (`P1-5`), including Group C's chapter and snapshot routes (`P2-11`, `P2-12`) |
+| `server/archetype/api/routes.py` | The `/api` router (`P1-5`), including Group C's chapter and snapshot routes (`P2-11`, `P2-12`) and Group D's Markdown routes (`P2-13`, `P2-14`) |
 | `server/archetype/api/logging.py` | Request logging: one line per request, with a request id (`P1-13`) |
 | `server/archetype/api/schemas.py` | Wire shapes, mirrored in `web/src/api/types.ts` |
 | `server/archetype/api/static.py` | The single-process static mount and the `web_not_built` notice (`P1-14`) |
@@ -244,6 +271,8 @@ suite keeps a developer's real config out of its way.
 | `server/tests/fixtures/db/` | Databases captured at a known schema version, with their README and the script that captured `v001_phase1.sqlite` |
 | `server/tests/fixtures/projection/` | The shared projection cases, now with the block index — read by **both** suites (`P1-7`, `P2-5`) |
 | `server/tests/fixtures/anchors/` | The anchor corpus, hand-written from `specs/anchors.md` (`P2-8`) |
+| `server/tests/fixtures/markdown/` | The round-trip corpus: each chapter stated twice, as JSON and as the Markdown it must export to (`P2-13`, `P2-14`) |
+| `server/tests/fixtures/schema/` | The closed schema, stated once and read by **both** suites (`P2-13`) |
 | `server/tests/fixtures/contract/` | API responses written by pytest, type-checked by vitest (`P1-8`) |
 | `server/tests/fakes/` | `FakeProvider` and `FakeEmbedder` land here in Phases 4 and 5 |
 | `web/src/api/` | The typed client, its interface, and the mirrored wire types |
@@ -251,6 +280,7 @@ suite keeps a developer's real config out of its way.
 | `web/src/state/projectReducer.ts` | The project's chapters, outline, deleted list, **and every anchor in it** (`P2-10`) |
 | `web/src/shell/` | The workspace frame, the split dividers, the editor region, error boundaries, toasts |
 | `web/src/panels/` | The outline panel and its five tabs, the contents, the *Marks* tab, the history, the picker |
+| `web/src/panels/MarkdownTransfer.tsx` | Export links and the import form, with the report of what an import left behind (`P2-13`, `P2-14`) |
 | `web/src/anchorText.ts` | The one place an anchor is put into words, for the panel, the control, and the decoration |
 | `web/src/editor/extensions.ts` | The closed TipTap schema — a change here is a spec change (`P1-10`, D1) |
 | `web/src/editor/anchors.ts` | The decoration plugin: mapping, collapse, clamping — display-only (`P2-9`, D21) |
@@ -269,15 +299,18 @@ suite keeps a developer's real config out of its way.
 | `server/tests/test_anchor_routes.py` | The five anchor routes over the real application (`P2-7`) |
 | `server/tests/test_chapter_routes.py` | Reorder, delete, restore, and the deleted list over HTTP (`P2-11`) |
 | `server/tests/test_snapshot_routes.py` | Capture, history, preview, and restore over HTTP (`P2-12`) |
+| `server/tests/test_markdown.py` | The corpus both ways, totality over the closed schema, and every normalisation Markdown forces (`P2-13`, `P2-14`) |
+| `server/tests/test_markdown_routes.py` | The media type, the filename, the soft-delete predicate, and the refusals over HTTP (`P2-13`, `P2-14`) |
 | `web/src/__tests__/anchorPlugin.test.ts` | The decoration plugin against real ProseMirror and no React (`P2-9`) |
 | `web/src/__tests__/selectionActions.test.tsx` | The mark and re-link control against a real editor (`P2-9`, `P2-10`) |
 | `web/src/__tests__/anchorsInEditor.test.tsx` | Anchors through the real provider stack (`P2-9`) |
 | `web/src/__tests__/marks.test.tsx` | The *Marks* tab, its filters, and the repair path (`P2-10`) |
 | `web/src/__tests__/chapters.test.tsx` | Reorder, rename, delete, and restore in the Contents tab (`P2-11`) |
 | `web/src/__tests__/snapshots.test.tsx` | The history panel, marking a version, and restoring one (`P2-12`) |
+| `web/src/__tests__/markdown.test.tsx` | The export links, the import form, and the report (`P2-13`, `P2-14`) |
 
-**Invariants established in Phase 1's Groups A, B, and C, and in Phase 2's Groups A, B, and C**,
-beyond those already listed above:
+**Invariants established in Phase 1's Groups A, B, and C, and in Phase 2's Groups A, B, C, and
+D**, beyond those already listed above:
 
 - **Transaction control is explicit.** Connections open with `isolation_level=None`; `BEGIN` and
   `COMMIT` are written, never implied. A migration carries its transaction *inside* the script
@@ -455,3 +488,40 @@ beyond those already listed above:
 - **No test's behaviour depends on whether the frontend has been built.** The shared `settings`
   fixture pins `web_dist=None`, and `test_static.py` builds its own miniature bundle in `tmp_path`.
   A stale real `web/dist` must not be able to make a passing test lie.
+- **The closed schema is stated once and both suites are held to it.**
+  `server/tests/fixtures/schema/closed_schema.json` is the vocabulary; `schema.test.ts` holds the
+  schema TipTap really built to it, and `test_markdown.py` holds the server's mirror and the
+  serializer's case list to the same file. Adding a node to the editor now fails a test on each
+  side of the wire in the commit that adds it — which is what a closed list was always for, and
+  before this a new node would have reached a serializer with no case for it and nobody would have
+  found out until somebody exported a chapter.
+- **The Markdown serializer is total, and refuses rather than guesses.** Every node in
+  `ALLOWED_NODES` and every mark in `ALLOWED_MARKS` has a case; anything else raises. Inventing
+  syntax for an unknown node would put text into a file that could never be read back, which is
+  the failure import exists to make impossible.
+- **The parser is not ours, and the syntax is.** Serializing ten nodes and two marks is small,
+  total, and ours to define; parsing CommonMark is none of those, so `markdown-it-py` does it
+  (§ 2, ruling 3). It runs the strict `commonmark` preset with HTML off, so a table, a footnote,
+  and a `<div>` are not syntax at all — they arrive as the characters the writer typed, and
+  produce no notice because nothing was dropped.
+- **The round-trip corpus states the Markdown, not just the round trip.** Two halves that agreed
+  with each other on a syntax nobody chose would round-trip perfectly and still write files no
+  other reader could open. So each case carries the exact Markdown, hand-written, and one test
+  renders it with the parser's own renderer and compares what a reader would see to `text_plain`.
+- **Import creates chapters; it never replaces the text of one** (§ 2, ruling 5). That is what
+  keeps `save_content` the only path by which existing manuscript text changes. It is also why no
+  `pre-import` snapshot is ever written: nothing an import does can destroy text.
+- **Nothing is created until everything is measured.** An import parses the file, serializes every
+  chapter, and checks every size before the first row is written, so a file with one oversized
+  chapter is refused whole. A partial import leaves a writer with three chapters of a five-chapter
+  file and no way to tell which two are missing.
+- **What Markdown cannot hold is reported, and the words are kept.** A code fence becomes a
+  paragraph, a link keeps its text and loses its target, an image leaves its alt text, a heading
+  below level 3 is imported at level 3 — each named in `dropped` with the line it was on. The
+  field is a list of real losses only, which is why constructs the parser does not recognise are
+  absent from it.
+- **A Markdown export is a link, not a fetch.** The server sends it as an attachment with a
+  filename, so the client is an `<a href download>`: less code, no bytes held in memory, no second
+  implementation of the filename rules, and keyboard-reachable for free.
+- **The fake API client has no Markdown parser, and must never grow one** — the same rule as the
+  resolver's, for the same reason. `stageImport` says what an import creates.

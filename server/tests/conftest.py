@@ -39,6 +39,8 @@ DB_FIXTURES_DIR = FIXTURES_DIR / "db"
 PROJECTION_FIXTURES_DIR = FIXTURES_DIR / "projection"
 CONTRACT_FIXTURES_DIR = FIXTURES_DIR / "contract"
 ANCHOR_FIXTURES_DIR = FIXTURES_DIR / "anchors"
+MARKDOWN_FIXTURES_DIR = FIXTURES_DIR / "markdown"
+SCHEMA_FIXTURES_DIR = FIXTURES_DIR / "schema"
 
 
 @pytest.fixture(autouse=True)
@@ -293,3 +295,25 @@ def load_projection_cases() -> list[dict[str, Any]]:
     """
     raw = (PROJECTION_FIXTURES_DIR / "cases.json").read_text(encoding="utf-8")
     return json.loads(raw)["cases"]
+
+
+def load_markdown_cases() -> list[dict[str, Any]]:
+    """The Markdown round-trip corpus (P2-13, P2-14).
+
+    Both halves are asserted against it: the exact Markdown a document exports to, and the
+    document that Markdown imports back as. Hand-written from the syntax the serializer's
+    docstring fixes, so a serializer and a parser that quietly agreed with each other on
+    something neither document describes would still fail.
+    """
+    raw = (MARKDOWN_FIXTURES_DIR / "cases.json").read_text(encoding="utf-8")
+    return json.loads(raw)["cases"]
+
+
+def load_closed_schema() -> dict[str, Any]:
+    """The closed schema both suites hold themselves to (P1-10, D1).
+
+    The same file is read by ``web/src/__tests__/schema.test.ts`` against the schema TipTap
+    builds, so a node added to the editor and not to the serializer fails a test on each side.
+    """
+    raw = (SCHEMA_FIXTURES_DIR / "closed_schema.json").read_text(encoding="utf-8")
+    return json.loads(raw)

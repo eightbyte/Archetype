@@ -1,6 +1,7 @@
 # Phase 2 — Manuscript Model & Anchors
 
-**Status:** **Active — § 2 ruled, Groups A, B, and C complete** · **Version:** 1.3 · **Date:** 2026-08-30
+**Status:** **Active — § 2 ruled; Groups A, B, C, and D built. Awaiting the § 8 acceptance run.**
+**Version:** 1.4 · **Date:** 2026-08-31
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 **Writes:** `specs/anchors.md` (P2-4) · extends [`specs/data-model.md`](data-model.md) and
@@ -585,7 +586,8 @@ Phase 2 is done when **all** of these hold.
 9. `specs/anchors.md` exists and describes what was built; the other seven documents in P2-15 match
    the code.
 
-**Manual acceptance script** (run by hand at the phase boundary, results recorded in § 7):
+**Manual acceptance script** (run by hand at the phase boundary; written out step by step,
+with what each step must show, in § 8, where its results go):
 
 Open the Phase 1 test manuscript → create three anchors in one chapter: one in the first paragraph,
 one mid-chapter, one in the last → **edit heavily**: add two paragraphs above the first, rewrite a
@@ -690,13 +692,71 @@ happened and why (outline § 13).*
 | **C15** | P2-12 | — | **The snapshot panel reaches the server through `DocumentContext`, not through a client of its own.** Marking a version and previewing one both have to **flush first** — a mark records what is on screen, and a preview's "now" side is what a restore would replace — and a component holding its own client would be a second place that knows when a save has to happen. So `listSnapshots`, `readSnapshot`, and `savedContent` are on the document layer, and no `ApiContext` was added. |
 | **C16** | P2-10, P2-11 | "an orphaned anchor's chapter can be restored from here" | **Restoring a chapter re-reads that chapter's anchors rather than un-deriving their status locally.** The first cut had the reducer map `orphaned` back to `ok`, which is wrong: `orphaned` was the chapter showing through a stored `ok` **or `stale`**, and which of the two it is underneath is the server's to say. Guessing `ok` would have been the client deciding an anchor's status — the one thing § 2's ruling 2 forbids, and invisible when wrong. `ProjectContext.restoreChapter` now awaits the restore *and* the per-document anchor list (which resolves on read) before dispatching either, so the panel never draws the moment in between. A test restores a chapter whose mark was already `stale` and asserts it is still `stale`. |
 
-### Carried into Group D
+### Carried into Group D — *settled*
 
+- **`specs/anchors.md` § 4 and § 10 carried the pre-`B4` wording.** **Done in P2-15:** both
+  sections now state the ruling as built, and the four places the code corrected the
+  specification are cross-referenced to `B1`–`B5`.
+- **The *Marks* tab is the anchors' only consumer, and stayed that way.** Group D added no
+  consumer of an anchor; Markdown export and import do not read or write one.
 - **The manual acceptance script in § 5 has not been run.** It is the phase-boundary act and it
   covers the two things no test reaches: the pointer gestures (C7, C8) and heavy editing against
-  the real resolver rather than a staged answer. Group D runs it and records the results here.
-- **`specs/anchors.md` § 4 and § 10 still carry the pre-`B4` wording.** The ruling is recorded in
-  this document's § 7; carrying it into `anchors.md` is P2-15's, alongside the rest of the
-  documentation pass.
-- **The *Marks* tab is the anchors' only consumer, and stays that way.** Phase 3's bible is what
-  cites one. Nothing in Group D should widen it.
+  the real resolver rather than a staged answer. **Still outstanding** — see § 8, which is the
+  script written out as a checklist, and where its results go.
+
+### Group D (P2-13 → P2-15), 2026-08-31
+
+| # | Item | Planned | As built, and why |
+|---|---|---|---|
+| **D1** | P2-14, C3 | "Markdown import's `pre-import` snapshot (P2-14) is taken by the import itself and not asked for over the wire" | **No `pre-import` snapshot is taken at all, and none can be.** C3 was written before P2-14 met § 2's ruling 5, and the two do not fit together: import **creates** chapters and never replaces the text of one, so at no point in an import is there a chapter whose words are about to be destroyed. A snapshot before it would be a history entry recording that nothing happened — and the history is the one list a writer consults when something has gone wrong (A3). The reason stays registered in `SnapshotReason.ALL` and `capture_within` still writes one on request: its first caller is whatever later phase lets an import replace a chapter, and it exists so that phase does not have to add a reason to the vocabulary. Recorded in `markdown/importer.py`'s docstring, where the decision would otherwise look like an omission. |
+| **D2** | P2-14 | `POST /api/projects/{pid}/import` — `{markdown, mode}` | **The body carries an optional third field, `title`.** It names the single chapter `one-chapter` mode creates, and is ignored by `split-on-h1`, which takes each title from its own heading. Without it, importing `chapter-seven.md` produces a chapter called *Chapter 4* — the client surface reads a name off the dropped file, and a rename immediately afterwards is a step that exists only because the request had no room for it. Adding an optional field to a request model is safe in the direction that matters: requests are closed (`extra="forbid"`), so an old client omitting it is exactly what the default is for. |
+| **D3** | P2-13 | One new module, `manuscript/markdown/serialize.py` | **Four, and a shared fixture.** `schema.py` is the server's mirror of the editor's closed node list; `serialize.py` is the serializer as planned; `parse.py` is P2-14's reader; `importer.py` is the part that writes. The split is forced by what "total by construction" actually requires: totality has to be over *something*, and the schema is declared in TypeScript in `web/src/editor/extensions.ts`. So `server/tests/fixtures/schema/closed_schema.json` states the vocabulary once and **both** suites are held to it — `schema.test.ts` against the schema TipTap really built, `test_markdown.py` against the mirror and the serializer's case list. A node added to the editor now fails a test on each side of the wire in the commit that adds it, which is what the closed list was for; before this, a new node would have reached a serializer with no case for it and nobody would have found out until somebody exported a chapter. |
+| **D4** | P2-13 | "Escaping is the fiddly part and gets its own cases" | It does, and so do **four normalisations Markdown cannot avoid**, each asserted directly rather than described: an **empty paragraph between two blocks is dropped** (a blank line is how Markdown separates blocks, which is the projection's rule as well); a **line break inside a heading becomes a space** (an ATX heading is one line by definition); **whitespace at the edge of an emphasis run moves outside the delimiters**, because `** bold **` is not emphasis in CommonMark — not a character of text changes, only which of them the mark covers; and a **newline inside a text node reads as a line break**, exactly as the projection reads it, so it returns as a `hardBreak`. Only the first is reachable by ordinary typing. A limit that is only written down is a limit nobody has checked. |
+| **D5** | P2-14 | "Anything the closed schema cannot hold — a table, an image, a code fence, a footnote — is reported" | **A table, a footnote, and raw HTML produce no report, because nothing is dropped.** The parser runs the strict `commonmark` preset with `html` off, so none of the three is syntax it knows: they arrive as the characters the writer typed. Enabling a plugin so the importer could announce having flattened a table would mean the *parser* recognising constructs the product has decided not to have, and would leave the notice list a mix of real losses and things that merely looked like one. What it costs is that a table's row boundaries become spaces, by the soft-break rule; every character survives. An image and a code fence *are* constructs, and both are reported. |
+| **D6** | P2-14 | "reported in the response as what was dropped and where, **never silently discarded**" | **Where the construct carries words, the words are kept and only the construct is reported.** A code fence becomes a paragraph with its lines as hard breaks; inline code keeps its text; a link keeps its text and reports its target; an image reports itself and leaves its alt text behind. A code fence in a manuscript is far more likely to be a paragraph somebody indented than a program, and dropping the text to honour the word "dropped" would be the data loss the sentence exists to prevent. The field is still called `dropped`; each entry says in `detail` what actually happened. A heading below level 3 is in the list too — the heading is kept, its level is not, and that is a loss with nowhere else to be reported. |
+| **D7** | P2-14 | — | **The wire field naming one is `element`, not `construct`.** `construct` is a (deprecated) classmethod on pydantic's `BaseModel`, so a field of that name shadows it and warns at class-definition time. Renamed on both sides rather than only on the wire, because one vocabulary end to end is the rule (api-contract § 1) and a translation layer would exist only to be a place the two can drift. |
+| **D8** | P2-13 | — | **`DocumentStore.list_content()`** — one statement returning every live chapter's title and content in order. The combined export is the one read in the project that legitimately wants the whole manuscript, and a loop of `get()` would be forty connections for forty chapters. More to the point it puts the soft-delete predicate in **one** place a reviewer can see: a combined export that quietly included a deleted chapter is precisely the leak § 6's risk table names, and it surfaces as a ghost chapter in a file somebody has already sent to a reader. |
+| **D9** | P2-13 | — | **`projection.tidy_block` is now public.** The serializer needs the projection's own rule — trim each line, drop the empty ones — because an exported chapter stripped of its syntax must read as its `text_plain`, and Markdown has no representation for a blank line inside a block anyway. One implementation, cited from both, rather than a second one that agrees today. |
+| **D10** | P2-14 | — | **`MAX_IMPORT_BYTES`, a fifth module constant** (§ 2, ruling 8: a constant, not a setting). Four times `MAX_CONTENT_BYTES`, because one file legitimately becomes many chapters and Markdown is smaller than the JSON it becomes. Both limits are checked **before the first row is written**: the file is parsed, every chapter serialized, and every size measured, and only then does anything get created. An importer that created as it went would leave a writer with three chapters of a five-chapter file and no way to tell which two were missing. |
+| **D11** | P2-13, P2-14 | "The round-trip corpus is the acceptance bar: for every case, `import(export(doc))` is the same document" | **The corpus states the Markdown as well, and both directions are asserted against it.** A round trip alone is satisfied by two halves that agree with each other on a syntax nobody chose — they would pass perfectly while writing files no other reader could open. So each of the twenty-four cases carries the exact Markdown, hand-written, and a fifth test renders the file with the *parser's own renderer* and compares what a reader would see to `text_plain`. |
+| **D12** | Group D | P2-13 and P2-14 are server-side work items | **Group D carries a client surface as well**, which neither item budgeted: a per-chapter and a whole-manuscript export in the Contents tab, and an import that takes pasted Markdown or a dropped file, with the two modes and a report of what was left behind. **Put to the writer on 2026-08-31 and ruled as built**, the alternative being that § 5's acceptance script ends "compare the two on screen" with nothing on screen to compare. An export is an ordinary `<a href download>` rather than a fetch — the server already sends it as an attachment with a filename, so a link is less code, and it is keyboard-reachable and right-clickable for free. `projectReducer` gained one action, `documents-imported`, which appends a whole import at once: the intermediate states of a chapter-at-a-time dispatch are not states the project was ever in. |
+| **D13** | § 2, ruling 3 | "`markdown-it-py` … has no transitive weight" | It has one, `mdurl`, at about 10 KB. Recorded rather than glossed: the dependency budget is a rule, and "one package" turning out to be two is the kind of thing that is only ever noticed the third time it happens. |
+| **D14** | P2-14 | — | **The fake API client has no Markdown parser and must never grow one.** The same rule as C4's, for the same reason: there is one parser, it has a round-trip corpus behind it, and a second one in the frontend suite would make every client test assert against a rule nobody wrote down. `stageImport` says what an import creates; without one it makes a single, plainly-named chapter. What the client tests are actually for is the client's share — collecting the file, sending the mode, showing the report. |
+
+---
+
+## 8. Manual Acceptance — the phase-boundary run
+
+§ 5's script, written out step by step with what each step must show. It is here rather than in
+a scratch file because it is the **only thing standing under two surfaces**: the pointer gestures
+(`C7`, `C8`) and heavy editing against the real resolver rather than a staged answer (`C4`).
+Everything below the gesture has a test; the gesture does not, and jsdom cannot grow one.
+
+Run it against the **single-process build** — the shape the product ships in (`P1-14`, D7) — so
+that the static mount, the API, and the app are the same process a writer would run:
+
+```powershell
+cd web; npm run build
+cd server; .\.venv\Scripts\python.exe -m archetype     # http://127.0.0.1:8787
+```
+
+**Result: not yet run.** Record it below when it is: a date, and one line per step saying what
+happened. A step that fails is a bug fixed before the phase closes, not a note.
+
+| # | Do this | It must |
+|---|---|---|
+| **1** | Open the Phase 1 test manuscript and pick a chapter with several paragraphs. | Open into the editor with the Contents tab showing its headings. |
+| **2** | Select a passage in the **first** paragraph and mark it. Do the same **mid-chapter** and in the **last** paragraph. | Each show a highlight over exactly the words selected, and appear in the *Marks* tab under this chapter, all three `ok`. |
+| **3** | Add two paragraphs **above** the first mark. | All three highlights stay on their own words. The one above has moved down the page and still covers the same sentence. |
+| **4** | Rewrite a paragraph **between** the second and third marks — new sentences, not a tweak. | All three still `ok`. This is the step that exercises the resolver rather than ProseMirror's mapping: wait for the save, then reload the page and confirm they are still right. |
+| **5** | Delete a paragraph **below** the last mark. | All three still `ok`. |
+| **6** | Delete the text **under the second mark**. | It goes `stale` in the *Marks* tab, and its highlight **does not move somewhere approximately right**. This is the phase's acceptance bar: a wrong match is worse than no match. |
+| **7** | Repair it — accept the suggestion if one is offered, otherwise select a passage and use *Re-link here*. | It returns to `ok` over the passage chosen, and nothing else changed status. |
+| **8** | **Mark a version** in the history panel, with a label. Edit the chapter substantially. Restore the mark. | The text returns; the label is still in the history; the pre-restore version is in the list too; the marks resolve against the restored text and the editor stays where it was in the app. |
+| **9** | **Reorder** the chapters — once by dragging, once with *Move up* / *Move down*, once with the arrow keys on a move control. | The outline and the editor follow. After a keyboard move, focus is still on the control of the chapter that moved, so a second press works. |
+| **10** | **Delete a chapter** that has a mark in it. | It leaves the list and the counts; its mark reads as belonging to a deleted chapter; the editor moves to a neighbour rather than holding a ghost. |
+| **11** | **Restore** it from *Deleted chapters*. | It comes back with its text; its mark returns to the status it held before — `ok` if it was `ok`, **`stale` if it was `stale`**. |
+| **12** | **Export** a chapter to Markdown from the Contents tab, then re-import the file as a new chapter (*As one chapter*). | The file downloads under the chapter's name. The new chapter reads identically on screen — headings, emphasis, lists, scene breaks — and the import reports nothing left behind. |
+| **13** | Export the **whole manuscript** and re-import it with *A chapter per top-level heading*. | One new chapter per chapter in the manuscript, each under its own title, in order, and no deleted chapter among them. |
+| **14** | Import something the schema cannot hold — a file with a code fence, a link and an image in it. | It succeeds, the words are all there, and the report names each one with the line it was on. |
+| **15** | Stop the server mid-edit, type, and let a save fail. Start it again. | *Save failed* is visible and the writing is intact. (Carried from Phase 1, where the retry loop absorbed the outage before it could be seen — check whether it is reachable now.) |

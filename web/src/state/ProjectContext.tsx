@@ -19,7 +19,14 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
 import type { ReactNode } from 'react';
-import type { AnchorRange, ApiClient, Document, DocumentMeta } from '../api';
+import type {
+  AnchorRange,
+  ApiClient,
+  Document,
+  DocumentMeta,
+  ImportMode,
+  MarkdownImport,
+} from '../api';
 import { ApiError, NetworkError } from '../api';
 import type { ProjectAction, ProjectState } from './projectReducer';
 import { INITIAL_PROJECT_STATE, projectReducer } from './projectReducer';
@@ -44,6 +51,23 @@ interface ProjectContextValue {
   restoreChapter: (documentId: string) => Promise<DocumentMeta>;
   /** Read the list of soft-deleted chapters. Not loaded until something asks. */
   loadDeleted: () => Promise<void>;
+  /**
+   * Create chapters from a Markdown file (P2-14).
+   *
+   * Appends; it never replaces a chapter's text, so nothing open can be pulled out from
+   * under the editor and no flush is needed first. What came back is returned as well as
+   * dispatched, because the caller has to show what the import could not keep.
+   */
+  importMarkdown: (markdown: string, mode: ImportMode, title?: string) => Promise<MarkdownImport>;
+  /**
+   * Where a chapter's Markdown lives, and where the whole manuscript's does (P2-13).
+   *
+   * Addresses rather than fetches: the export is served as an attachment, so the control
+   * for one is a link and the browser does the saving and the naming. They are on the
+   * context so that no panel has to rebuild an API path of its own.
+   */
+  chapterMarkdownUrl: (documentId: string) => string;
+  manuscriptMarkdownUrl: () => string;
   /** Point an anchor at a new range — a suggestion accepted, or a passage chosen by hand. */
   relinkAnchor: (anchorId: string, range: AnchorRange) => Promise<void>;
   /** Change an anchor's label. Not a text change, so no version is presented for it. */
@@ -111,6 +135,25 @@ export function ProjectProvider({ client, projectId, children }: ProjectProvider
       dispatch({ type: 'document-renamed', documentId, title: meta.title });
     },
     [client],
+  );
+
+  const importMarkdown = useCallback(
+    async (markdown: string, mode: ImportMode, title?: string): Promise<MarkdownImport> => {
+      const result = await client.importMarkdown(projectId, markdown, mode, title);
+      dispatch({ type: 'documents-imported', documents: result.documents });
+      return result;
+    },
+    [client, projectId],
+  );
+
+  const chapterMarkdownUrl = useCallback(
+    (documentId: string) => client.documentMarkdownUrl(documentId),
+    [client],
+  );
+
+  const manuscriptMarkdownUrl = useCallback(
+    () => client.projectMarkdownUrl(projectId),
+    [client, projectId],
   );
 
   const reorderChapters = useCallback(
@@ -193,6 +236,9 @@ export function ProjectProvider({ client, projectId, children }: ProjectProvider
       dispatch,
       createChapter,
       renameChapter,
+      importMarkdown,
+      chapterMarkdownUrl,
+      manuscriptMarkdownUrl,
       reorderChapters,
       deleteChapter,
       restoreChapter,
@@ -208,6 +254,9 @@ export function ProjectProvider({ client, projectId, children }: ProjectProvider
       state,
       createChapter,
       renameChapter,
+      importMarkdown,
+      chapterMarkdownUrl,
+      manuscriptMarkdownUrl,
       reorderChapters,
       deleteChapter,
       restoreChapter,
