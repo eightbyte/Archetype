@@ -42,12 +42,14 @@ describe('the three regions', () => {
     expect(within(agent).getByText(/arrives in Phase 4/)).toBeDefined();
   });
 
-  test('the outline panel offers its four tabs, three of which say when they arrive', async () => {
+  test('the outline panel offers its five tabs, three of which say when they arrive', async () => {
     const user = userEvent.setup();
     await readyWorkspace();
 
+    // Marks was added in Phase 2 by a deliberate ruling (phase-2-plan section 2, ruling 6); the
+    // remaining three are still placeholders that name the phase they arrive in.
     const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent);
-    expect(tabs).toEqual(['Contents', 'Timeline', 'Characters', 'Bible']);
+    expect(tabs).toEqual(['Contents', 'Marks', 'Timeline', 'Characters', 'Bible']);
 
     await user.click(screen.getByRole('tab', { name: 'Bible' }));
     expect(screen.getByRole('tabpanel').textContent).toContain('Phase 3');

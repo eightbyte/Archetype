@@ -20,11 +20,15 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from archetype.ids import IdPrefix
 from archetype.manuscript.projection import project, text_offset_to_pm_position
 
 from .conftest import CONTRACT_FIXTURES_DIR, build_document
 
-_ID_PATTERN = re.compile(r"\b(prj|doc|anc|ent|run)_[0-9a-z]{8,}\b")
+# Built from the registered prefixes rather than spelled out, because a prefix the pattern has
+# never heard of is not a failure - it is a fixture that is rewritten on every run and a diff
+# that stops meaning anything. `snp_` was exactly that, for one commit.
+_ID_PATTERN = re.compile(rf"\b({'|'.join(sorted(IdPrefix.ALL))})_[0-9a-z]{{8,}}\b")
 _TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 FIXED_TIMESTAMP = "2026-01-01T00:00:00Z"
@@ -178,6 +182,29 @@ def test_contract_fixtures_round_trip(client: TestClient) -> None:
     capture("anchor_list", client.get(f"/api/projects/{project_id}/anchors"))
     assert anchor["status"] == "ok"
 
+    # Group C's routes, in the order the app uses them: mark a version, read the history, read
+    # one back, then the two refusals the chapter surfaces have to draw.
+    capture(
+        "snapshot_capture",
+        client.post(
+            f"/api/documents/{first_document}/snapshots",
+            json={"reason": "manual", "label": "before the rewrite"},
+        ),
+    )
+    snapshots = capture("snapshot_list", client.get(f"/api/documents/{first_document}/snapshots"))
+    capture("snapshot", client.get(f"/api/snapshots/{snapshots['snapshots'][0]['id']}"))
+
+    capture(
+        "error_reorder_mismatch",
+        client.put(
+            f"/api/projects/{project_id}/documents/order",
+            json={"document_ids": [first_document]},
+        ),
+    )
+    client.delete(f"/api/documents/{second['id']}")
+    capture("document_list_deleted", client.get(f"/api/projects/{project_id}/documents/deleted"))
+    client.post(f"/api/documents/{second['id']}/restore")
+
     # The round trip: everything written parses back to what was written.
     for name, body in written.items():
         path = CONTRACT_FIXTURES_DIR / f"{name}.json"
@@ -191,8 +218,10 @@ def test_every_fixture_is_one_the_test_writes() -> None:
         "anchor_list",
         "document",
         "document_list",
+        "document_list_deleted",
         "document_meta",
         "error_not_found",
+        "error_reorder_mismatch",
         "error_validation",
         "error_version_conflict",
         "health",
@@ -201,6 +230,9 @@ def test_every_fixture_is_one_the_test_writes() -> None:
         "project_list",
         "save_result",
         "save_result_anchors",
+        "snapshot",
+        "snapshot_capture",
+        "snapshot_list",
     }
     found = {path.stem for path in CONTRACT_FIXTURES_DIR.glob("*.json")}
     assert found == expected
@@ -223,6 +255,13 @@ def test_normalisation_is_stable() -> None:
     assert once["documents"][0]["project_id"] == "prj_000000000001"
     assert once["created_at"] == FIXED_TIMESTAMP
     assert once["message"] == "no document 'doc_000000000001' in this workspace"
+
+
+def test_every_registered_prefix_is_normalised() -> None:
+    """A prefix the pattern misses rewrites its fixture on every run (P2-12 found `snp_`)."""
+    normaliser = Normaliser()
+    for prefix in sorted(IdPrefix.ALL):
+        assert normaliser.value(f"{prefix}_abcdefgh1234") == f"{prefix}_000000000001"
 
 
 def test_the_fixtures_directory_is_where_the_frontend_looks() -> None:

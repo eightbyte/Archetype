@@ -2,7 +2,8 @@
 
 ``GET /api/documents/{did}`` and its siblings address a document without naming its project, but
 storage is one SQLite file per project (D3) - so something has to answer "which file". That is
-this module. ``/api/anchors/{aid}`` is addressed the same way, over the same cache (P2-7).
+this module. ``/api/anchors/{aid}`` is addressed the same way, over the same cache (P2-7), and
+so is ``/api/snapshots/{sid}`` (P2-12).
 
 The answer is cached, because the alternative is opening every project file on every keystroke's
 autosave. The cache is a hint, never an authority: every resolution re-confirms that the file
@@ -24,6 +25,7 @@ from ..projects.db import connect
 from ..projects.store import ProjectHandle, ProjectStore
 from .anchors.store import AnchorNotFoundError
 from .documents import DocumentNotFoundError
+from .snapshots import SnapshotNotFoundError
 
 __all__ = ["DocumentLocator"]
 
@@ -61,6 +63,21 @@ class DocumentLocator:
         handle = self._locate("anchor", anchor_id)
         if handle is None:
             raise AnchorNotFoundError(f"no anchor {anchor_id!r} in {self.store.projects_dir}")
+        return handle
+
+    def resolve_snapshot(self, snapshot_id: str) -> ProjectHandle:
+        """The handle for the project holding ``snapshot_id`` (P2-12).
+
+        ``GET /api/snapshots/{sid}`` and its restore are addressed the same way a document is,
+        and for the same reason: a snapshot already knows which document it belongs to, so
+        making the client repeat it would put it in charge of a fact the server owns.
+
+        Raises:
+            SnapshotNotFoundError: If no project file in the directory holds that snapshot.
+        """
+        handle = self._locate("snapshot", snapshot_id)
+        if handle is None:
+            raise SnapshotNotFoundError(f"no snapshot {snapshot_id!r} in {self.store.projects_dir}")
         return handle
 
     def forget(self, row_id: str) -> None:
@@ -101,7 +118,7 @@ class DocumentLocator:
 
 #: The tables a bare id may address. A closed list, because the table name is spliced into the
 #: query rather than bound to it - ids are, and only these names ever reach it.
-_ADDRESSABLE = frozenset({"anchor", "document"})
+_ADDRESSABLE = frozenset({"anchor", "document", "snapshot"})
 
 
 def _holds_row(path: Path, table: str, row_id: str) -> bool:

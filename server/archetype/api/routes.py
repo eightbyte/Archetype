@@ -21,6 +21,7 @@ from fastapi import APIRouter, Query, Request, status
 from .. import __version__
 from ..manuscript.anchors.store import AnchorStore
 from ..manuscript.documents import DocumentStore
+from ..manuscript.snapshots import SnapshotStore
 from ..projects.store import ProjectHandle
 from .deps import get_locator, get_project_store, open_project
 from .errors import error_responses
@@ -35,6 +36,7 @@ from .schemas import (
     DocumentMetaOut,
     DocumentOut,
     DocumentRenameIn,
+    DocumentReorderIn,
     DocumentSaveIn,
     OutlineChapterOut,
     OutlineOut,
@@ -44,6 +46,12 @@ from .schemas import (
     ProjectSummaryOut,
     SaveResultOut,
     SkippedFileOut,
+    SnapshotCaptureIn,
+    SnapshotCaptureOut,
+    SnapshotListOut,
+    SnapshotMetaOut,
+    SnapshotOut,
+    SnapshotRestoreIn,
 )
 
 __all__ = ["router"]
@@ -153,6 +161,50 @@ def create_document(
 
 
 @router.get(
+    "/projects/{project_id}/documents/deleted",
+    tags=["documents"],
+    summary="Soft-deleted chapters, most recently deleted first",
+    response_model=DocumentListOut,
+    responses=error_responses(404),
+)
+def list_deleted_documents(request: Request, project_id: str) -> DocumentListOut:
+    """The restore surface (P2-11, D22).
+
+    A soft delete is only recoverable if there is somewhere to recover it from. Every other
+    read path filters these out; this is the one that asks for them, and it is the reason the
+    delete confirmation can be brief.
+    """
+    handle = open_project(request, project_id)
+    return DocumentListOut(
+        documents=[DocumentMetaOut.of(meta) for meta in DocumentStore(handle).list_deleted()]
+    )
+
+
+@router.put(
+    "/projects/{project_id}/documents/order",
+    tags=["documents"],
+    summary="Rewrite the chapter order",
+    response_model=DocumentListOut,
+    responses=error_responses(404, 409, 422),
+)
+def reorder_documents(
+    request: Request, project_id: str, body: DocumentReorderIn
+) -> DocumentListOut:
+    """Reorder the project's chapters (P2-2, P2-11).
+
+    The body is the **complete** ordered list of live chapters. A list that is not exactly the
+    current set is refused with a ``409`` and nothing is written - that completeness check is
+    the concurrency guard, which is why no project version is presented alongside it.
+
+    No document's ``version`` moves: an order is a property of the project, not a text edit,
+    and invalidating an in-flight autosave over a move would cost the writer a keystroke.
+    """
+    handle = open_project(request, project_id)
+    documents = DocumentStore(handle).reorder(body.document_ids)
+    return DocumentListOut(documents=[DocumentMetaOut.of(meta) for meta in documents])
+
+
+@router.get(
     "/projects/{project_id}/outline",
     tags=["outline"],
     summary="The table of contents across every chapter",
@@ -220,6 +272,127 @@ def rename_document(request: Request, document_id: str, body: DocumentRenameIn) 
     """Rename. The content ``version`` is untouched - a rename is not a text edit."""
     handle = get_locator(request).resolve(document_id)
     return DocumentMetaOut.of(DocumentStore(handle).rename(document_id, body.title))
+
+
+@router.delete(
+    "/documents/{document_id}",
+    tags=["documents"],
+    summary="Soft-delete a chapter",
+    response_model=DocumentMetaOut,
+    responses=error_responses(404),
+)
+def delete_document(request: Request, document_id: str) -> DocumentMetaOut:
+    """Delete a chapter, recoverably (P2-2, D22).
+
+    A soft delete: a ``pre-delete`` snapshot and ``deleted_at`` are written in one transaction,
+    and the row, its text, its snapshots, and its anchors all stay. The chapter leaves every
+    list and count; its anchors read as ``orphaned`` until it comes back.
+
+    ``200`` rather than ``204``, and the chapter's metadata comes back with it: the client has
+    just been told a chapter is gone and needs to say what went and when, which is exactly
+    ``deleted_at``.
+    """
+    handle = get_locator(request).resolve(document_id)
+    return DocumentMetaOut.of(DocumentStore(handle).delete(document_id))
+
+
+@router.post(
+    "/documents/{document_id}/restore",
+    tags=["documents"],
+    summary="Bring a soft-deleted chapter back",
+    response_model=DocumentMetaOut,
+    responses=error_responses(404),
+)
+def restore_document(request: Request, document_id: str) -> DocumentMetaOut:
+    """Undo a delete (P2-2, D22).
+
+    The chapter returns with its text byte for byte and its anchors at the statuses they held,
+    appended at the end of the order rather than dropped back into a position the chapters
+    around it have moved on from. Restoring a live chapter is a no-op, not an error.
+    """
+    handle = get_locator(request).resolve(document_id)
+    return DocumentMetaOut.of(DocumentStore(handle).restore(document_id))
+
+
+# -- snapshots ------------------------------------------------------------------------------
+
+
+@router.get(
+    "/documents/{document_id}/snapshots",
+    tags=["snapshots"],
+    summary="One chapter's history, newest first",
+    response_model=SnapshotListOut,
+    responses=error_responses(404),
+)
+def list_snapshots(request: Request, document_id: str) -> SnapshotListOut:
+    """Metadata only - never content (P2-3, P2-12).
+
+    Deliberately not filtered by ``deleted_at``: the history of a deleted chapter is exactly
+    what somebody deciding whether to restore it wants to see.
+    """
+    handle = get_locator(request).resolve(document_id)
+    snapshots = SnapshotStore(handle).list(document_id)
+    return SnapshotListOut(snapshots=[SnapshotMetaOut.of(meta) for meta in snapshots])
+
+
+@router.post(
+    "/documents/{document_id}/snapshots",
+    tags=["snapshots"],
+    summary="Mark this version, or hand the chapter over",
+    response_model=SnapshotCaptureOut,
+    responses=error_responses(404, 422),
+)
+def capture_snapshot(
+    request: Request, document_id: str, body: SnapshotCaptureIn | None = None
+) -> SnapshotCaptureOut:
+    """Take a snapshot on demand or at handover (D23).
+
+    Only the two reasons a client owns are accepted. The ``pre-*`` reasons are the server's,
+    each written inside the transaction of the operation it protects against, so a client that
+    could ask for one could put a ``pre-delete`` in the history with nothing deleted.
+
+    A ``handover`` whose content the newest snapshot already holds writes nothing and says so.
+    That is the ordinary answer for a chapter nobody touched, not a failure.
+    """
+    handle = get_locator(request).resolve(document_id)
+    asked = body if body is not None else SnapshotCaptureIn()
+    meta = SnapshotStore(handle).capture(document_id, reason=asked.reason, label=asked.label)
+    return SnapshotCaptureOut(
+        captured=meta is not None,
+        snapshot=None if meta is None else SnapshotMetaOut.of(meta),
+    )
+
+
+@router.get(
+    "/snapshots/{snapshot_id}",
+    tags=["snapshots"],
+    summary="One snapshot including its content",
+    response_model=SnapshotOut,
+    responses=error_responses(404),
+)
+def get_snapshot(request: Request, snapshot_id: str) -> SnapshotOut:
+    """What a preview reads. The content is the whole point, so this route carries it."""
+    handle = get_locator(request).resolve_snapshot(snapshot_id)
+    return SnapshotOut.of(SnapshotStore(handle).get(snapshot_id))
+
+
+@router.post(
+    "/snapshots/{snapshot_id}/restore",
+    tags=["snapshots"],
+    summary="Write a snapshot's content back to its chapter",
+    response_model=SaveResultOut,
+    responses=error_responses(404, 409, 422),
+)
+def restore_snapshot(request: Request, snapshot_id: str, body: SnapshotRestoreIn) -> SaveResultOut:
+    """A restore is an ordinary save (P2-3, D23).
+
+    The outgoing text is captured as ``pre-restore`` inside the save's own transaction, after
+    the D19 guard passes - so a restore refused as stale leaves nothing behind, not even the
+    snapshot that was about to protect it. The response is a save result because that is what
+    it is: a new version, a re-derived projection, and the anchors the write moved.
+    """
+    handle = get_locator(request).resolve_snapshot(snapshot_id)
+    return SaveResultOut.of(SnapshotStore(handle).restore(snapshot_id, body.version))
 
 
 # -- anchors --------------------------------------------------------------------------------

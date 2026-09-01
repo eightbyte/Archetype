@@ -17,6 +17,7 @@
 
 import StarterKit from '@tiptap/starter-kit';
 import type { AnyExtension } from '@tiptap/react';
+import { AnchorDecorations } from './anchors';
 
 /** Heading levels the editor offers. The projection tolerates 1–6; the writer gets three. */
 export const HEADING_LEVELS = [1, 2, 3] as const;
@@ -61,4 +62,10 @@ export const EDITOR_EXTENSIONS: AnyExtension[] = [
     codeBlock: false,
     strike: false,
   }),
+  // Anchors are drawn as decorations (P2-9). Deliberately **not** a mark: a mark would be part
+  // of the manuscript, stored in `content_json`, subject to the writer's undo, and split by
+  // every edit that crosses it. An anchor is a reference to a passage, not a property of it,
+  // and it lives in its own table. So this extension adds no node and no mark, and the closed
+  // schema above is exactly what it was (D1).
+  AnchorDecorations,
 ];

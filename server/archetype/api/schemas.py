@@ -28,6 +28,9 @@ from ..manuscript.documents import (
     clean_title,
 )
 from ..manuscript.projection import Heading
+from ..manuscript.snapshots import MAX_LABEL_LENGTH as MAX_SNAPSHOT_LABEL_LENGTH
+from ..manuscript.snapshots import Snapshot, SnapshotMeta
+from ..manuscript.snapshots import clean_label as clean_snapshot_label
 from ..projects.store import ProjectHandle, ProjectSummary, SkippedFile
 
 __all__ = [
@@ -41,6 +44,7 @@ __all__ = [
     "DocumentMetaOut",
     "DocumentOut",
     "DocumentRenameIn",
+    "DocumentReorderIn",
     "DocumentSaveIn",
     "HeadingOut",
     "OutlineChapterOut",
@@ -51,6 +55,13 @@ __all__ = [
     "ProjectSummaryOut",
     "SaveResultOut",
     "SkippedFileOut",
+    "SnapshotCaptureIn",
+    "SnapshotCaptureOut",
+    "SnapshotListOut",
+    "SnapshotMetaOut",
+    "SnapshotOut",
+    "SnapshotReasonIn",
+    "SnapshotRestoreIn",
     "SuggestionOut",
 ]
 
@@ -122,6 +133,11 @@ class DocumentMetaOut(_Wire):
 
     The list routes return these deliberately: the outline panel must never pull the whole
     manuscript to draw a chapter list (P1-5).
+
+    ``deleted_at`` is ``null`` for every chapter a list route returns, because those routes
+    filter the soft-deleted ones out (D22). It is carried anyway, and it is the whole content
+    of the restore surface: ``GET /api/projects/{pid}/documents/deleted`` returns these, and a
+    chapter with nothing to say when it went is a chapter nobody can decide about.
     """
 
     id: str
@@ -134,6 +150,7 @@ class DocumentMetaOut(_Wire):
     version: int
     created_at: str
     updated_at: str
+    deleted_at: str | None = None
 
     @classmethod
     def of(cls, meta: DocumentMeta) -> DocumentMetaOut:
@@ -148,6 +165,7 @@ class DocumentMetaOut(_Wire):
             version=meta.version,
             created_at=meta.created_at,
             updated_at=meta.updated_at,
+            deleted_at=meta.deleted_at,
         )
 
 
@@ -216,6 +234,18 @@ class DocumentRenameIn(_Wire):
     @classmethod
     def _clean(cls, value: str) -> str:
         return clean_title(value)
+
+
+class DocumentReorderIn(_Wire):
+    """``PUT /api/projects/{pid}/documents/order`` (P2-2, P2-11).
+
+    The **complete** ordered list of the project's live chapters. Presenting a partial list is
+    refused with a ``409``: that completeness check *is* the concurrency guard, so a client
+    working from a stale chapter list cannot reorder a chapter it has never heard of out of
+    existence. There is no project version to present instead, and this is why there is none.
+    """
+
+    document_ids: list[str] = Field(min_length=1)
 
 
 class DocumentSaveIn(_Wire):
@@ -372,6 +402,128 @@ class AnchorPatchIn(_Wire):
     @property
     def relinks(self) -> bool:
         return self.from_pos is not None
+
+
+# -- snapshots ------------------------------------------------------------------------------
+
+
+class SnapshotMetaOut(_Wire):
+    """One entry in a chapter's history: when, why, and how big (P2-3, D23).
+
+    Content is deliberately absent, for the reason ``DocumentMetaOut`` exists: drawing a
+    chapter's history must not pull every version of that chapter across the wire.
+    ``size_bytes`` is the stored size of ``content_json``, which is what makes the retention
+    arithmetic visible to somebody rather than only to the phase plan.
+    """
+
+    id: str
+    project_id: str
+    document_id: str
+    taken_at: str
+    reason: str
+    label: str
+    word_count: int
+    version: int
+    size_bytes: int
+
+    @classmethod
+    def of(cls, meta: SnapshotMeta) -> SnapshotMetaOut:
+        return cls(
+            id=meta.id,
+            project_id=meta.project_id,
+            document_id=meta.document_id,
+            taken_at=meta.taken_at,
+            reason=meta.reason,
+            label=meta.label,
+            word_count=meta.word_count,
+            version=meta.version,
+            size_bytes=meta.size_bytes,
+        )
+
+
+class SnapshotListOut(_Wire):
+    """``GET /api/documents/{did}/snapshots``: newest first.
+
+    Not filtered by ``deleted_at`` - the history of a deleted chapter is exactly what someone
+    deciding whether to restore it wants to see.
+    """
+
+    snapshots: list[SnapshotMetaOut]
+
+
+class SnapshotOut(_Wire):
+    """``GET /api/snapshots/{sid}``: one snapshot's metadata and the content it holds."""
+
+    id: str
+    project_id: str
+    document_id: str
+    taken_at: str
+    reason: str
+    label: str
+    word_count: int
+    version: int
+    size_bytes: int
+    content_json: dict[str, Any]
+
+    @classmethod
+    def of(cls, snapshot: Snapshot) -> SnapshotOut:
+        meta = snapshot.meta
+        return cls(
+            id=meta.id,
+            project_id=meta.project_id,
+            document_id=meta.document_id,
+            taken_at=meta.taken_at,
+            reason=meta.reason,
+            label=meta.label,
+            word_count=meta.word_count,
+            version=meta.version,
+            size_bytes=meta.size_bytes,
+            content_json=snapshot.content,
+        )
+
+
+#: The reasons a **client** may ask for. The ``pre-*`` reasons are the server's own: each is
+#: written inside the transaction of the operation it protects against (P2-3), so a client that
+#: could ask for one could write a ``pre-delete`` with nothing being deleted - a lie in the one
+#: list a writer consults when something has gone wrong. ``test_snapshot_routes.py`` holds this
+#: to the subset of :class:`~archetype.manuscript.snapshots.SnapshotReason` it claims to be.
+SnapshotReasonIn = Literal["handover", "manual"]
+
+
+class SnapshotCaptureIn(_Wire):
+    """``POST /api/documents/{did}/snapshots``: mark this version, or hand the chapter over."""
+
+    reason: SnapshotReasonIn = "handover"
+    label: str = Field(default="", max_length=MAX_SNAPSHOT_LABEL_LENGTH)
+
+    @field_validator("label")
+    @classmethod
+    def _clean(cls, value: str) -> str:
+        return clean_snapshot_label(value)
+
+
+class SnapshotCaptureOut(_Wire):
+    """What a capture answers, including "nothing was written, and that is correct".
+
+    An automatic snapshot whose content the newest one already holds is deduplicated (D23), so
+    a handover on a chapter nobody touched writes nothing. That is not a failure and is not a
+    ``409``: ``captured`` is ``false``, ``snapshot`` is ``null``, and the history is unchanged -
+    which is the answer the client should draw.
+    """
+
+    captured: bool
+    snapshot: SnapshotMetaOut | None = None
+
+
+class SnapshotRestoreIn(_Wire):
+    """``POST /api/snapshots/{sid}/restore``.
+
+    ``version`` is the document version the client believes it is at, and a restore is an
+    ordinary save: it goes through ``save_content``, bumps the version, re-derives the
+    projection, re-resolves the anchors, and is refused with the same ``409`` (D19, D23).
+    """
+
+    version: int = Field(ge=1)
 
 
 # -- projects -------------------------------------------------------------------------------

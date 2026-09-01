@@ -12,9 +12,9 @@
  * Wire schemas are extension-only (outline § 7): add a field, never repurpose or remove one.
  */
 
-import type { Heading, ProseMirrorDocument } from '../editor/projection';
+import type { Heading, ProseMirrorDocument, ProseMirrorNode } from '../editor/projection';
 
-export type { Heading, ProseMirrorDocument };
+export type { Heading, ProseMirrorDocument, ProseMirrorNode };
 
 /** `GET /api/health`. */
 export interface Health {
@@ -73,6 +73,14 @@ export interface DocumentMeta {
   version: number;
   created_at: string;
   updated_at: string;
+  /**
+   * `null` while the chapter is live; a timestamp once it is soft-deleted (D22).
+   *
+   * Every list route filters the deleted ones out, so this is `null` in all of them. It is what
+   * `listDeletedDocuments` exists to show: a chapter with nothing to say when it went is a
+   * chapter nobody can decide about.
+   */
+  deleted_at: string | null;
 }
 
 /** `GET /api/projects/{pid}/documents`. */
@@ -212,13 +220,94 @@ export const ANCHOR_STATUSES = {
   orphaned: 'orphaned',
 } as const;
 
+/** One of the three statuses, narrowed. Anything else on the wire is treated as unexpected. */
+export type AnchorStatus = (typeof ANCHOR_STATUSES)[keyof typeof ANCHOR_STATUSES];
+
+/** True when `status` is one of the three a reader can be shown. */
+export function isAnchorStatus(status: string): status is AnchorStatus {
+  return status === 'ok' || status === 'stale' || status === 'orphaned';
+}
+
+/**
+ * One entry in a chapter's history (P2-3, D23).
+ *
+ * Content is deliberately absent, for the reason `DocumentMeta` exists: drawing a chapter's
+ * history must not pull every version of that chapter across the wire.
+ */
+export interface SnapshotMeta {
+  id: string;
+  project_id: string;
+  document_id: string;
+  taken_at: string;
+  reason: string;
+  label: string;
+  word_count: number;
+  version: number;
+  size_bytes: number;
+}
+
+/** `GET /api/documents/{did}/snapshots` — newest first. */
+export interface SnapshotList {
+  snapshots: SnapshotMeta[];
+}
+
+/** `GET /api/snapshots/{sid}` — one snapshot with the content a preview needs. */
+export interface Snapshot extends SnapshotMeta {
+  content_json: ProseMirrorDocument;
+}
+
+/**
+ * What a capture answers, including "nothing was written, and that is correct".
+ *
+ * A `handover` whose content the newest snapshot already holds is deduplicated (D23), so
+ * handing over a chapter nobody touched writes nothing. That is the ordinary answer, not a
+ * failure: `captured` is `false` and the history is unchanged.
+ */
+export interface SnapshotCapture {
+  captured: boolean;
+  snapshot: SnapshotMeta | null;
+}
+
+/**
+ * Why a snapshot was taken.
+ *
+ * The two a client may ask for, and the three the server writes for itself beside the operation
+ * each protects against — a client that could ask for one of those could put a `pre-delete` in
+ * the history with nothing deleted.
+ */
+export const SNAPSHOT_REASONS = {
+  handover: 'handover',
+  manual: 'manual',
+  preRestore: 'pre-restore',
+  preDelete: 'pre-delete',
+  preImport: 'pre-import',
+} as const;
+
+/** The reasons a client may ask for. The rest are the server's own. */
+export type SnapshotReasonIn = 'handover' | 'manual';
+
+/**
+ * What a refused reorder carries (P2-2).
+ *
+ * The completeness check is the concurrency guard, so the refusal says which way the presented
+ * list failed to describe the project. The client's answer is to re-read the chapter list, not
+ * to correct a field.
+ */
+export interface ReorderMismatchDetail {
+  missing: string[];
+  unexpected: string[];
+  duplicated: string[];
+}
+
 /** The `code` values the client branches on. Others are possible; treat them as unexpected. */
 export const ERROR_CODES = {
   projectNotFound: 'project_not_found',
   documentNotFound: 'document_not_found',
   anchorNotFound: 'anchor_not_found',
+  snapshotNotFound: 'snapshot_not_found',
   invalidAnchorRange: 'invalid_anchor_range',
   versionConflict: 'version_conflict',
+  reorderMismatch: 'reorder_mismatch',
   invalidDocument: 'invalid_document',
   payloadTooLarge: 'payload_too_large',
   validation: 'validation_error',

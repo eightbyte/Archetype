@@ -32,7 +32,11 @@ import type {
   Outline,
   ProjectDetail,
   ProjectList,
+  ReorderMismatchDetail,
   SaveResult,
+  Snapshot,
+  SnapshotCapture,
+  SnapshotList,
   VersionConflictDetail,
 } from '../api/types';
 import { readServerFixture } from './fixtures';
@@ -57,6 +61,7 @@ const KEYS = {
     'version',
     'created_at',
     'updated_at',
+    'deleted_at',
   ],
   document: [
     'id',
@@ -92,6 +97,29 @@ const KEYS = {
   ],
   anchorSuggestion: ['from_pos', 'to_pos', 'text'],
   outlineChapter: ['document_id', 'title', 'order_index', 'word_count', 'headings'],
+  snapshotMeta: [
+    'id',
+    'project_id',
+    'document_id',
+    'taken_at',
+    'reason',
+    'label',
+    'word_count',
+    'version',
+    'size_bytes',
+  ],
+  snapshot: [
+    'id',
+    'project_id',
+    'document_id',
+    'taken_at',
+    'reason',
+    'label',
+    'word_count',
+    'version',
+    'size_bytes',
+    'content_json',
+  ],
   errorBody: ['code', 'message', 'detail'],
   versionConflictDetail: [
     'document_id',
@@ -99,6 +127,7 @@ const KEYS = {
     'current_version',
     'updated_at',
   ],
+  reorderMismatchDetail: ['missing', 'unexpected', 'duplicated'],
 } as const;
 
 function expectKeys(value: unknown, expected: readonly string[]): void {
@@ -169,6 +198,17 @@ describe('document shapes', () => {
   test('document_meta, from a rename', () => {
     const body: DocumentMeta = load('document_meta');
     expectKeys(body, KEYS.documentMeta);
+    expect(body.deleted_at).toBeNull();
+  });
+
+  test('the deleted list is the one place deleted_at is not null (D22)', () => {
+    const body: DocumentList = load('document_list_deleted');
+    expectKeys(body, ['documents']);
+    expect(body.documents.length).toBeGreaterThan(0);
+    for (const meta of body.documents) {
+      expectKeys(meta, KEYS.documentMeta);
+      expect(typeof meta.deleted_at).toBe('string');
+    }
   });
 
   test('save_result carries the new version and the projection', () => {
@@ -235,6 +275,34 @@ describe('anchor shapes (P2-7, D21)', () => {
   });
 });
 
+describe('snapshot shapes (P2-3, D23)', () => {
+  test('a capture answers with the snapshot it wrote', () => {
+    const body: SnapshotCapture = load('snapshot_capture');
+    expectKeys(body, ['captured', 'snapshot']);
+    expect(body.captured).toBe(true);
+    expectKeys(body.snapshot, KEYS.snapshotMeta);
+    expect(body.snapshot?.reason).toBe('manual');
+    expect(body.snapshot?.label).toBe('before the rewrite');
+  });
+
+  test('the history carries no content, deliberately', () => {
+    const body: SnapshotList = load('snapshot_list');
+    expectKeys(body, ['snapshots']);
+    expect(body.snapshots.length).toBeGreaterThan(0);
+    for (const meta of body.snapshots) {
+      expectKeys(meta, KEYS.snapshotMeta);
+      expect(meta).not.toHaveProperty('content_json');
+      expect(meta.size_bytes).toBeGreaterThan(0);
+    }
+  });
+
+  test('one snapshot read back does carry it — that is what a preview is', () => {
+    const body: Snapshot = load('snapshot');
+    expectKeys(body, KEYS.snapshot);
+    expect(body.content_json.type).toBe('doc');
+  });
+});
+
 describe('the error envelope', () => {
   test('a not-found', () => {
     const body: ErrorResponse = load('error_not_found');
@@ -258,5 +326,15 @@ describe('the error envelope', () => {
     const detail = body.error.detail as VersionConflictDetail;
     expectKeys(detail, KEYS.versionConflictDetail);
     expect(detail.current_version).toBeGreaterThan(detail.presented_version);
+  });
+
+  test('a refused reorder says which way the list failed to describe the project (P2-2)', () => {
+    const body: ErrorResponse = load('error_reorder_mismatch');
+    expectKeys(body.error, KEYS.errorBody);
+    expect(body.error.code).toBe('reorder_mismatch');
+
+    const detail = body.error.detail as ReorderMismatchDetail;
+    expectKeys(detail, KEYS.reorderMismatchDetail);
+    expect(detail.missing.length).toBeGreaterThan(0);
   });
 });

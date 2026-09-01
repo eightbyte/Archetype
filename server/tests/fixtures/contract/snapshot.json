@@ -1,0 +1,58 @@
+{
+  "id": "snp_000000000001",
+  "project_id": "prj_000000000001",
+  "document_id": "doc_000000000001",
+  "taken_at": "2026-01-01T00:00:00Z",
+  "reason": "manual",
+  "label": "before the rewrite",
+  "word_count": 12,
+  "version": 3,
+  "size_bytes": 355,
+  "content_json": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": {
+          "level": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Arrival"
+          }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": {
+          "level": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "The Quay"
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "The harbour was calm."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "He did not look back."
+          }
+        ]
+      }
+    ]
+  }
+}

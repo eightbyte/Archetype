@@ -649,3 +649,366 @@ h2 {
   font-size: 1.1rem;
   line-height: 1;
 }
+
+/* -- anchors in the editor (P2-9) --------------------------------------------------------- */
+
+/* Subtle by design: a mark is a reference to a passage, not an annotation on it, and prose
+   with a highlighter through it stops reading like prose. An underline that follows the
+   baseline is enough to find, and quiet enough to write over. */
+.anchor-mark {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-style: solid;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.anchor-stale {
+  text-decoration-color: var(--alarm);
+  text-decoration-style: wavy;
+}
+
+.anchor-collapsed {
+  color: var(--alarm);
+  font-size: 0.8em;
+  vertical-align: super;
+}
+
+.editor-scroll {
+  position: relative;
+}
+
+.selection-actions {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.selection-actions-idle {
+  position: static;
+  margin: 0 auto 0.5rem;
+  max-width: var(--measure);
+  box-shadow: none;
+}
+
+.selection-actions button {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--panel);
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+/* -- the Marks tab (P2-10) ---------------------------------------------------------------- */
+
+.marks-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.marks-filters button {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: none;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.75rem;
+}
+
+.marks-filters button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--panel);
+  color: var(--accent);
+}
+
+.marks-chapter h3 {
+  margin: 0.75rem 0 0.25rem;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.marks-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mark {
+  border-left: 2px solid var(--rule);
+  padding: 0.25rem 0 0.35rem 0.5rem;
+}
+
+.mark-stale {
+  border-left-color: var(--alarm);
+}
+
+.mark-orphaned {
+  border-left-color: var(--ink-faint);
+}
+
+.mark-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.mark-quote {
+  flex: 1;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.mark-quote:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.mark-status,
+.mark-label,
+.mark-meaning {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+}
+
+.mark-label {
+  margin: 0.1rem 0 0;
+  font-style: italic;
+}
+
+.mark-meaning {
+  margin: 0.25rem 0;
+}
+
+.mark-suggestion {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.mark-before,
+.mark-after {
+  margin: 0.1rem 0;
+}
+
+.mark-before span,
+.mark-after span {
+  display: inline-block;
+  min-width: 4.5rem;
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.mark-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.mark-actions button,
+.toc-chapter-actions button,
+.toc-confirm button,
+.toc-deleted button,
+.history button {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--page);
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
+}
+
+.marks-total {
+  margin-top: 0.75rem;
+  color: var(--ink-faint);
+  font-size: 0.75rem;
+}
+
+/* -- chapter management (P2-11) ----------------------------------------------------------- */
+
+.toc-chapter-actions {
+  display: flex;
+  gap: 0.15rem;
+  opacity: 0;
+}
+
+/* The actions are always in the DOM and always reachable — only their paint waits for
+   attention, so a keyboard user never has to hover something to find them. */
+.toc-chapter-row:hover .toc-chapter-actions,
+.toc-chapter-actions:focus-within {
+  opacity: 1;
+}
+
+.toc-chapter.is-dragging {
+  opacity: 0.5;
+}
+
+.toc-rename {
+  flex: 1;
+}
+
+.toc-rename input {
+  width: 100%;
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  padding: 0.1rem 0.25rem;
+  font-size: 0.85rem;
+}
+
+.toc-confirm,
+.history-confirm {
+  border: 1px solid var(--alarm);
+  border-radius: 3px;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.toc-confirm p,
+.history-confirm p {
+  margin: 0 0 0.4rem;
+}
+
+.toc-deleted {
+  border-top: 1px solid var(--rule);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.toc-deleted ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toc-deleted li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+
+.toc-deleted-title {
+  flex: 1;
+}
+
+/* -- the chapter history (P2-12) ---------------------------------------------------------- */
+
+.history {
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel);
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+}
+
+.history-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.history-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.history-header button {
+  margin-left: auto;
+}
+
+.history-mark {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.history-mark input {
+  flex: 1;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0.15rem 0.35rem;
+}
+
+.history-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.history-entry-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+
+.history-when {
+  color: var(--ink-faint);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.history-why {
+  flex: 1;
+}
+
+.history-count {
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.history-preview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 0.35rem 0 0.75rem;
+}
+
+.history-preview h4 {
+  margin: 0 0 0.25rem;
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.history-preview pre {
+  margin: 0;
+  border: 1px solid var(--rule);
+  background: var(--page);
+  padding: 0.4rem;
+  max-height: 10rem;
+  overflow: auto;
+  font-family: inherit;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+}
+
+.chapter-history-toggle {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: none;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.75rem;
+}

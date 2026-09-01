@@ -17,52 +17,65 @@ relational data plus keyword and vector indexes. Single user, localhost, Windows
 Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository directory is
 `WritingAssistant` — a path, not the product name.
 
-**Current state: Phase 1 complete (2026-08-30); Phase 2 in progress — Groups A (P2-1 → P2-4)
-and B (P2-5 → P2-8) delivered.** All twenty-four decisions are resolved and binding: the writer
-ruled D21–D24 on 2026-08-30 as recommended, which also settles backlog `Q1` and `Q5`.
+**Current state: Phase 1 complete (2026-08-30); Phase 2 in progress — Groups A (P2-1 → P2-4),
+B (P2-5 → P2-8), and C (P2-9 → P2-12) delivered.** All twenty-four decisions are resolved and
+binding: the writer ruled D21–D24 on 2026-08-30 as recommended, which also settles backlog `Q1`
+and `Q5`.
 
-The app is a place you can write: create a project, add chapters, write formatted prose that
-saves itself and survives a reload, and move around the manuscript by its headings. What exists
-on the server: configuration and the secret guard, the project file schema at **version 2** with
-its migration runner, the ID generator, the project store, the whole Phase 1 REST surface with
-its uniform error envelope and structured request logging, the save protocol with the D19 version
-guard, the text projection, the static mount that lets one process serve both the API and the
-built app; Group A's **chapter reorder, soft delete, and restore; snapshots with capture, history,
-and restore-through-the-save-path; and the `anchor` and `snapshot` tables**; and — new in Group B
-— **the block index over the projection, the anchor resolver and its corpus, the anchor store with
-its five routes, and re-resolution inside every save's transaction.** On the client: the
-three-region workspace with resizable keyboard-accessible dividers, the three contexts and their
-pure reducers, the TipTap editor over a closed schema with autosave, the live table of contents
-with jump-to-heading, the project picker, and error boundaries per region.
+The app is a place you can write, and now a place you can **maintain** what you wrote: create a
+project, add chapters, reorder them by drag or by keyboard, rename them in place, delete one
+recoverably and restore it; mark a passage and watch the highlight follow it as you type around
+it; find every mark in the *Marks* tab, see which have gone stale, and repair one by hand; mark a
+version of a chapter, read it beside what is there now, and restore it.
+
+What exists on the server: configuration and the secret guard, the project file schema at
+**version 2** with its migration runner, the ID generator, the project store, the whole Phase 1
+REST surface with its uniform error envelope and structured request logging, the save protocol
+with the D19 version guard, the text projection, the static mount that lets one process serve both
+the API and the built app; Group A's **chapter reorder, soft delete, and restore; snapshots with
+capture, history, and restore-through-the-save-path; and the `anchor` and `snapshot` tables**;
+Group B's **block index over the projection, anchor resolver and corpus, anchor store with its
+five routes, and re-resolution inside every save's transaction**; and — new in Group C — the
+**nine chapter and snapshot routes** those stores had been waiting for.
+
+On the client: the three-region workspace with resizable keyboard-accessible dividers, the three
+contexts and their pure reducers, the TipTap editor over a closed schema with autosave, the live
+table of contents with jump-to-heading, the project picker, error boundaries per region; and —
+new in Group C — **anchor decorations mapped live through every transaction, the selection
+control that marks and re-links a passage, the fifth outline tab (*Marks*) with its filters and
+repair flow, chapter management in the Contents tab, and the per-chapter history panel**.
 
 Every Phase 1 exit criterion is met, including the acceptance script run by hand against the
 single-process build; the results are in [specs/phase-1-plan.md](specs/phase-1-plan.md) § 6.
+**Phase 2's acceptance script has not been run** — it is Group D's, and it is the only thing that
+covers the pointer gestures and heavy editing against the real resolver.
 
-**Anchors work end to end on the server, and are invisible in the browser.** You can create one
-over a range, edit around it, watch a save move it or report it `stale` with a suggestion, repair
-it by hand, and see it go `orphaned` when its chapter is deleted — all through the API. The only
-client-side change is typed: `SaveResult` grew its `anchors` field and `web/src/api/types.ts`
-mirrors it, held to the server by contract fixtures. **Drawing anchors is Group C** (`P2-9`,
-`P2-10`), which is also where the chapter and snapshot routes land (`P2-11`, `P2-12`).
+**Next: Group D (P2-13 → P2-15) — Markdown export, Markdown import, and the close-out.** There is
+still no AI, no bible, no search, and no Markdown.
 
-**Next: Group C (P2-9 → P2-12) — anchors in the editor, the *Marks* tab and re-linking, chapter
-management in the UI, and snapshot history.** There is still no AI, no bible, no search, and no
-Markdown.
+**Two corrections worth knowing before Group D:**
 
-**One Group B correction is worth knowing before Group C:** deviation `B4` in
-[specs/phase-2-plan.md](specs/phase-2-plan.md) § 7. `specs/anchors.md` § 10 said a paragraph split
-through an anchored range yields `stale`, while its own neighbouring row said a *merge* across one
-stays `ok` "because the separator normalises". Those cannot both hold — a split and a merge are
-the same operation seen from two sides. **Ruled by the writer on 2026-08-30 as built:** a bare
-split keeps the anchor, and only a split with new words written into the gap breaks it. So an
-anchor can legitimately span a block boundary, which P2-9's decorations have to handle.
+- Deviation `B4` in [specs/phase-2-plan.md](specs/phase-2-plan.md) § 7. `specs/anchors.md` § 10
+  said a paragraph split through an anchored range yields `stale`, while its own neighbouring row
+  said a *merge* across one stays `ok` "because the separator normalises". Those cannot both hold
+  — a split and a merge are the same operation seen from two sides. **Ruled by the writer on
+  2026-08-30 as built:** a bare split keeps the anchor, and only a split with new words written
+  into the gap breaks it. So an anchor can legitimately span a block boundary, which is why the
+  editor draws one as an *inline* decoration. `anchors.md` still carries the old wording; carrying
+  the ruling into it is P2-15's.
+- Deviation `C3`: the snapshot capture route accepts only `handover` and `manual`. The three
+  `pre-*` reasons are the server's own, written inside the transaction of the operation each
+  protects against, so Markdown import's `pre-import` snapshot (P2-14) is taken by the import
+  itself and not asked for over the wire.
 
-One thing that run surfaced, worth carrying forward: **the editor's visible failure states are
-hard to reach from the app.** Stopping the server mid-edit did not produce a failed save the
-writer could see — the retry loop absorbed the outage and the save landed when the server
-returned. *Save failed*, the backoff ladder, and the `409` reload prompt are therefore exercised
-only by `web/src/__tests__/editor.test.tsx` through the fake client. A regression in them will not
-show up by using the app, so those tests are the only thing standing under them.
+One thing the Phase 1 run surfaced, still true and now larger: **some of the app's surfaces are
+hard or impossible to reach from a test.** Stopping the server mid-edit did not produce a failed
+save the writer could see — the retry loop absorbed the outage. Group C adds a second kind: jsdom
+has no native editing, so a text selection cannot be made through the DOM, and the mark and
+re-link gestures are covered in two halves that meet at a typed boundary (deviation `C7`). *Save
+failed*, the backoff ladder, the `409` reload prompt, and now the selection control are exercised
+only by the frontend suite; a regression in them will not show up by using the app, so those tests
+and the manual acceptance script are the only things standing under them.
 
 ## The specs are the contract
 
@@ -73,9 +86,9 @@ show up by using the app, so those tests are the only thing standing under them.
 - [specs/phase-1-plan.md](specs/phase-1-plan.md) — Phase 1 work items (`P1-1` … `P1-15`), exit
   criteria, and the as-built deviations table.
 - [specs/phase-2-plan.md](specs/phase-2-plan.md) — Phase 2 work items (`P2-1` … `P2-15`). Its § 2
-  is **ruled** (D21–D24, 2026-08-30). Group A's seven as-built deviations are in its § 7 and are
-  worth reading before Group C, along with Group B's twelve — `B4` is a product decision, not
-  an implementation detail.
+  is **ruled** (D21–D24, 2026-08-30). Its § 7 holds thirty-five as-built deviations across Groups
+  A, B, and C, and is worth reading before Group D — `B4` and `C3` are product decisions, not
+  implementation details, and `C7` says which surfaces no test reaches.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
   phase it must be settled by. `Q1` and `Q5` are promoted and closed; `Q2`, `Q3`, `Q4`, and `Q6`
   are open.
@@ -84,8 +97,9 @@ show up by using the app, so those tests are the only thing standing under them.
   discipline. Its § 7 sketches later phases and is **not** binding; the rest is a bug if it
   disagrees with the code.
 - [specs/api-contract.md](specs/api-contract.md) — every route that exists, what it promises, and
-  what it refuses, including § 7's five anchor routes and the extended save response. The
-  generated OpenAPI schema is authoritative for types; this is authoritative for behaviour.
+  what it refuses: § 5's chapter operations, § 7's five anchor routes and the extended save
+  response, and § 8's four snapshot routes. The generated OpenAPI schema is authoritative for
+  types; this is authoritative for behaviour.
 - [specs/anchors.md](specs/anchors.md) — what an anchor stores, the two coordinate systems and
   the block index, the matching ladder with its exact thresholds, the whitespace normal form, the
   suggestion protocol, and **what an anchor does not promise**. Written in `P2-4` before the code
@@ -220,8 +234,8 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/manuscript/anchors/records.py` | The stored anchor, and the one place a row becomes one |
 | `server/archetype/manuscript/anchors/rewrite.py` | Re-resolution inside the transaction of the save that caused it (`P2-7`, D21) |
 | `server/archetype/manuscript/anchors/store.py` | `AnchorStore` — create from a range, read, re-link, delete (`P2-7`) |
-| `server/archetype/manuscript/locator.py` | Resolves a bare document id to the project file holding it |
-| `server/archetype/api/routes.py` | The `/api` router (`P1-5`) |
+| `server/archetype/manuscript/locator.py` | Resolves a bare document, anchor, or snapshot id to the project file holding it |
+| `server/archetype/api/routes.py` | The `/api` router (`P1-5`), including Group C's chapter and snapshot routes (`P2-11`, `P2-12`) |
 | `server/archetype/api/logging.py` | Request logging: one line per request, with a request id (`P1-13`) |
 | `server/archetype/api/schemas.py` | Wire shapes, mirrored in `web/src/api/types.ts` |
 | `server/archetype/api/static.py` | The single-process static mount and the `web_not_built` notice (`P1-14`) |
@@ -234,9 +248,13 @@ suite keeps a developer's real config out of its way.
 | `server/tests/fakes/` | `FakeProvider` and `FakeEmbedder` land here in Phases 4 and 5 |
 | `web/src/api/` | The typed client, its interface, and the mirrored wire types |
 | `web/src/state/` | The three contexts and their pure reducers, plus toasts and `localStorage` (`P1-9`, D10) |
+| `web/src/state/projectReducer.ts` | The project's chapters, outline, deleted list, **and every anchor in it** (`P2-10`) |
 | `web/src/shell/` | The workspace frame, the split dividers, the editor region, error boundaries, toasts |
-| `web/src/panels/` | The outline panel and its tabs, the table of contents, the agent placeholder, the picker |
+| `web/src/panels/` | The outline panel and its five tabs, the contents, the *Marks* tab, the history, the picker |
+| `web/src/anchorText.ts` | The one place an anchor is put into words, for the panel, the control, and the decoration |
 | `web/src/editor/extensions.ts` | The closed TipTap schema — a change here is a spec change (`P1-10`, D1) |
+| `web/src/editor/anchors.ts` | The decoration plugin: mapping, collapse, clamping — display-only (`P2-9`, D21) |
+| `web/src/editor/SelectionActions.tsx` | The control over a selection: *Mark passage*, and *Re-link here* (`P2-9`, `P2-10`) |
 | `web/src/editor/autosave.ts` | `SaveScheduler` — *when* a save happens, with no React in it (`P1-10`) |
 | `web/src/editor/projection.ts` | The client mirror of the projection, held to the server by shared fixtures |
 | `web/src/format.ts` | The display edge: the only place a UTC timestamp becomes words |
@@ -249,8 +267,16 @@ suite keeps a developer's real config out of its way.
 | `server/tests/test_anchors.py` | The corpus, the properties, and the resolver's refusals (`P2-6`, `P2-8`) |
 | `server/tests/test_anchor_store.py` | The store, re-resolution on write, and the resolution budget (`P2-7`) |
 | `server/tests/test_anchor_routes.py` | The five anchor routes over the real application (`P2-7`) |
+| `server/tests/test_chapter_routes.py` | Reorder, delete, restore, and the deleted list over HTTP (`P2-11`) |
+| `server/tests/test_snapshot_routes.py` | Capture, history, preview, and restore over HTTP (`P2-12`) |
+| `web/src/__tests__/anchorPlugin.test.ts` | The decoration plugin against real ProseMirror and no React (`P2-9`) |
+| `web/src/__tests__/selectionActions.test.tsx` | The mark and re-link control against a real editor (`P2-9`, `P2-10`) |
+| `web/src/__tests__/anchorsInEditor.test.tsx` | Anchors through the real provider stack (`P2-9`) |
+| `web/src/__tests__/marks.test.tsx` | The *Marks* tab, its filters, and the repair path (`P2-10`) |
+| `web/src/__tests__/chapters.test.tsx` | Reorder, rename, delete, and restore in the Contents tab (`P2-11`) |
+| `web/src/__tests__/snapshots.test.tsx` | The history panel, marking a version, and restoring one (`P2-12`) |
 
-**Invariants established in Phase 1's Groups A, B, and C, and in Phase 2's Groups A and B**,
+**Invariants established in Phase 1's Groups A, B, and C, and in Phase 2's Groups A, B, and C**,
 beyond those already listed above:
 
 - **Transaction control is explicit.** Connections open with `isolation_level=None`; `BEGIN` and
@@ -368,14 +394,57 @@ beyond those already listed above:
 - **Every value read back from `localStorage` is validated field by field.** A layout, an open
   project, or a recent-projects list that cannot be read is forgotten, never repaired — none of
   it is manuscript data, and none of it is worth failing over.
-- **Jump-to-heading resolves by ordinal, and only by ordinal — permanently.** Phase 2 adds
-  anchors *alongside* it and does not replace it. A heading is a structural position the
-  projection already numbers exactly and re-derives on every save; anchors are for cited passages
-  that no derived structure names. Minting an anchor row per heading on every save, to reproduce
-  an answer that is already free, is what the earlier "seam Phase 2 replaces" reading would have
-  cost (phase-2-plan § 2, ruling 1).
+- **Jump-to-heading resolves by ordinal, and only by ordinal — permanently.** Phase 2 added
+  anchors *alongside* it and did not replace it; both jumps exist in the client, and they resolve
+  by different means on purpose. A heading is a structural position the projection already numbers
+  exactly and re-derives on every save; anchors are for cited passages that no derived structure
+  names. Minting an anchor row per heading on every save, to reproduce an answer that is already
+  free, is what the earlier "seam Phase 2 replaces" reading would have cost (phase-2-plan § 2,
+  ruling 1).
+- **An anchor is a decoration, never a mark in the schema.** A mark would be part of the
+  manuscript: stored in `content_json`, subject to the writer's undo, and split by every edit
+  crossing it. An anchor is a reference *to* a passage, not a property *of* one, and it lives in
+  its own table. So `AnchorDecorations` contributes no node and no mark, and the closed schema is
+  exactly what it was (D1).
+- **The client's anchor positions are display-only, and the server's answer replaces them.**
+  ProseMirror's mapping runs on every transaction so a highlight follows the words as they are
+  typed around; it is never sent, and a save's response overwrites it whole (D21). It exists
+  because it is exact and free *when it exists* — and it does not exist for an import, a restore,
+  a file changed behind the app's back, or a Phase 6 proposal.
+- **A collapsed anchor is drawn, not decided.** Deleting all of an anchored passage maps its two
+  positions onto one; an inline decoration over nothing draws nothing, so it becomes a visible
+  marker instead. The plugin does not call it `stale` — a status is the server's to give, and
+  nothing on the client may become a second resolver (phase-2-plan § 2, ruling 2).
+- **A decoration is clamped into the document before it is built.** The server leaves a `stale`
+  anchor's positions where they were, deliberately, and that document may since have got shorter;
+  a decoration built out of bounds throws and takes the writing surface with it.
+- **Anchors live in `ProjectContext`, one list, and the open document's are the slice of it.**
+  Their lifetime is the project's — the *Marks* tab holds every chapter's at once and a re-link
+  may cross chapters — so a second list beside the open document would exist only to be
+  reconciled with the first, and the reconciliation would be the bug.
+- **Nothing repairs an anchor by itself.** A suggestion is data on a finding with a button on it;
+  accepting one and choosing a passage by hand send the identical request, so the server cannot
+  tell them apart and does not try. An `orphaned` anchor is not repaired at all — its chapter is
+  restored.
+- **A reorder always sends the complete order.** That completeness is the server's concurrency
+  guard, so a refusal is answered by re-reading the chapter list, never by correcting a field.
+- **Every reorder gesture has a keyboard equivalent that does the same thing**, and focus follows
+  the chapter that moved — without that, the second press goes nowhere and the interaction is
+  usable only with a mouse (P1-9).
+- **Deleting the open chapter moves the editor to a neighbour.** A recoverable delete that leaves
+  the editor holding a ghost is not recoverable in the way that matters.
+- **A client may only ask for the two snapshot reasons it owns.** `pre-restore`, `pre-delete`, and
+  `pre-import` are written inside the transaction of the operation each protects against; a client
+  that could ask for one could write a `pre-delete` with nothing deleted, which is a lie in the
+  one list a writer consults when something has gone wrong.
+- **The fake API client has no resolver and must never grow one.** A save reports no moved anchors
+  unless a test has staged what the server answers. A fake that decided for itself whether an edit
+  broke an anchor would be a second resolver with neither a specification nor a corpus behind it,
+  and every client test would be asserting against a rule nobody wrote down.
 - **Each region has its own error boundary.** A panel that cannot draw takes itself down and
-  leaves the editor — which may be holding the only copy of a sentence — working.
+  leaves the editor — which may be holding the only copy of a sentence — working. Reading a
+  document's anchors follows the same rule at the request level: a failure leaves the cached list
+  in place rather than blanking a panel or, worse, the chapter.
 - **Every request is logged once, with a request id**, and that id is the only thing a `500`
   tells the browser. The traceback stays in the log.
 - **The static mount is registered last, and the API can never be shadowed.** Starlette matches

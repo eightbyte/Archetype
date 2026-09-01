@@ -1,22 +1,96 @@
 /**
- * The middle region: the open chapter, its title, and its save status (P1-10).
+ * The middle region: the open chapter, its title, its save status, its marks, and its history
+ * (P1-10, P2-9, P2-12).
  *
  * Everything about *when* a save happens lives in `DocumentContext`; this is what the writer
  * sees of it. The one rule worth stating here is that a failure never removes the writing from
  * the screen: a failed save, a conflict, and a load that did not work all leave the editor
  * exactly where it was, because the content in it may be the only copy.
+ *
+ * Two Group C surfaces attach here rather than to a panel, because both are about the chapter
+ * that is open rather than about the manuscript:
+ *
+ * * **Marking a passage.** The control lives over the selection (P2-9), and the range it sends
+ *   is the writer's own — the server derives the quote.
+ * * **The chapter's history.** Snapshots are per chapter (P2-12), so the history opens beside
+ *   the chapter it belongs to rather than in the outline panel, which spans all of them.
  */
 
 import { useCallback, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
+import { toEditorAnchors } from '../editor/anchors';
 import { ManuscriptEditor } from '../editor/ManuscriptEditor';
+import type { SelectionRange } from '../editor/SelectionActions';
 import { SaveIndicator } from '../editor/SaveIndicator';
+import { SnapshotHistory } from '../panels/SnapshotHistory';
 import { plural } from '../format';
 import { useDocument } from '../state/DocumentContext';
+import { useProject } from '../state/ProjectContext';
+import { anchorsOf } from '../state/projectReducer';
 import { useToasts } from '../state/ToastContext';
+import { describeAnchor } from '../anchorText';
 
 export function EditorRegion() {
-  const { state, edit, flush, retrySave, reloadFromServer, rename, headingReached } = useDocument();
+  const {
+    state,
+    edit,
+    flush,
+    retrySave,
+    reloadFromServer,
+    rename,
+    headingReached,
+    anchorReached,
+    createAnchor,
+  } = useDocument();
+  const { state: projectState, relinkAnchor, cancelRelink } = useProject();
+  const { push } = useToasts();
+  const [anchorBusy, setAnchorBusy] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const documentId = state.documentId;
+  const anchors = toEditorAnchors(anchorsOf(projectState, documentId));
+  const relinkingAnchor =
+    projectState.anchors.find((anchor) => anchor.id === projectState.relinking) ?? null;
+
+  const onMark = useCallback(
+    (range: SelectionRange) => {
+      setAnchorBusy(true);
+      void (async () => {
+        try {
+          await createAnchor(range.from, range.to);
+        } catch (error: unknown) {
+          push(`Could not mark that passage — ${message(error)}`, 'error');
+        } finally {
+          setAnchorBusy(false);
+        }
+      })();
+    },
+    [createAnchor, push],
+  );
+
+  const onRelink = useCallback(
+    (range: SelectionRange) => {
+      if (!relinkingAnchor) {
+        return;
+      }
+      setAnchorBusy(true);
+      void (async () => {
+        try {
+          await relinkAnchor(relinkingAnchor.id, {
+            from_pos: range.from,
+            to_pos: range.to,
+            version: state.version,
+          });
+          push('Re-linked.');
+        } catch (error: unknown) {
+          push(`Could not re-link that mark — ${message(error)}`, 'error');
+        } finally {
+          setAnchorBusy(false);
+        }
+      })();
+    },
+    [push, relinkAnchor, relinkingAnchor, state.version],
+  );
 
   if (state.status === 'empty') {
     return (
@@ -49,6 +123,14 @@ export function EditorRegion() {
       <header className="chapter-header">
         <ChapterTitle title={state.title} onRename={rename} />
         <span className="chapter-count">{plural(state.wordCount, 'word')}</span>
+        <button
+          type="button"
+          className="chapter-history-toggle"
+          aria-expanded={historyOpen}
+          onClick={() => setHistoryOpen((open) => !open)}
+        >
+          History
+        </button>
         <SaveIndicator
           save={state.save}
           onRetry={() => void retrySave()}
@@ -56,17 +138,37 @@ export function EditorRegion() {
         />
       </header>
 
+      {historyOpen && documentId !== null && (
+        <SnapshotHistory documentId={documentId} onClose={() => setHistoryOpen(false)} />
+      )}
+
       <ManuscriptEditor
         content={state.content}
-        seedKey={`${state.documentId ?? 'none'}:${state.sequence}`}
+        seedKey={`${documentId ?? 'none'}:${state.sequence}`}
         title={state.title}
         onChange={edit}
         onBlur={() => void flush()}
         pendingHeading={state.pendingHeading}
         onHeadingReached={headingReached}
+        anchors={anchors}
+        pendingAnchor={state.pendingAnchor}
+        onAnchorReached={anchorReached}
+        onMark={onMark}
+        relinking={
+          relinkingAnchor
+            ? { anchorId: relinkingAnchor.id, description: describeAnchor(relinkingAnchor) }
+            : null
+        }
+        onRelink={onRelink}
+        onCancelRelink={cancelRelink}
+        anchorBusy={anchorBusy}
       />
     </div>
   );
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 interface ChapterTitleProps {

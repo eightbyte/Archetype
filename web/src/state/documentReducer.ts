@@ -49,6 +49,14 @@ export interface DocumentState {
   loadError: string | null;
   /** A heading ordinal the editor should scroll to once the document is on screen (P1-11). */
   pendingHeading: number | null;
+  /**
+   * An anchor the editor should scroll to and select once its decoration exists (P2-10).
+   *
+   * Separate from {@link pendingHeading} because it clears differently: a heading is found on
+   * the first pass or not at all, while an anchor arrives one request after the document does,
+   * so this stays set until the decoration is actually there.
+   */
+  pendingAnchor: string | null;
 }
 
 export type DocumentAction =
@@ -63,6 +71,8 @@ export type DocumentAction =
   | { type: 'renamed'; title: string }
   | { type: 'jump-requested'; ordinal: number }
   | { type: 'jump-completed' }
+  | { type: 'anchor-jump-requested'; anchorId: string }
+  | { type: 'anchor-jump-completed' }
   | { type: 'closed' };
 
 export const INITIAL_DOCUMENT_STATE: DocumentState = {
@@ -80,6 +90,7 @@ export const INITIAL_DOCUMENT_STATE: DocumentState = {
   save: { kind: 'idle' },
   loadError: null,
   pendingHeading: null,
+  pendingAnchor: null,
 };
 
 /** True when the editor holds something the server has not been told about. */
@@ -181,6 +192,12 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 
     case 'jump-completed':
       return state.pendingHeading === null ? state : { ...state, pendingHeading: null };
+
+    case 'anchor-jump-requested':
+      return { ...state, pendingAnchor: action.anchorId };
+
+    case 'anchor-jump-completed':
+      return state.pendingAnchor === null ? state : { ...state, pendingAnchor: null };
 
     case 'closed':
       return INITIAL_DOCUMENT_STATE;
