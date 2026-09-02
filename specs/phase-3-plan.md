@@ -1,8 +1,8 @@
 # Phase 3 — Story Bible (manual)
 
-**Status:** **Plan written (2026-09-01)** — not started. § 2 proposes five register entries
-(D25–D29) and settles two backlog questions; none is binding until ruled.
-**Version:** 1.0 · **Date:** 2026-09-01
+**Status:** **In progress (2026-09-01)** — § 2 **ruled**: D25–D29 are binding and promoted to the
+register, both reversals accepted, closing backlog `Q2` and `Q7`. Group A under way.
+**Version:** 1.1 · **Date:** 2026-09-01
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 **Writes:** `specs/bible.md` (P3-1) · completes [`specs/data-model.md`](data-model.md) and extends
@@ -84,14 +84,14 @@ The same reasoning as Phase 1's § 2 and Phase 2's: a ruling made before files e
 and the same ruling made in Phase 7 is a migration. Five of these become binding register entries,
 and two settle backlog questions that are due this phase.
 
-**Two of them reverse a recorded leaning** (`Q2` and `Q7`). Both reversals are argued below rather
-than assumed, and both are the writer's to overturn.
+**Two of them reverse a recorded leaning** (`Q2` and `Q7`). Both reversals were argued below rather
+than assumed, and both were put to the writer as reversals; both were accepted on 2026-09-01.
 
-### Proposed register entries — D25 to D29
+### Register entries — D25 to D29
 
-None is binding until ruled. On acceptance they are promoted to
-[`specs/development-phases.md`](development-phases.md) § 1 and this table stays as the reasoning
-behind them.
+**Ruled by the writer on 2026-09-01, all five as recommended, including both reversals.** They are
+promoted to [`specs/development-phases.md`](development-phases.md) § 1, which is where they now
+bind; this table stays as the reasoning behind them.
 
 | ID | Proposed decision | Recommendation | Alternative considered | Where it bites if wrong |
 |---|---|---|---|---|
@@ -712,12 +712,15 @@ restore it → reload and confirm all of it survived.
 *Every divergence from this plan is recorded here in the same change that makes it, with what
 happened and why (outline § 13).*
 
-**Nothing yet — the phase has not started.** The table below carries its columns so the first entry
-has a shape to land in.
+**Group A, delivered 2026-09-02.** Four deviations, all in the sequencing and shape of the code
+rather than in what it does; none touches a `D<n>`.
 
 | # | Item | Planned | As built, and why |
 |---|---|---|---|
-| — | — | — | — |
+| **A1** | `P3-3` / `P3-5` | `archetype/bible/schema.py` is `P3-5`, in Group B. | **Landed in Group A**, complete, with its own tests (`tests/test_bible_schema.py`). `P3-3`'s acceptance bar is that an unknown kind, an undeclared attribute, a wrong type, and an out-of-set `enum` are *each refused with nothing written* — none of which can be done without the definition. The plan already knew this (`P3-3` cites "the kind's definition (P3-5)"); only the group boundary moved. **`P3-5` is not closed by this**: it still owes the JSON dump as a contract fixture, and the client-side half of the closed-list enforcement, neither of which exists until Group C has a route and Group D a renderer. |
+| **A2** | `P3-5` | "A `FieldType` **enum** of exactly six members." | **A constants class with a `Final[frozenset]` of members**, matching `AnchorStatus` and `SnapshotReason` rather than introducing a second idiom for the same job. The closure is enforced the way the plan asks — `_check_definition()` raises at import if the list is not six, and `test_bible_schema.py` restates the six independently so that widening the list fails a test rather than being confirmed by a check that reads the list it is checking. |
+| **A3** | `P3-3` / `P3-6` | Ruling 9's three-way live-link predicate lives "in one place"; the plan names `links.py` (`P3-6`) as the module. | **`archetype/bible/predicates.py`**, a module the plan did not name. `P3-4`'s retcon computation needs the predicate and is in Group A; `LinkStore` is in Group B. Putting it in `entries.py` would have forced `links.py` to import it back for the *entry* predicate, which is the import cycle `anchors/__init__` exists to avoid. One small module both import is the honest answer, and it keeps ruling 9's "one place" literally true. |
+| **A4** | `P3-2` | Migration 002's test against `v001_phase1.sqlite` "keeps running unchanged". | **One assertion changed**: it asserted `migrate(conn) == 2`, and `migrate` now runs to the latest version, so it asserts `latest_version()`. The test's subject — a real Phase 1 file carried forward with every word of its manuscript intact — is unchanged, and it now also covers the two-steps-in-one-open case, which had never been exercised. Recorded because a changed assertion is a deliberate act (`CLAUDE.md`, Testing). |
 
 ---
 

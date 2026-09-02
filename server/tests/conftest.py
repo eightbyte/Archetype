@@ -26,6 +26,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from archetype.app import create_app
+from archetype.bible.entries import Entry, EntryStore
+from archetype.bible.schema import EntryKind
 from archetype.config import CONFIG_FILE_ENV_VAR, Settings, reset_settings_cache
 from archetype.ids import IdPrefix, new_id
 from archetype.manuscript.anchors import EFFECTIVE_STATUS_SQL
@@ -213,6 +215,65 @@ def make_anchor(project: ProjectHandle):
                 ),
             )
         return anchor_id
+
+    return factory
+
+
+# -- the bible (Phase 3) --------------------------------------------------------------------
+
+
+@pytest.fixture
+def entries(project: ProjectHandle) -> EntryStore:
+    """The entry store for :func:`project` (P3-3)."""
+    return EntryStore(project)
+
+
+@pytest.fixture
+def make_entry(entries: EntryStore):
+    """Create an entry, defaulting to a character. ``make_entry("Mira", kind="place")``."""
+
+    def factory(name: str = "Mira", *, kind: str = EntryKind.CHARACTER, **fields) -> Entry:
+        return entries.create(kind, name, **fields)
+
+    return factory
+
+
+@pytest.fixture
+def make_link(project: ProjectHandle):
+    """Insert a link row directly, and return its id.
+
+    Deliberately SQL: ``LinkStore`` is P3-6 and Group A must be able to prove D27's dependent
+    rule without it. When the store arrives, this fixture stays - the same argument
+    :func:`make_anchor` makes, one table over: what these tests are about is the predicate over
+    a row, not the store's refusals, which have their own tests.
+    """
+
+    def factory(
+        from_entry: str,
+        to_entry: str,
+        *,
+        relation: str = "knows",
+        deleted: bool = False,
+    ) -> str:
+        link_id = new_id(IdPrefix.LINK)
+        now = utc_now()
+        with project.connect() as conn, transaction(conn):
+            conn.execute(
+                "INSERT INTO entry_link (id, project_id, from_entry, to_entry, relation, "
+                "attributes_json, created_at, updated_at, deleted_at) "
+                "VALUES (?, ?, ?, ?, ?, '{}', ?, ?, ?)",
+                (
+                    link_id,
+                    project.id,
+                    from_entry,
+                    to_entry,
+                    relation,
+                    now,
+                    now,
+                    now if deleted else None,
+                ),
+            )
+        return link_id
 
     return factory
 
