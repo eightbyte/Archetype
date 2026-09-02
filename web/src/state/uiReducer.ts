@@ -13,8 +13,18 @@
  * that only some of them check is a pane width that is sometimes wrong.
  */
 
-/** The outline panel's tabs. Only `contents` has anything behind it in Phase 1. */
-export const OUTLINE_TABS = ['contents', 'timeline', 'characters', 'bible'] as const;
+/**
+ * The outline panel's tabs.
+ *
+ * `marks` was added in Phase 2 (P2-10, phase-2-plan section 2 ruling 6) and is a deliberate act:
+ * the four were fixed in P1-9 precisely so the tab strip would not be re-measured later.
+ * Anchors needed a home this phase — the exit criteria are not demonstrable without one — and
+ * folding them into Contents would have put two unrelated trees in one scroll.
+ *
+ * It sits next to Contents because the two are the manuscript's two indexes: one of structure,
+ * one of cited passages. `timeline`, `characters`, and `bible` still have nothing behind them.
+ */
+export const OUTLINE_TABS = ['contents', 'marks', 'timeline', 'characters', 'bible'] as const;
 
 export type OutlineTab = (typeof OUTLINE_TABS)[number];
 

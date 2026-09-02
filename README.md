@@ -8,11 +8,17 @@ chat panel sits on the other.
 React + TypeScript frontend, Python (FastAPI) backend, one SQLite file per project. Single user,
 localhost, Windows 11 primary.
 
-**Current state: Phase 1 complete** — you can write in it. Create a project, add
-chapters, write formatted prose that saves itself and survives a reload, and move around the
-manuscript by its headings. There is no AI yet, no story bible, no search, and no export; those
-are Phase 2 onwards. See [specs/project-outline.md](specs/project-outline.md) for the whole plan,
-and [specs/phase-1-plan.md](specs/phase-1-plan.md) § 6 for what Phase 1 actually shipped.
+**Current state: Phase 2 built** — you can write in it, and you can maintain what you wrote.
+Create a project, add chapters, write formatted prose that saves itself and survives a reload, and
+move around the manuscript by its headings. Reorder chapters, rename them, delete one and get it
+back. Mark a passage and watch the highlight follow it as you type around it; find every mark in
+one place, see which have gone stale, and repair one by hand. Mark a version of a chapter, read it
+beside what is there now, and restore it. Export a chapter or the whole manuscript to Markdown,
+and import Markdown back as chapters.
+
+There is still no AI, no story bible, and no search; those are Phase 4 onwards. See
+[specs/project-outline.md](specs/project-outline.md) for the whole plan, and each phase plan's
+final sections for what that phase actually shipped.
 
 ---
 
@@ -128,6 +134,42 @@ counts. Click a heading to go to it, in this chapter or another one. The chapter
 updates as you type; the rest come from the server. *New chapter* adds one at the end, and
 clicking the chapter title in the editor header renames it.
 
+Each chapter row also carries controls to **move it up or down** — by clicking, or with the arrow
+keys once the control has focus — to **rename** it in place, to **export** it as Markdown, and to
+**delete** it. Deleting is a soft delete: the chapter leaves every list and count, its text stays
+exactly where it was, and *Deleted chapters* at the foot of the tab brings it back. Dragging a
+chapter row does the same as the move controls.
+
+**Marks.** Select a passage in the editor and a small control appears offering *Mark passage*. A
+mark is a durable reference to those words: it is drawn as a highlight, and it follows the passage
+as you write above, below, and around it. The *Marks* tab lists every mark in the project, grouped
+by chapter, with its status.
+
+A mark whose words you have rewritten or deleted goes **stale** rather than moving to something
+approximately right. That is deliberate and it is the point of the whole feature: a reference that
+silently re-points itself at the wrong paragraph is worse than one that admits it is lost. A stale
+mark can be repaired from the *Marks* tab — sometimes with a suggested passage to accept, always
+by selecting new text and choosing *Re-link here*. Nothing repairs itself.
+
+Marks are the foundation the story bible is built on in Phase 3. For now they are yours to use as
+bookmarks.
+
+**History.** *Mark version* records the chapter as it stands, with a label. The history panel
+lists every version — the ones you marked, the ones taken automatically when you leave a chapter,
+and the ones taken just before something destructive — and any of them can be read beside the
+chapter as it is now, and restored. Restoring is an ordinary save: it can itself be undone, from
+the version it takes on the way past.
+
+**Markdown, in and out.** *Export* on a chapter row saves that chapter; *Export manuscript* at the
+foot of the contents tab saves every live chapter in order, each under its title. A chapter
+exported and imported back is the same chapter — headings, emphasis, lists, scene breaks and all.
+
+*Import Markdown…* takes a file you drop on it or text you paste. It can make one chapter of the
+whole file, or a chapter per top-level heading. It always **appends**; it never overwrites a
+chapter you already have. Anything Markdown can express that this editor cannot hold — a code
+fence, a link's target, an image, a heading deeper than three — is reported afterwards, with the
+line it was on and what became of it. The words are kept; only the formatting is lost.
+
 ## Test and lint
 
 ```powershell
@@ -162,10 +204,27 @@ storage behind it is [specs/data-model.md](specs/data-model.md).
 | `GET` | `/api/projects/{pid}` | One project with its document list |
 | `GET` | `/api/projects/{pid}/documents` | Ordered chapter metadata, **without** content |
 | `POST` | `/api/projects/{pid}/documents` | Add a chapter at the end |
+| `GET` | `/api/projects/{pid}/documents/deleted` | The chapters you can restore |
+| `PUT` | `/api/projects/{pid}/documents/order` | Rewrite the chapter order |
 | `GET` | `/api/projects/{pid}/outline` | The table of contents across every chapter |
 | `GET` | `/api/documents/{did}` | One document including its content |
 | `PUT` | `/api/documents/{did}/content` | Save (see below) |
 | `PATCH` | `/api/documents/{did}` | Rename |
+| `DELETE` | `/api/documents/{did}` | Soft-delete a chapter |
+| `POST` | `/api/documents/{did}/restore` | Undo that |
+| `POST`/`GET` | `/api/documents/{did}/anchors` | Create a mark from a range; list a chapter's |
+| `GET` | `/api/projects/{pid}/anchors` | Every mark in the project, filterable by status |
+| `PATCH`/`DELETE` | `/api/anchors/{aid}` | Re-link or relabel a mark; remove one |
+| `GET`/`POST` | `/api/documents/{did}/snapshots` | A chapter's history; mark a version |
+| `GET` | `/api/snapshots/{sid}` | One version, with its content |
+| `POST` | `/api/snapshots/{sid}/restore` | Write it back, as an ordinary save |
+| `GET` | `/api/documents/{did}/markdown` | One chapter as a Markdown file |
+| `GET` | `/api/projects/{pid}/markdown` | Every live chapter as one Markdown file |
+| `POST` | `/api/projects/{pid}/import` | Create chapters from Markdown |
+
+The two Markdown exports are the one **non-JSON** response here: they answer `text/markdown` with
+a filename attached, because an export is a file you save rather than a payload a client parses.
+Everything else, failures included, is JSON.
 
 Every failing response uses one envelope:
 

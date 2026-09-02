@@ -1,6 +1,6 @@
 # Archetype — Decision Register & Development Phases
 
-**Status:** Active · **Version:** 1.2 · **Date:** 2026-08-30
+**Status:** Active · **Version:** 1.5 · **Date:** 2026-09-01
 **Parent:** [`specs/project-outline.md`](project-outline.md)
 
 This document is the **authoritative register of binding decisions** (§ 1) and the **work
@@ -48,6 +48,18 @@ are flagged in the Phase 1 plan for override before implementation begins.
 | **D19** | Write concurrency | **Every document carries a monotonic `version`. A save presenting a stale version is rejected with `409`**; the UI warns and offers reload. It does not merge. | The multi-tab question (backlog Q5) has a data-loss shape. A version guard is a few lines in Phase 1 and closes it. Real conflict resolution stays out of scope. |
 | **D20** | Migration strategy | **Numbered, forward-only SQL migrations** applied when a project file is opened, tracked in a `schema_version` table. Every migration ships with a test that runs it against a fixture database from the previous version. No down-migrations, no ORM. | Extension-only schemas (outline § 7) make forward-only safe. An ORM would earn its place only if the schema grew far past what is planned. |
 
+### Resolved by the writer (Phase 2, 2026-08-30)
+
+Put to the writer in the Phase 2 plan § 2 and accepted as recommended. Binding on the same terms
+as D1–D20.
+
+| ID | Decision | Binding resolution | Affects |
+|---|---|---|---|
+| **D21** | Who resolves an anchor, and whose answer wins | **The server re-resolves every anchor of a document from that document's own text on every write, and its answer is authoritative.** The client rebases anchor decorations through ProseMirror's transaction mapping for the open document only, and that rebasing is **display-only** — never sent, never allowed to override a text match. This is D18's rule (the server owns the derived truth; the client mirrors it for liveness) applied to anchors. Client-sent positions stay a documented extension point, not a second resolution path. | P2, P3, P6, P7 |
+| **D22** | What deleting a chapter does | **A soft delete.** `document` carries a nullable `deleted_at`; the row and its content stay. The chapter leaves every list, outline, export, and count; its anchors read as `orphaned` — **derived from `deleted_at` on read, never written into the anchor row**, so a delete and a restore change nothing about an anchor and restoring returns each one to the answer the resolver actually gave; restoring is one click. A hard delete would either cascade its own recovery snapshot away or leave that snapshot pointing at nothing, and a data-loss path is a release blocker (outline § 9). | P2, P9 |
+| **D23** | When a snapshot is taken (**settles `Q1`**) | **On handover, on demand, and before anything destructive.** `handover` when the editor hands a document over; `manual` when the writer marks a version, with a label; `pre-restore`, `pre-delete`, and `pre-import` before an operation that replaces or removes text. As built, `pre-import` has no writer: Markdown import **creates** chapters and never replaces one, so an import destroys no text ([phase-2-plan](phase-2-plan.md) § 7, `D1`); the reason stays registered for the phase that lets an import overwrite a chapter. `handover` is the only snapshot nobody asked for, and it is the only one that is **deduplicated** (nothing is written when the newest snapshot for that document holds the same content, so an unchanged chapter never accumulates snapshots) and the only one that is **pruned** (the 25 most recent per document are kept, older ones dropped in the same transaction that inserts). `manual` and every `pre-*` snapshot is always written and never pruned: a manual mark carries a label, and a `pre-*` snapshot is a recovery guarantee rather than a history entry. | P2, P4, P9 |
+| **D24** | Multi-tab safety (**settles `Q5`**) | **No lock.** D19's version guard plus the P1-10 conflict surface are the whole answer, and snapshots (D23) make even a clobber recoverable. A soft lock introduces a failure mode strictly worse than the one it prevents — a crashed tab holding a lock on a single-user machine, with no second party to release it. | P2, P9 |
+
 ---
 
 ## 2. Phase Map
@@ -56,7 +68,7 @@ are flagged in the Phase 1 plan for override before implementation begins.
 |---|---|---|---|
 | 0 | Planning & Specs | Decisions answered; Phase 1 plan approved | **Closed** (2026-08-29) |
 | 1 | [Skeleton & Editor](phase-1-plan.md) | Write, format, and reload a multi-chapter document; navigate by TOC; both suites green | **Complete** (2026-08-30) — every exit criterion met; acceptance recorded in its § 6 |
-| 2 | [Manuscript Model & Anchors](phase-2-plan.md) | An anchor survives heavy editing around it; deleted text yields `stale`, never a wrong match | **Next** — plan drafted; its § 2 proposes D21–D24 and awaits a ruling |
+| 2 | [Manuscript Model & Anchors](phase-2-plan.md) | An anchor survives heavy editing around it; deleted text yields `stale`, never a wrong match | **Complete (2026-09-01)** — § 2 ruled (D21–D24 binding, 2026-08-30); Groups A–D delivered 2026-08-31, both suites green; the § 8 acceptance run passed all fifteen steps, step 13 having found and closed `D15` |
 | 3 | Story Bible (manual) | Build a bible by hand; retcon an entry and see dependents flagged | Not started |
 | 4 | LLM Provider Layer & Chat | Ask a question about a selection, get a streamed answer; swap providers in settings with no code change | Not started |
 | 5 | Retrieval & Indexing | Search 50k words by meaning and by exact phrase; edits reindex within seconds | Not started |

@@ -13,7 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from archetype.projects import connect, open_migrated, transaction, utc_now
+from archetype.manuscript.documents import DocumentStore
+from archetype.projects import ProjectStore, connect, open_migrated, transaction, utc_now
 from archetype.projects.migrations import (
     MigrationError,
     current_version,
@@ -24,7 +25,7 @@ from archetype.projects.migrations import (
 
 from .conftest import DB_FIXTURES_DIR
 
-TABLES = {"schema_version", "project", "document"}
+TABLES = {"schema_version", "project", "document", "anchor", "snapshot"}
 
 
 def table_names(conn: sqlite3.Connection) -> set[str]:
@@ -105,6 +106,119 @@ def test_a_version_0_fixture_database_migrates_forward(tmp_path: Path) -> None:
         conn.close()
 
 
+# -- migration 002 (P2-1, D22, D23) ---------------------------------------------------------
+#
+# The item data-model section 8 says the whole migration pattern exists for: a real Phase 1
+# project file, captured before this migration was written, carried forward with its manuscript
+# intact. `tests/fixtures/db/capture_v001_phase1.py` is how it was made.
+
+
+def test_a_version_1_fixture_database_migrates_forward(tmp_path: Path) -> None:
+    fixture = DB_FIXTURES_DIR / "v001_phase1.sqlite"
+    assert fixture.is_file(), "the version-1 fixture database is missing"
+
+    path = tmp_path / "from_v001.sqlite"
+    shutil.copyfile(fixture, path)
+
+    conn = connect(path)
+    try:
+        assert current_version(conn) == 1
+        before = [
+            tuple(row)
+            for row in conn.execute(
+                "SELECT id, title, content_json, text_plain, word_count, version FROM document "
+                "ORDER BY order_index"
+            )
+        ]
+        assert len(before) == 2, "the fixture is meant to hold two written chapters"
+
+        assert migrate(conn) == 2
+        assert current_version(conn) == 2
+        assert TABLES <= table_names(conn)
+
+        after = [
+            tuple(row)
+            for row in conn.execute(
+                "SELECT id, title, content_json, text_plain, word_count, version FROM document "
+                "ORDER BY order_index"
+            )
+        ]
+        assert after == before, "migration 002 must not touch a single word of the manuscript"
+        assert [row["deleted_at"] for row in conn.execute("SELECT deleted_at FROM document")] == [
+            None,
+            None,
+        ], "every chapter that predates the soft delete is live"
+    finally:
+        conn.close()
+
+
+def test_the_migrated_v1_fixture_is_readable_through_the_document_store(tmp_path: Path) -> None:
+    """The migration is not done when the schema changes - it is done when the store can read."""
+    path = tmp_path / "readable.sqlite"
+    shutil.copyfile(DB_FIXTURES_DIR / "v001_phase1.sqlite", path)
+
+    handle = ProjectStore(path.parent).open_path(path)
+    documents = DocumentStore(handle)
+
+    metas = documents.list_meta()
+    assert [meta.title for meta in metas] == ["The Harbour", "What Elias Knew"]
+    assert all(meta.deleted_at is None for meta in metas)
+
+    first = documents.get(metas[0].id)
+    assert "The harbour was grey that morning" in first.text_plain
+    assert first.meta.version == 3, "a migration does not touch a document's version"
+    assert [chapter.title for chapter in documents.outline()] == [
+        "The Harbour",
+        "What Elias Knew",
+    ]
+
+
+def test_the_anchor_table_has_the_planned_columns(migrated_db: sqlite3.Connection) -> None:
+    assert column_names(migrated_db, "anchor") == {
+        "id",
+        "project_id",
+        "document_id",
+        "from_pos",
+        "to_pos",
+        "quote",
+        "prefix",
+        "suffix",
+        "status",
+        "label",
+        "document_version",
+        "created_at",
+        "updated_at",
+        "checked_at",
+    }
+
+
+def test_the_snapshot_table_has_the_planned_columns(migrated_db: sqlite3.Connection) -> None:
+    assert column_names(migrated_db, "snapshot") == {
+        "id",
+        "project_id",
+        "document_id",
+        "taken_at",
+        "reason",
+        "label",
+        "content_json",
+        "content_hash",
+        "word_count",
+        "version",
+    }
+
+
+def test_the_phase_2_indexes_exist(migrated_db: sqlite3.Connection) -> None:
+    names = {
+        row["name"]
+        for row in migrated_db.execute("SELECT name FROM sqlite_master WHERE type = 'index'")
+    }
+    assert {
+        "idx_anchor_document",
+        "idx_anchor_project_status",
+        "idx_snapshot_document",
+    } <= names
+
+
 def test_a_file_newer_than_this_build_is_refused(tmp_path: Path) -> None:
     conn = open_migrated(tmp_path / "future.sqlite")
     try:
@@ -157,6 +271,8 @@ def test_the_document_table_has_the_planned_columns(migrated_db: sqlite3.Connect
         "version",
         "created_at",
         "updated_at",
+        # Added by migration 002 (D22). NULL means live.
+        "deleted_at",
     }
 
 

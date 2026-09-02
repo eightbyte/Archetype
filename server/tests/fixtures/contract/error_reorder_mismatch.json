@@ -1,0 +1,13 @@
+{
+  "error": {
+    "code": "reorder_mismatch",
+    "message": "a reorder must present exactly this project's live chapters - missing ['doc_000000000002']",
+    "detail": {
+      "missing": [
+        "doc_000000000002"
+      ],
+      "unexpected": [],
+      "duplicated": []
+    }
+  }
+}

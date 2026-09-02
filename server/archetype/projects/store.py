@@ -230,9 +230,14 @@ class ProjectStore:
             ).fetchone()
             if row is None:
                 return SkippedFile(path, "empty", "no project row")
+            # A soft-deleted chapter is out of the picker's counts as well as out of the
+            # lists (D22). The predicate is version-gated because the scan reads files it has
+            # deliberately not migrated: `deleted_at` arrives in migration 002, and asking a
+            # version-1 file for it would turn a perfectly readable project into a skipped one.
+            live_only = " AND deleted_at IS NULL" if version >= 2 else ""
             counts = conn.execute(
                 "SELECT COUNT(*) AS chapters, COALESCE(SUM(word_count), 0) AS words "
-                "FROM document WHERE project_id = ? AND kind = 'chapter'",
+                f"FROM document WHERE project_id = ? AND kind = 'chapter'{live_only}",
                 (row["id"],),
             ).fetchone()
             return ProjectSummary(

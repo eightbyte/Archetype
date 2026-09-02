@@ -1,0 +1,41 @@
+{
+  "document_id": "doc_000000000001",
+  "version": 3,
+  "word_count": 12,
+  "headings": [
+    {
+      "level": 1,
+      "text": "Arrival",
+      "ordinal": 0
+    },
+    {
+      "level": 2,
+      "text": "The Quay",
+      "ordinal": 1
+    }
+  ],
+  "updated_at": "2026-01-01T00:00:00Z",
+  "anchors": [
+    {
+      "id": "anc_000000000001",
+      "project_id": "prj_000000000001",
+      "document_id": "doc_000000000001",
+      "from_pos": 24,
+      "to_pos": 40,
+      "quote": "harbour was grey",
+      "prefix": "Arrival\n\nThe Quay\n\nThe ",
+      "suffix": ".\n\nHe did not look back.",
+      "status": "stale",
+      "label": "the harbour",
+      "document_version": 2,
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "checked_at": "2026-01-01T00:00:00Z",
+      "suggestion": {
+        "from_pos": 24,
+        "to_pos": 40,
+        "text": "harbour was calm"
+      }
+    }
+  ]
+}

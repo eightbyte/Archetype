@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from archetype.ids import IdPrefix, is_id
+from archetype.manuscript.documents import DocumentStore
 from archetype.projects import (
     ProjectNotFoundError,
     ProjectStore,
@@ -17,6 +18,8 @@ from archetype.projects import (
     slugify,
     utc_now,
 )
+
+from .conftest import DB_FIXTURES_DIR
 
 # -- creation -------------------------------------------------------------------------------
 
@@ -158,6 +161,60 @@ def test_a_project_file_copied_in_from_a_backup_is_listed(
 
     handle = store.open(summary.id)
     assert handle.path.name == "restored-from-backup-aaaaaa.sqlite"
+
+
+def test_a_project_file_from_an_older_schema_version_is_still_listed(
+    store: ProjectStore,
+) -> None:
+    """A writer's Phase 1 manuscript must appear in the picker before anything migrates it.
+
+    The scan reads files **read-only and unmigrated** (D17), so it is looking at a version-1
+    schema that has no ``deleted_at`` column. A soft-delete predicate applied unconditionally
+    would raise here and turn a perfectly good manuscript into a skipped file - which is why
+    the one in ``_read_summary`` is gated on the file's version (P2-2).
+    """
+    shutil.copyfile(
+        DB_FIXTURES_DIR / "v001_phase1.sqlite", store.projects_dir / "a-phase-1-manuscript.sqlite"
+    )
+
+    result = store.scan()
+
+    assert result.skipped == []
+    [summary] = result.projects
+    assert summary.schema_version == 1, "the scan must not have migrated it"
+    assert summary.title == "A Phase 1 Manuscript"
+    assert summary.chapter_count == 2
+    assert summary.word_count > 0
+
+    # And opening it - which does migrate - leaves the same counts behind.
+    handle = store.open(summary.id)
+    assert len(DocumentStore(handle).list_meta()) == 2
+    migrated = store.find(summary.id)
+    assert migrated is not None
+    assert migrated.schema_version == latest_version()
+    assert (migrated.chapter_count, migrated.word_count) == (
+        summary.chapter_count,
+        summary.word_count,
+    )
+
+
+def test_a_soft_deleted_chapter_leaves_the_pickers_counts(store: ProjectStore) -> None:
+    handle = store.create("Two Chapters")
+    documents = DocumentStore(handle)
+    kept = documents.create("Kept", content=None)
+    doomed = documents.create("Doomed", content=None)
+
+    documents.delete(doomed.meta.id)
+
+    summary = store.find(handle.id)
+    assert summary is not None
+    assert summary.chapter_count == 1
+
+    documents.restore(doomed.meta.id)
+    restored = store.find(handle.id)
+    assert restored is not None
+    assert restored.chapter_count == 2
+    assert {kept.meta.id, doomed.meta.id} == {m.id for m in documents.list_meta()}
 
 
 def test_a_non_archetype_sqlite_file_is_skipped_not_crashed(store: ProjectStore) -> None:

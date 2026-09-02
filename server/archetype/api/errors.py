@@ -31,12 +31,16 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from ..manuscript.anchors.resolve import AnchorRangeError
+from ..manuscript.anchors.store import AnchorNotFoundError
 from ..manuscript.documents import (
     ContentTooLargeError,
     DocumentNotFoundError,
+    ReorderMismatchError,
     StaleVersionError,
 )
 from ..manuscript.projection import InvalidDocumentError
+from ..manuscript.snapshots import SnapshotNotFoundError
 from ..projects.store import ProjectNotFoundError
 from .logging import request_id_of
 
@@ -118,6 +122,37 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DocumentNotFoundError)
     def _document_not_found(request: Request, exc: DocumentNotFoundError) -> JSONResponse:
         return _not_found(request, exc, "document_not_found", "document", "document_id")
+
+    @app.exception_handler(AnchorNotFoundError)
+    def _anchor_not_found(request: Request, exc: AnchorNotFoundError) -> JSONResponse:
+        return _not_found(request, exc, "anchor_not_found", "anchor", "anchor_id")
+
+    @app.exception_handler(SnapshotNotFoundError)
+    def _snapshot_not_found(request: Request, exc: SnapshotNotFoundError) -> JSONResponse:
+        return _not_found(request, exc, "snapshot_not_found", "snapshot", "snapshot_id")
+
+    @app.exception_handler(ReorderMismatchError)
+    def _reorder_mismatch(_: Request, exc: ReorderMismatchError) -> JSONResponse:
+        # A 409, not a 422: the body is well-formed and every id in it is a string. What is
+        # wrong is that it does not describe this project as it is *now* - which is the same
+        # kind of failure a stale save is, and the client answers it the same way, by re-reading
+        # the chapter list rather than by correcting a field (P2-2).
+        return error_response(
+            409,
+            "reorder_mismatch",
+            str(exc),
+            {
+                "missing": list(exc.missing),
+                "unexpected": list(exc.unexpected),
+                "duplicated": list(exc.duplicated),
+            },
+        )
+
+    @app.exception_handler(AnchorRangeError)
+    def _anchor_range(_: Request, exc: AnchorRangeError) -> JSONResponse:
+        # Every refusal in specs/anchors.md section 8. The message is written to be shown: the
+        # writer selected something, and "invalid range" would not tell them what to do next.
+        return error_response(422, "invalid_anchor_range", str(exc))
 
     @app.exception_handler(StaleVersionError)
     def _stale_version(_: Request, exc: StaleVersionError) -> JSONResponse:

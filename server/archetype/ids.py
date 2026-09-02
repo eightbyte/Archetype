@@ -1,9 +1,9 @@
 """Prefixed short-token IDs (P1-3, outline section 7).
 
-Every entity carries a greppable, prefixed identifier: ``prj_``, ``doc_``, ``anc_``, ``ent_``,
-``run_``. The body is drawn from a Crockford-style base32 alphabet with the ambiguous glyphs
-(``i``, ``l``, ``o``, ``u``) removed, so an ID read aloud or copied out of a log survives the
-trip.
+Every entity carries a greppable, prefixed identifier: ``prj_``, ``doc_``, ``anc_``, ``snp_``,
+``ent_``, ``run_``. The body is drawn from a Crockford-style base32 alphabet with the
+ambiguous glyphs (``i``, ``l``, ``o``, ``u``) removed, so an ID read aloud or copied out of a
+log survives the trip.
 
 Twelve body characters over a 32-symbol alphabet is 60 bits of entropy - collision-resistant far
 past the scale of a single-user manuscript, and short enough to skim in a log line.
@@ -40,11 +40,12 @@ class IdPrefix:
     PROJECT: Final[str] = "prj"
     DOCUMENT: Final[str] = "doc"
     ANCHOR: Final[str] = "anc"
+    SNAPSHOT: Final[str] = "snp"
     ENTRY: Final[str] = "ent"
     RUN: Final[str] = "run"
 
     #: Every prefix known to the current schema, for validation and log greps.
-    ALL: Final[frozenset[str]] = frozenset({"prj", "doc", "anc", "ent", "run"})
+    ALL: Final[frozenset[str]] = frozenset({"prj", "doc", "anc", "snp", "ent", "run"})
 
 
 def random_token(length: int) -> str:

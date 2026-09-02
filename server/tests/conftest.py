@@ -27,13 +27,20 @@ from fastapi.testclient import TestClient
 
 from archetype.app import create_app
 from archetype.config import CONFIG_FILE_ENV_VAR, Settings, reset_settings_cache
+from archetype.ids import IdPrefix, new_id
+from archetype.manuscript.anchors import EFFECTIVE_STATUS_SQL
 from archetype.manuscript.documents import DocumentStore
+from archetype.manuscript.snapshots import SnapshotStore
 from archetype.projects import ProjectHandle, ProjectStore, open_migrated
+from archetype.projects.db import transaction, utc_now
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 DB_FIXTURES_DIR = FIXTURES_DIR / "db"
 PROJECTION_FIXTURES_DIR = FIXTURES_DIR / "projection"
 CONTRACT_FIXTURES_DIR = FIXTURES_DIR / "contract"
+ANCHOR_FIXTURES_DIR = FIXTURES_DIR / "anchors"
+MARKDOWN_FIXTURES_DIR = FIXTURES_DIR / "markdown"
+SCHEMA_FIXTURES_DIR = FIXTURES_DIR / "schema"
 
 
 @pytest.fixture(autouse=True)
@@ -159,6 +166,73 @@ def make_document(documents: DocumentStore):
     return factory
 
 
+@pytest.fixture
+def snapshots(project: ProjectHandle) -> SnapshotStore:
+    """The snapshot store for :func:`project` (P2-3)."""
+    return SnapshotStore(project)
+
+
+@pytest.fixture
+def make_anchor(project: ProjectHandle):
+    """Insert an anchor row directly, and return its id (P2-1).
+
+    Deliberately SQL rather than :class:`~archetype.manuscript.anchors.store.AnchorStore`, even
+    now that one exists: what ``test_chapters.py`` and ``test_anchor_status.py`` are about is the
+    derivation rule over a row, and going through the store would make those tests depend on the
+    resolver agreeing with them about the text. The store has its own tests.
+    """
+
+    def factory(
+        document_id: str,
+        *,
+        quote: str = "the harbour was grey",
+        status: str = "ok",
+        from_pos: int = 1,
+        to_pos: int = 21,
+        version: int = 1,
+    ) -> str:
+        anchor_id = new_id(IdPrefix.ANCHOR)
+        now = utc_now()
+        with project.connect() as conn, transaction(conn):
+            conn.execute(
+                "INSERT INTO anchor (id, project_id, document_id, from_pos, to_pos, quote, "
+                "prefix, suffix, status, label, document_version, created_at, updated_at, "
+                "checked_at) VALUES (?, ?, ?, ?, ?, ?, '', '', ?, '', ?, ?, ?, ?)",
+                (
+                    anchor_id,
+                    project.id,
+                    document_id,
+                    from_pos,
+                    to_pos,
+                    quote,
+                    status,
+                    version,
+                    now,
+                    now,
+                    now,
+                ),
+            )
+        return anchor_id
+
+    return factory
+
+
+@pytest.fixture
+def read_anchor_status(project: ProjectHandle):
+    """The status a reader sees for one anchor, derived exactly as the code derives it (D22)."""
+
+    def read(anchor_id: str) -> str:
+        with project.connect() as conn:
+            row = conn.execute(
+                f"SELECT {EFFECTIVE_STATUS_SQL} AS status FROM anchor "
+                "JOIN document ON document.id = anchor.document_id WHERE anchor.id = ?",
+                (anchor_id,),
+            ).fetchone()
+        return row["status"]
+
+    return read
+
+
 def build_document(
     *,
     paragraphs: list[str] | None = None,
@@ -184,6 +258,35 @@ def text_node(text: str, marks: list[str] | None = None) -> dict[str, Any]:
 # -- shared fixture data --------------------------------------------------------------------
 
 
+def build_blocks(blocks: list[str]) -> dict[str, Any]:
+    """A document from the compact block notation the anchor corpus uses (P2-8).
+
+    A plain string is a paragraph, ``"---"`` is a ``horizontalRule``, and a newline inside a
+    string is a ``hardBreak``. The node vocabulary itself is the projection corpus's business;
+    these cases are about text, and spelling every one of them as ProseMirror JSON would bury
+    the passage each case is actually about.
+    """
+    nodes: list[dict[str, Any]] = []
+    for block in blocks:
+        if block == "---":
+            nodes.append({"type": "horizontalRule"})
+            continue
+        content: list[dict[str, Any]] = []
+        for index, line in enumerate(block.split("\n")):
+            if index:
+                content.append({"type": "hardBreak"})
+            if line:
+                content.append(text_node(line))
+        nodes.append({"type": "paragraph", "content": content})
+    return {"type": "doc", "content": nodes or [{"type": "paragraph"}]}
+
+
+def load_anchor_cases() -> list[dict[str, Any]]:
+    """The anchor corpus (P2-8), written from ``specs/anchors.md`` rather than from the code."""
+    raw = (ANCHOR_FIXTURES_DIR / "cases.json").read_text(encoding="utf-8")
+    return json.loads(raw)["cases"]
+
+
 def load_projection_cases() -> list[dict[str, Any]]:
     """The projection cases both suites run against (P1-7).
 
@@ -192,3 +295,25 @@ def load_projection_cases() -> list[dict[str, Any]]:
     """
     raw = (PROJECTION_FIXTURES_DIR / "cases.json").read_text(encoding="utf-8")
     return json.loads(raw)["cases"]
+
+
+def load_markdown_cases() -> list[dict[str, Any]]:
+    """The Markdown round-trip corpus (P2-13, P2-14).
+
+    Both halves are asserted against it: the exact Markdown a document exports to, and the
+    document that Markdown imports back as. Hand-written from the syntax the serializer's
+    docstring fixes, so a serializer and a parser that quietly agreed with each other on
+    something neither document describes would still fail.
+    """
+    raw = (MARKDOWN_FIXTURES_DIR / "cases.json").read_text(encoding="utf-8")
+    return json.loads(raw)["cases"]
+
+
+def load_closed_schema() -> dict[str, Any]:
+    """The closed schema both suites hold themselves to (P1-10, D1).
+
+    The same file is read by ``web/src/__tests__/schema.test.ts`` against the schema TipTap
+    builds, so a node added to the editor and not to the serializer fails a test on each side.
+    """
+    raw = (SCHEMA_FIXTURES_DIR / "closed_schema.json").read_text(encoding="utf-8")
+    return json.loads(raw)
