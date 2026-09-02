@@ -60,7 +60,13 @@ Step 13 found a bug no test could have: a manuscript with an H1 inside a chapter
 and re-imported, came back as three chapters instead of two (`D15`, fixed and the step re-run the
 same day). Step 15 reached the failed save Phase 1 could not, closing that Phase 1 gap.
 
-**Next: Phase 3 — the story bible.** There is still no AI, no bible, and no search.
+**Next: Phase 3 — the story bible.** There is still no AI, no bible, and no search. Its plan is
+**written but not started**, and nothing in it is binding yet: [specs/phase-3-plan.md](specs/phase-3-plan.md)
+is fifteen items in four groups, and its § 2 **proposes** five register entries (D25–D29) awaiting
+the writer's ruling. Two of them reverse a recorded backlog leaning and say so — `Q2` (recommended
+as a soft delete, because an entry is the target of links) and `Q7` (recommended against reserving
+H1, because the manuscript that exposed `D15` had a body H1 by choice). Do not write Phase 3 code
+against D25–D29 until they are ruled and promoted to the register.
 
 **Four rulings worth knowing, each a product decision rather than an implementation detail:**
 
@@ -117,9 +123,16 @@ corpus was blind to because no test manuscript had a heading where this writer p
   and `C7` and `C8` say which surfaces no test reaches. **Its § 8 is the manual acceptance run**:
   the script step by step, what each step must show, and the outcome of each — run on 2026-09-01,
   all fifteen passed, step 13 having found `D15` and been re-run against the fix.
+- [specs/phase-3-plan.md](specs/phase-3-plan.md) — Phase 3 work items (`P3-1` … `P3-15`). **Its
+  § 2 is proposed, not ruled**: D25 soft delete for entries (settling `Q2`), D26 the uniform record
+  with per-kind fields as data served by the API, D27 what a revision is and what a retcon flags,
+  D28 story-time as a partial order, D29 H1 stays in chapter bodies (settling `Q7`). Its § 3 is the
+  record's shape, § 5 ten exit criteria, § 6 the risks, § 7 the empty deviations table, and § 8 the
+  fifteen-step acceptance run, not yet run.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
   phase it must be settled by. `Q1` and `Q5` are promoted and closed; `Q2`, `Q3`, `Q4`, `Q6`, and
-  `Q7` are open — `Q7` is new, raised by § 8's step 13, and is due by Phase 3.
+  `Q7` are open — `Q2` and `Q7` are due this phase and each carries a **proposed** ruling in the
+  Phase 3 plan § 2 that goes against its recorded leaning.
 - [specs/data-model.md](specs/data-model.md) — storage as built at schema version 2: the project
   file, the four tables, the projection rules, the soft-delete predicate, and the migration
   discipline. Its § 7 sketches later phases and is **not** binding; the rest is a bug if it
@@ -136,6 +149,12 @@ corpus was blind to because no test manuscript had a heading where this writer p
   touching anything in `manuscript/anchors/`. Four places where the code corrected it are marked
   and cross-referenced to the phase plan's `B1`–`B5`; its § 7 says why a Markdown import is
   *not* one of the writes that re-resolves an anchor.
+- `specs/bible.md` — written at `P3-1`, before the code it governs, on the `anchors.md` pattern.
+  It fixes the entry record, the *vocabularies* of field types and relations, story-time and its
+  two contradiction kinds, the revision and retcon rules, and what an entry does **not** promise.
+  It must **not** restate the per-kind field lists — those are D26's served definition, and a
+  second copy in prose is exactly the third place to disagree that `specs/markdown.md` was refused
+  for being.
 - `specs/agent-tools.md` — written as its phase begins (Phase 6).
 
 There is no `specs/markdown.md`, deliberately. The syntax is a docstring

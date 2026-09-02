@@ -1,6 +1,6 @@
 # Archetype — Backlog
 
-**Status:** Active · **Version:** 1.3 · **Date:** 2026-09-01
+**Status:** Active · **Version:** 1.4 · **Date:** 2026-09-01
 **Parent:** [`specs/project-outline.md`](project-outline.md)
 
 Where ideas go so they do not become scope creep (outline § 9). Two kinds live here: **open
@@ -16,11 +16,19 @@ Promoting anything from here into a phase means editing the outline first, then 
 
 | ID | Question | Leaning | Settle by |
 |---|---|---|---|
-| **Q2** | Do bible entries need soft-delete/trash, or is revision history enough? | Revision history is enough; `superseded` covers retcons | Phase 3 |
+| **Q2** | Do bible entries need soft-delete/trash, or is revision history enough? | Revision history is enough; `superseded` covers retcons. **A ruling is proposed against this leaning** — [phase-3-plan](phase-3-plan.md) § 2, D25 | Phase 3 |
 | **Q3** | Should findings expire when the text they cite changes, or be re-checked? | Mark `outdated` when the cited anchor changes, offer a re-run | Phase 7 |
 | **Q4** | Does the agent get an external web-search tool? | No for 1.0 — offline story consistency is the product | Phase 6 |
 | **Q6** | Does the interaction chart get a node-link view alongside the matrix? | Matrix ships first (D14); the writer asked to revisit the design when the phase starts | Phase 8 |
-| **Q7** | Should H1 be reserved for chapter titles, leaving the editor levels 2 and 3? | Probably yes. A chapter already has a title *field*, so an H1 in its body duplicates it, and the ambiguity that made phase-2 `D15` necessary would be gone at the source rather than papered over in one exporter. Against it: a closed-schema change (D1) that fails a test on both sides of the wire by design, a migration for every H1 already written, and a heading control that offers two levels where the writer expects three. Raised by the phase-2 § 8 acceptance run, 2026-09-01 | Phase 3 |
+| **Q7** | Should H1 be reserved for chapter titles, leaving the editor levels 2 and 3? | Probably yes. A chapter already has a title *field*, so an H1 in its body duplicates it, and the ambiguity that made phase-2 `D15` necessary would be gone at the source rather than papered over in one exporter. Against it: a closed-schema change (D1) that fails a test on both sides of the wire by design, a migration for every H1 already written, and a heading control that offers two levels where the writer expects three. Raised by the phase-2 § 8 acceptance run, 2026-09-01. **A ruling is proposed against this leaning** — [phase-3-plan](phase-3-plan.md) § 2, D29 | Phase 3 |
+
+**`Q2` and `Q7` are due this phase and both have a proposed ruling in the Phase 3 plan § 2 — neither
+is settled until the writer rules on it.** Both proposals go *against* the leaning recorded above,
+which is why they are flagged here rather than left to be discovered in a phase plan: D25 argues an
+entry is the target of links, so a hard delete either cascades them away or leaves them dangling —
+the same argument D22 made about snapshots; D29 argues the manuscript that exposed the `D15`
+collision had a body H1 because that is how this writer writes, so reserving H1 removes a level in
+active use. They move to § 3 when ruled.
 
 ---
 
