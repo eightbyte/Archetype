@@ -426,6 +426,80 @@ def test_the_combined_export_can_be_split_back_into_its_chapters() -> None:
     assert [chapter.content for chapter in result.chapters] == [CASES[1]["doc"], CASES[2]["doc"]]
 
 
+# -- the combined export's heading levels (D15) ---------------------------------------------------
+
+
+def _heading(level: int, text: str) -> dict[str, Any]:
+    return {
+        "type": "heading",
+        "attrs": {"level": level},
+        "content": [{"type": "text", "text": text}],
+    }
+
+
+def _paragraph(text: str) -> dict[str, Any]:
+    return {"type": "paragraph", "content": [{"type": "text", "text": text}]}
+
+
+#: A chapter that opens with a heading of its own, which is what the section 8 acceptance run was
+#: holding when it found D15. The closed schema permits it and a writer will type it.
+_OPENS_WITH_A_HEADING: dict[str, Any] = {
+    "type": "doc",
+    "content": [_heading(1, "This is the start"), _paragraph("Prow scuttle parrel provost.")],
+}
+
+
+def test_the_combined_export_writes_every_body_heading_one_level_down() -> None:
+    """Level 1 belongs to the chapter titles there, so the body begins at level 2."""
+    assert chapters_to_markdown([("Departure", CASES[3]["doc"])]) == (
+        "# Departure\n\n## One\n\n### Two\n\n#### Three"
+    )
+
+
+def test_one_chapter_export_leaves_the_levels_the_writer_chose() -> None:
+    """The demotion is the combined export's alone - this one promises a round trip."""
+    assert document_to_markdown(CASES[3]["doc"]) == CASES[3]["markdown"]
+
+
+def test_a_heading_inside_a_chapter_does_not_become_a_chapter() -> None:
+    """The section 8 acceptance run's finding, as a test (D15, 2026-09-01).
+
+    Before the demotion this exported two ``#`` lines that no reader could tell apart, so the
+    split made three chapters out of two: an empty one under the title, and one whose title was
+    a heading from the middle of somebody's prose.
+    """
+    chapters = [("Chapter 1", _OPENS_WITH_A_HEADING), ("Chapter 2", CASES[1]["doc"])]
+    result = read_manuscript(chapters_to_markdown(chapters), mode=ImportMode.SPLIT_ON_H1)
+
+    assert [chapter.title for chapter in result.chapters] == ["Chapter 1", "Chapter 2"]
+    # And the heading's own words stayed in the chapter that had them. They are what the run saw
+    # leave as a word count four short of the chapter it came from.
+    assert (
+        project(result.chapters[0].content).word_count == project(_OPENS_WITH_A_HEADING).word_count
+    )
+    assert result.chapters[0].content["content"][0] == _heading(2, "This is the start")
+
+
+def test_a_body_heading_at_the_editors_floor_comes_back_at_the_floor_and_says_so() -> None:
+    """The cost of the demotion, in the one file that never promised a round trip."""
+    chapter = {"type": "doc", "content": [_heading(3, "Deep")]}
+    markdown = chapters_to_markdown([("Departure", chapter)])
+    assert markdown == "# Departure\n\n#### Deep"
+
+    result = read_manuscript(markdown, mode=ImportMode.SPLIT_ON_H1)
+    assert result.chapters[0].content["content"][0] == _heading(3, "Deep")
+    assert [notice.element for notice in result.notices] == ["heading level 4"]
+
+
+def test_the_demotion_reaches_a_heading_inside_a_blockquote() -> None:
+    """It travels with the walk, not with the top level: a heading anywhere is subordinate."""
+    chapter = {
+        "type": "doc",
+        "content": [{"type": "blockquote", "content": [_heading(1, "Quoted")]}],
+    }
+    assert chapters_to_markdown([("Departure", chapter)]) == "# Departure\n\n> ## Quoted"
+
+
 def test_the_corpus_is_valid_json_and_states_both_halves() -> None:
     """Cheap, and it catches a fixture edited into something the parametrize would skip."""
     assert len(CASES) >= 20

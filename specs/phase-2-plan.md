@@ -1,7 +1,8 @@
 # Phase 2 — Manuscript Model & Anchors
 
-**Status:** **Active — § 2 ruled; Groups A, B, C, and D built. Awaiting the § 8 acceptance run.**
-**Version:** 1.4 · **Date:** 2026-08-31
+**Status:** **Complete (2026-09-01)** — § 2 ruled; Groups A, B, C, and D built; § 8's acceptance
+run passed all fifteen steps. Step 13 found `D15`, which was fixed and the step re-run.
+**Version:** 1.6 · **Date:** 2026-09-01
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 **Writes:** `specs/anchors.md` (P2-4) · extends [`specs/data-model.md`](data-model.md) and
@@ -561,7 +562,8 @@ create an anchor, break it, and repair it using only what is written down.
 
 ## 5. Exit Criteria
 
-Phase 2 is done when **all** of these hold.
+Phase 2 is done when **all** of these hold. **All nine hold as of 2026-09-01**, and the manual
+acceptance script below was run the same day — its results are in § 8, step by step.
 
 1. **An anchor created before an editing session still resolves to the right passage** after heavy
    editing above, below, and around it — including edits that did not come from the editor
@@ -699,10 +701,10 @@ happened and why (outline § 13).*
   specification are cross-referenced to `B1`–`B5`.
 - **The *Marks* tab is the anchors' only consumer, and stayed that way.** Group D added no
   consumer of an anchor; Markdown export and import do not read or write one.
-- **The manual acceptance script in § 5 has not been run.** It is the phase-boundary act and it
-  covers the two things no test reaches: the pointer gestures (C7, C8) and heavy editing against
-  the real resolver rather than a staged answer. **Still outstanding** — see § 8, which is the
-  script written out as a checklist, and where its results go.
+- **The manual acceptance script in § 5 was run on 2026-09-01 and passes.** It is the
+  phase-boundary act and it covers the two things no test reaches: the pointer gestures (C7, C8)
+  and heavy editing against the real resolver rather than a staged answer. It also caught `D15`,
+  which neither of those descriptions predicted — see § 8 for the results, step by step.
 
 ### Group D (P2-13 → P2-15), 2026-08-31
 
@@ -721,6 +723,7 @@ happened and why (outline § 13).*
 | **D11** | P2-13, P2-14 | "The round-trip corpus is the acceptance bar: for every case, `import(export(doc))` is the same document" | **The corpus states the Markdown as well, and both directions are asserted against it.** A round trip alone is satisfied by two halves that agree with each other on a syntax nobody chose — they would pass perfectly while writing files no other reader could open. So each of the twenty-four cases carries the exact Markdown, hand-written, and a fifth test renders the file with the *parser's own renderer* and compares what a reader would see to `text_plain`. |
 | **D12** | Group D | P2-13 and P2-14 are server-side work items | **Group D carries a client surface as well**, which neither item budgeted: a per-chapter and a whole-manuscript export in the Contents tab, and an import that takes pasted Markdown or a dropped file, with the two modes and a report of what was left behind. **Put to the writer on 2026-08-31 and ruled as built**, the alternative being that § 5's acceptance script ends "compare the two on screen" with nothing on screen to compare. An export is an ordinary `<a href download>` rather than a fetch — the server already sends it as an attachment with a filename, so a link is less code, and it is keyboard-reachable and right-clickable for free. `projectReducer` gained one action, `documents-imported`, which appends a whole import at once: the intermediate states of a chapter-at-a-time dispatch are not states the project was ever in. |
 | **D13** | § 2, ruling 3 | "`markdown-it-py` … has no transitive weight" | It has one, `mdurl`, at about 10 KB. Recorded rather than glossed: the dependency budget is a rule, and "one package" turning out to be two is the kind of thing that is only ever noticed the third time it happens. |
+| **D15** | P2-13 | "Every chapter in order, each preceded by its title as an H1" | **And every heading inside a chapter written one level down** — a body H1 as `##`, H2 as `###`, H3 as `####`. **Found by § 8's acceptance run on 2026-09-01 (step 13) and ruled by the writer the same day.** The manuscript under test opened its first chapter with an H1 of its own, which the closed schema permits and a writer will type. The export then wrote two `#` lines no reader could tell apart, and `split-on-h1` cut at both: two chapters became three — an empty one under the title, and one whose title was a heading from the middle of the prose, four words lighter than the chapter it came from. Nothing was lost and no count was wrong; the words had simply moved into a title. But step 13's expectation — one new chapter per chapter — cannot hold for *any* manuscript that uses an H1 in a body, so either it or the code had to move. The demotion is also the honest structure: in one combined document the chapter titles **are** the top level and everything inside one is subordinate. The cost is at the floor, and it announces itself — the editor offers three levels, so a body H3 goes out as `####` and comes back at level 3 with a notice. `document_to_markdown`, which is the half that promises a round trip, is untouched: the offset is threaded through the block walk and is zero everywhere but the combined export. Considered and rejected: leaving it and documenting the limitation (the one person using the app writes H1s inside chapters, so it would keep happening), and reserving H1 for chapter titles in the editor — the better long-term answer, now `Q7` in the backlog, but a closed-schema change (D1) with a migration behind it and not something to open at a phase boundary. |
 | **D14** | P2-14 | — | **The fake API client has no Markdown parser and must never grow one.** The same rule as C4's, for the same reason: there is one parser, it has a round-trip corpus behind it, and a second one in the frontend suite would make every client test assert against a rule nobody wrote down. `stageImport` says what an import creates; without one it makes a single, plainly-named chapter. What the client tests are actually for is the client's share — collecting the file, sending the mode, showing the report. |
 
 ---
@@ -740,23 +743,41 @@ cd web; npm run build
 cd server; .\.venv\Scripts\python.exe -m archetype     # http://127.0.0.1:8787
 ```
 
-**Result: not yet run.** Record it below when it is: a date, and one line per step saying what
-happened. A step that fails is a bug fixed before the phase closes, not a note.
+**Result: run by the writer on 2026-09-01. All fifteen steps pass. Phase 2 is closed.**
 
-| # | Do this | It must |
-|---|---|---|
-| **1** | Open the Phase 1 test manuscript and pick a chapter with several paragraphs. | Open into the editor with the Contents tab showing its headings. |
-| **2** | Select a passage in the **first** paragraph and mark it. Do the same **mid-chapter** and in the **last** paragraph. | Each show a highlight over exactly the words selected, and appear in the *Marks* tab under this chapter, all three `ok`. |
-| **3** | Add two paragraphs **above** the first mark. | All three highlights stay on their own words. The one above has moved down the page and still covers the same sentence. |
-| **4** | Rewrite a paragraph **between** the second and third marks — new sentences, not a tweak. | All three still `ok`. This is the step that exercises the resolver rather than ProseMirror's mapping: wait for the save, then reload the page and confirm they are still right. |
-| **5** | Delete a paragraph **below** the last mark. | All three still `ok`. |
-| **6** | Delete the text **under the second mark**. | It goes `stale` in the *Marks* tab, and its highlight **does not move somewhere approximately right**. This is the phase's acceptance bar: a wrong match is worse than no match. |
-| **7** | Repair it — accept the suggestion if one is offered, otherwise select a passage and use *Re-link here*. | It returns to `ok` over the passage chosen, and nothing else changed status. |
-| **8** | **Mark a version** in the history panel, with a label. Edit the chapter substantially. Restore the mark. | The text returns; the label is still in the history; the pre-restore version is in the list too; the marks resolve against the restored text and the editor stays where it was in the app. |
-| **9** | **Reorder** the chapters — once by dragging, once with *Move up* / *Move down*, once with the arrow keys on a move control. | The outline and the editor follow. After a keyboard move, focus is still on the control of the chapter that moved, so a second press works. |
-| **10** | **Delete a chapter** that has a mark in it. | It leaves the list and the counts; its mark reads as belonging to a deleted chapter; the editor moves to a neighbour rather than holding a ghost. |
-| **11** | **Restore** it from *Deleted chapters*. | It comes back with its text; its mark returns to the status it held before — `ok` if it was `ok`, **`stale` if it was `stale`**. |
-| **12** | **Export** a chapter to Markdown from the Contents tab, then re-import the file as a new chapter (*As one chapter*). | The file downloads under the chapter's name. The new chapter reads identically on screen — headings, emphasis, lists, scene breaks — and the import reports nothing left behind. |
-| **13** | Export the **whole manuscript** and re-import it with *A chapter per top-level heading*. | One new chapter per chapter in the manuscript, each under its own title, in order, and no deleted chapter among them. |
-| **14** | Import something the schema cannot hold — a file with a code fence, a link and an image in it. | It succeeds, the words are all there, and the report names each one with the line it was on. |
-| **15** | Stop the server mid-edit, type, and let a save fail. Start it again. | *Save failed* is visible and the writing is intact. (Carried from Phase 1, where the retry loop absorbed the outage before it could be seen — check whether it is reachable now.) |
+Fourteen passed on the first run. Step 13 found a bug, it was fixed the same day, and the step was
+re-run against the fixed build and confirmed. Both suites are green (869 backend, 399 frontend).
+
+Two steps are worth reading twice.
+
+**Step 13 justified the whole section.** It exported a manuscript whose first chapter opened with
+an H1 of its own and re-imported it, and the split cut at that heading as well as at the chapter
+titles: two chapters came back as three — an empty one, and one four words short of the chapter it
+came from. Nothing was lost and no count was wrong; the four words had become a chapter title. But
+the expectation in this table cannot hold for *any* manuscript that puts an H1 in a chapter, which
+the closed schema permits and this writer does. The combined export now writes body headings one
+level below the titles — deviation `D15` above, with tests in `test_markdown.py` under *the
+combined export's heading levels*. No test would have found it: the Markdown corpus is per chapter,
+and no fixture manuscript had a heading where this one has one.
+
+**Step 15 closed a Phase 1 open item.** The failed save Phase 1 could not reach — the retry loop
+absorbed the outage before the writer could see it — **is reachable now**: *Save failed* was
+visible and the writing was intact.
+
+| # | Do this | It must | Outcome |
+|---|---|---|---|
+| **1** | Open the Phase 1 test manuscript and pick a chapter with several paragraphs. | Open into the editor with the Contents tab showing its headings. | Passed. |
+| **2** | Select a passage in the **first** paragraph and mark it. Do the same **mid-chapter** and in the **last** paragraph. | Each show a highlight over exactly the words selected, and appear in the *Marks* tab under this chapter, all three `ok`. | Passed. Three marks, three highlights over the words selected, all `ok`. |
+| **3** | Add two paragraphs **above** the first mark. | All three highlights stay on their own words. The one above has moved down the page and still covers the same sentence. | Passed. The highlights stayed on their own words. |
+| **4** | Rewrite a paragraph **between** the second and third marks — new sentences, not a tweak. | All three still `ok`. This is the step that exercises the resolver rather than ProseMirror's mapping: wait for the save, then reload the page and confirm they are still right. | Passed, including after a reload - the resolver's own answer, not ProseMirror's mapping. |
+| **5** | Delete a paragraph **below** the last mark. | All three still `ok`. | Passed. |
+| **6** | Delete the text **under the second mark**. | It goes `stale` in the *Marks* tab, and its highlight **does not move somewhere approximately right**. This is the phase's acceptance bar: a wrong match is worse than no match. | Passed. It went `stale` and the highlight did not move somewhere approximately right. The phase's acceptance bar holds. |
+| **7** | Repair it — accept the suggestion if one is offered, otherwise select a passage and use *Re-link here*. | It returns to `ok` over the passage chosen, and nothing else changed status. | Passed. It returned to `ok` over the passage chosen and nothing else changed status. |
+| **8** | **Mark a version** in the history panel, with a label. Edit the chapter substantially. Restore the mark. | The text returns; the label is still in the history; the pre-restore version is in the list too; the marks resolve against the restored text and the editor stays where it was in the app. | Passed. The text returned, both versions were in the history, and the marks resolved against the restored text. |
+| **9** | **Reorder** the chapters — once by dragging, once with *Move up* / *Move down*, once with the arrow keys on a move control. | The outline and the editor follow. After a keyboard move, focus is still on the control of the chapter that moved, so a second press works. | Passed, all three gestures, and focus stayed on the control of the chapter that moved. |
+| **10** | **Delete a chapter** that has a mark in it. | It leaves the list and the counts; its mark reads as belonging to a deleted chapter; the editor moves to a neighbour rather than holding a ghost. | Passed. It left the counts, its mark read as belonging to a deleted chapter, and the editor moved to a neighbour. |
+| **11** | **Restore** it from *Deleted chapters*. | It comes back with its text; its mark returns to the status it held before — `ok` if it was `ok`, **`stale` if it was `stale`**. | Passed. It came back with its text and its mark returned to the status it held. |
+| **12** | **Export** a chapter to Markdown from the Contents tab, then re-import the file as a new chapter (*As one chapter*). | The file downloads under the chapter's name. The new chapter reads identically on screen — headings, emphasis, lists, scene breaks — and the import reports nothing left behind. | Passed. The file downloaded under the chapter's name, the new chapter read identically, and the import reported nothing left behind. |
+| **13** | Export the **whole manuscript** and re-import it with *A chapter per top-level heading*. | One new chapter per chapter in the manuscript, each under its own title, in order, and no deleted chapter among them. | Import succeeded but anything marked H1 was imported as a chapter though the original manuscript had the H1 correctly inside a chapter. Since H1 marks as '#' in the markdown the import assumes its a chapter. This seemed to have an affect that the word count was off by 4 for the imported chapter, and there is a blank chapter labled 'Chapter 1' which has work count of zero.  The file used as import was 'C:\Users\eight\Desktop\test.md' — **Diagnosed and fixed the same day (`D15`).** Reproduced exactly from the project file: the manuscript's first chapter opened with an H1, `This is the start`, so the export wrote `# Chapter 1` and `# This is the start` as two indistinguishable lines and the split cut at both. The empty chapter is the title heading with nothing under it before the next `#`; the four words are that heading's own, which stopped being body text and became the second chapter's title. Neither the projection nor the word count was wrong. The combined export now writes body headings one level down, and the same two chapters come back as two chapters at 608 and 538 words. **Re-run against the fixed build on 2026-09-01 and confirmed by the writer as working as expected.** |
+| **14** | Import something the schema cannot hold — a file with a code fence, a link and an image in it. | It succeeds, the words are all there, and the report names each one with the line it was on. | Passed. The words were all there and the report named each construct with its line. |
+| **15** | Stop the server mid-edit, type, and let a save fail. Start it again. | *Save failed* is visible and the writing is intact. (Carried from Phase 1, where the retry loop absorbed the outage before it could be seen — check whether it is reachable now.) | **Passed, and it is reachable now** - *Save failed* was visible and the writing was intact. The Phase 1 gap this step was carried forward to check is closed. |

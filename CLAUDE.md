@@ -17,10 +17,10 @@ relational data plus keyword and vector indexes. Single user, localhost, Windows
 Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository directory is
 `WritingAssistant` — a path, not the product name.
 
-**Current state: Phase 1 complete (2026-08-30); Phase 2 built (2026-08-31) — all four groups
-delivered, both suites green, awaiting its manual acceptance run.** All twenty-four decisions are
-resolved and binding: the writer ruled D21–D24 on 2026-08-30 as recommended, which also settles
-backlog `Q1` and `Q5`.
+**Current state: Phase 1 complete (2026-08-30); Phase 2 complete (2026-09-01) — all fifteen work
+items delivered, both suites green, and the manual acceptance run passed all fifteen steps.** All
+twenty-four decisions are resolved and binding: the writer ruled D21–D24 on 2026-08-30 as
+recommended, which also settles backlog `Q1` and `Q5`.
 
 The app is a place you can write, a place you can **maintain** what you wrote, and now a place
 you can get words **in and out of**: create a project, add chapters, reorder them by drag or by
@@ -53,17 +53,16 @@ or dropped file, offers the two modes, and shows what the import left behind**.
 Every Phase 1 exit criterion is met, including the acceptance script run by hand against the
 single-process build; the results are in [specs/phase-1-plan.md](specs/phase-1-plan.md) § 6.
 
-**Phase 2's exit criteria 1–8 are met by the suites. Criterion 9 is met by this documentation
-pass. What is left is the manual acceptance run** — [specs/phase-2-plan.md](specs/phase-2-plan.md)
-§ 8, written out step by step with what each step must show, and where its results go. It is the
-phase-boundary act because it is the only thing standing under the two surfaces no test reaches:
-the pointer gestures, and heavy editing against the real resolver rather than a staged answer.
-**Do not mark Phase 2 complete until it has been run by the writer and its results recorded.**
+**Every Phase 2 exit criterion is met** — 1–8 by the suites, 9 by the documentation pass — and the
+manual acceptance run in [specs/phase-2-plan.md](specs/phase-2-plan.md) § 8 **passed all fifteen
+steps on 2026-09-01**, with the results in its table one line per step. It earned its keep twice.
+Step 13 found a bug no test could have: a manuscript with an H1 inside a chapter, exported whole
+and re-imported, came back as three chapters instead of two (`D15`, fixed and the step re-run the
+same day). Step 15 reached the failed save Phase 1 could not, closing that Phase 1 gap.
 
-**Next: Phase 3 — the story bible**, once § 8 is run. There is still no AI, no bible, and no
-search.
+**Next: Phase 3 — the story bible.** There is still no AI, no bible, and no search.
 
-**Three rulings worth knowing, each a product decision rather than an implementation detail:**
+**Four rulings worth knowing, each a product decision rather than an implementation detail:**
 
 - Deviation `B4` in [specs/phase-2-plan.md](specs/phase-2-plan.md) § 7. `specs/anchors.md` § 10
   said a paragraph split through an anchored range yields `stale`, while its own neighbouring row
@@ -81,17 +80,28 @@ search.
 - Deviation `D12`: **Group D carries a client surface for Markdown that P2-13 and P2-14 did not
   budget**, ruled by the writer on 2026-08-31. Without it the acceptance script's last step —
   "compare the two on screen" — has nothing on screen to compare.
+- Deviation `D15`: **the combined export writes every heading inside a chapter one level down**,
+  ruled by the writer on 2026-09-01 after § 8's step 13 found the collision. Level 1 means
+  "chapter" in that file, and the closed schema lets a writer put an H1 in a chapter's body, so
+  without the shift the two are the same character and re-importing cuts a chapter in half at a
+  heading that was never a boundary. The cost is at the floor and it announces itself: a body H3
+  goes out as `####` and returns at level 3 with a notice. The per-chapter export, which is the
+  half that promises a round trip, is untouched. Reserving H1 for chapter titles in the editor is
+  the better long-term answer and is backlog `Q7`, to be settled by Phase 3.
 
-One thing the Phase 1 run surfaced, still true and now larger: **some of the app's surfaces are
-hard or impossible to reach from a test.** Stopping the server mid-edit did not produce a failed
-save the writer could see — the retry loop absorbed the outage. Group C adds a second kind: jsdom
-has no native editing, so a text selection cannot be made through the DOM, and the mark and
-re-link gestures are covered in two halves that meet at a typed boundary (deviation `C7`). Group D
-adds a third, smaller one: a file *drop* is a pointer gesture too, and the import is tested by
-pasting rather than dropping. *Save failed*, the backoff ladder, the `409` reload prompt, the
+One thing the Phase 1 run surfaced, still true: **some of the app's surfaces are hard or impossible
+to reach from a test.** Phase 1 could not make a save fail where the writer could see it — the
+retry loop absorbed the outage — but § 8's step 15 reached it on 2026-09-01, so that one is
+**closed**. Two remain, both pointer gestures jsdom cannot make: there is no native editing, so a
+text selection cannot be made through the DOM and the mark and re-link gestures are covered in two
+halves that meet at a typed boundary (deviation `C7`); and a file *drop* is a gesture too, so the
+import is tested by pasting rather than dropping. The backoff ladder, the `409` reload prompt, the
 selection control, and the drop target are exercised only by the frontend suite; a regression in
-them will not show up by using the app, so those tests and the § 8 acceptance run are the only
-things standing under them.
+them will not show up by using the app, so those tests and the § 8 run are the only things standing
+under them.
+
+**And § 8 is not a formality.** Step 13 found `D15` — a real bug, in a case the whole Markdown
+corpus was blind to because no test manuscript had a heading where this writer puts one.
 
 ## The specs are the contract
 
@@ -102,13 +112,14 @@ things standing under them.
 - [specs/phase-1-plan.md](specs/phase-1-plan.md) — Phase 1 work items (`P1-1` … `P1-15`), exit
   criteria, and the as-built deviations table.
 - [specs/phase-2-plan.md](specs/phase-2-plan.md) — Phase 2 work items (`P2-1` … `P2-15`). Its § 2
-  is **ruled** (D21–D24, 2026-08-30). Its § 7 holds forty-nine as-built deviations across all four
-  groups — `B4`, `D1`, and `D12` are product decisions rather than implementation details, and
-  `C7` and `C8` say which surfaces no test reaches. **Its § 8 is the manual acceptance run**: the
-  script step by step, what each step must show, and where the results go. It has not been run.
+  is **ruled** (D21–D24, 2026-08-30). Its § 7 holds fifty as-built deviations across all four
+  groups — `B4`, `D1`, `D12`, and `D15` are product decisions rather than implementation details,
+  and `C7` and `C8` say which surfaces no test reaches. **Its § 8 is the manual acceptance run**:
+  the script step by step, what each step must show, and the outcome of each — run on 2026-09-01,
+  all fifteen passed, step 13 having found `D15` and been re-run against the fix.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
-  phase it must be settled by. `Q1` and `Q5` are promoted and closed; `Q2`, `Q3`, `Q4`, and `Q6`
-  are open.
+  phase it must be settled by. `Q1` and `Q5` are promoted and closed; `Q2`, `Q3`, `Q4`, `Q6`, and
+  `Q7` are open — `Q7` is new, raised by § 8's step 13, and is due by Phase 3.
 - [specs/data-model.md](specs/data-model.md) — storage as built at schema version 2: the project
   file, the four tables, the projection rules, the soft-delete predicate, and the migration
   discipline. Its § 7 sketches later phases and is **not** binding; the rest is a bug if it
@@ -523,5 +534,13 @@ D**, beyond those already listed above:
 - **A Markdown export is a link, not a fetch.** The server sends it as an attachment with a
   filename, so the client is an `<a href download>`: less code, no bytes held in memory, no second
   implementation of the filename rules, and keyboard-reachable for free.
+- **In the combined export, level 1 means "chapter" — so every heading in a body goes down one**
+  (`D15`). The closed schema lets a writer put an H1 inside a chapter, and an exported file where
+  a boundary and a body heading are the same character cannot be split back into the chapters it
+  was made from. The offset is threaded through the block walk rather than applied to the top
+  level, because a heading inside a blockquote is subordinate too; it is zero everywhere but
+  `chapters_to_markdown`, so the per-chapter export's round-trip promise is untouched. The cost
+  lands on a body H3, which goes out as `####` and returns at level 3 **with a notice** — a loss
+  that announces itself, in the one file that never promised a round trip.
 - **The fake API client has no Markdown parser, and must never grow one** — the same rule as the
   resolver's, for the same reason. `stageImport` says what an import creates.

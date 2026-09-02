@@ -1,7 +1,7 @@
 # Archetype — Project Outline
 
-**Status:** Phase 2 built — all fifteen work items delivered, both suites green · **Version:** 1.3 · **Date:** 2026-08-31
-**Phase:** 2 (Manuscript Model & Anchors) — awaiting the manual acceptance run in its § 8; then Phase 3
+**Status:** **Phase 2 complete** — all fifteen work items delivered, both suites green, and the manual acceptance run passed on 2026-09-01 · **Version:** 1.4 · **Date:** 2026-09-01
+**Phase:** 3 (Story Bible) — next. Phase 2 (Manuscript Model & Anchors) closed on 2026-09-01
 **Child documents:**
 - [`specs/development-phases.md`](development-phases.md) — binding decision register (D1–D24) and the work breakdown across all phases
 - [`specs/phase-1-plan.md`](phase-1-plan.md) — Phase 1 work items
@@ -15,6 +15,8 @@
 > This is the root planning document. Every phase plan links back to it, and any change to
 > scope, architecture, or phase boundaries is recorded **here first**, then propagated to the
 > affected phase plan and to `CLAUDE.md`.
+
+**Changes in 1.4 (2026-09-01):** **Phase 2 is closed.** Its manual acceptance script (phase-2 plan § 8) was run by hand against the single-process build; all fifteen steps pass and the results are recorded step by step in that table. It earned the phase boundary twice over. **Step 13 found a bug no test could have**: the combined Markdown export wrote chapter titles as H1, and the closed schema lets a writer put an H1 *inside* a chapter, so a manuscript that did came back from a re-import as three chapters instead of two — an empty one, and one whose title was a heading from the middle of the prose. Nothing was lost and no count was wrong, but § 8's own expectation could not hold for any manuscript shaped that way. Ruled and fixed the same day as deviation `D15`: the combined export now writes every heading in a chapter body one level down, so level 1 means "chapter" in that file and nothing else. The per-chapter export, which is the half that promises a round trip, is untouched; the cost falls on a body H3, which returns at level 3 with a notice. Step 13 was re-run against the fixed build and passes. **Step 15 closed a Phase 1 open item**: the failed save Phase 1 could not reach — the retry loop absorbed the outage before the writer could see it — is reachable now. One new backlog question, `Q7`: whether H1 should be reserved for chapter titles, removing the ambiguity at the source rather than in one exporter; due by Phase 3. No phase boundary moved, no decision changed, and no scope was added. **Next: Phase 3 — the story bible.**
 
 **Changes in 1.3 (2026-08-31):** **Phase 2 built.** All fifteen items (`P2-1` … `P2-15`) delivered across four groups; both suites green (864 backend, 399 frontend). The four proposed register entries were ruled as recommended on 2026-08-30 and are binding — D21 anchor resolution authority, D22 soft chapter delete, D23 the snapshot policy (settling `Q1`), D24 no multi-tab lock (settling `Q5`) — and `specs/anchors.md` now exists. Two things this document said are corrected below: § 5's sketch is superseded for the four tables that now exist, and § 6's Phase 2 row is brought level with what shipped. One scope addition was put to the writer and ruled: Group D carries a **client surface for Markdown** that P2-13 and P2-14 did not budget, because the acceptance script ends "compare the two on screen". No phase boundary moved and no decision changed. The phase is **built, not closed**: its manual acceptance script (phase-2 plan § 8) is the remaining act, and it covers the two surfaces no test reaches — the pointer gestures, and heavy editing against the real resolver.
 

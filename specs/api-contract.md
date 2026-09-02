@@ -1,7 +1,7 @@
 # Archetype — API Contract
 
-**Status:** The Phase 2 surface as built — every route that exists · **Version:** 1.3 ·
-**Date:** 2026-08-31
+**Status:** The Phase 2 surface as built — every route that exists · **Version:** 1.4 ·
+**Date:** 2026-09-01
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 (D7, D8, **D15**, D18, D19, **D21**, **D22**, **D23**)
@@ -713,13 +713,23 @@ read (D22), and an export is a read.
 
 ### `GET /api/projects/{project_id}/markdown` — the whole manuscript
 
-Every **live** chapter in order, each preceded by its title as an H1.
+Every **live** chapter in order, each preceded by its title as an H1, and **every heading inside a
+chapter written one level down** — a body H1 as `##`, H2 as `###`, H3 as `####`.
+
+The demotion is what makes level 1 mean "chapter" in this file and only in this file. The closed
+schema permits an H1 inside a chapter and a writer will type one; without the shift the boundaries
+and the body headings are the same character, and re-importing with `split-on-h1` cuts a chapter
+in two at a heading that was never a chapter break. It is also the honest structure: in one
+combined document the chapter titles *are* the top level. The cost is at the floor — the editor
+offers three levels, so a body H3 is written as `####` and an import brings it back at level 3
+with a notice saying so (phase-2 plan § 7, `D15`). The per-chapter export above is untouched.
 
 **No round trip is promised here** (phase-2 plan § 2, ruling 4). The file needs a chapter boundary
 the schema has no node for, so reading it back would mean inventing a container syntax and parsing
 it — a private format wearing Markdown's clothes. It is a reading and hand-off artifact.
 `split-on-h1` will read one back into chapters because that is a useful thing to do with a file
-shaped like this, not because there is a promise attached.
+shaped like this, not because there is a promise attached — and the demotion is what makes that
+reading give back the chapters the manuscript actually had.
 
 Deleted chapters are absent, from the one predicate every read applies.
 

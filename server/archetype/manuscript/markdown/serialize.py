@@ -25,6 +25,16 @@ The syntax
 
 Blocks are separated by exactly one blank line, which is what the projection does too.
 
+One chapter or many
+-------------------
+
+:func:`document_to_markdown` writes one chapter's body and nothing else - it is the round-trip
+artifact, and the levels in it are the levels the writer chose.
+:func:`chapters_to_markdown` writes the whole manuscript, each chapter's title as an H1 and
+**every heading in its body one level down**, because level 1 belongs to the titles there. It is
+a reading artifact with no round trip promised, and the demotion is what lets an import of it
+split into the chapters it was made from rather than at every heading the writer typed (D15).
+
 Escaping
 --------
 
@@ -106,6 +116,10 @@ HANDLED_NODES: frozenset[str] = BLOCK_NODES | INLINE_NODES | STRUCTURAL_NODES
 _MIN_HEADING_LEVEL = 1
 _MAX_WRITABLE_HEADING_LEVEL = 6
 
+#: How far every heading in a chapter's body is pushed down in the **combined** export, where the
+#: chapter titles occupy level 1. See :func:`chapters_to_markdown` for why (P2-13, D15).
+_CHAPTER_BODY_OFFSET = 1
+
 # One pass, so a backslash inserted here is never escaped again by a later character in the set.
 _INLINE_ESCAPES = str.maketrans({character: "\\" + character for character in "\\`*_[]"})
 
@@ -169,11 +183,25 @@ def chapters_to_markdown(chapters: Iterable[tuple[str, Mapping[str, Any]]]) -> s
     reading them back would mean inventing a container syntax and parsing it - a private format
     wearing Markdown's clothes. Import splits on H1 because that is a useful thing to do with a
     file shaped like this one, not because this is a format with a promise attached.
+
+    **Every heading in a chapter's body is written one level down** - H1 as ``##``, H2 as
+    ``###``, H3 as ``####`` - because level 1 belongs to the chapter titles here (deviation D15,
+    found by the section 8 acceptance run on 2026-09-01). Without it a manuscript that uses an
+    H1 inside a chapter - which the closed schema permits, and a writer will do - exports a file
+    whose chapter boundaries and body headings are the same character, and re-importing it with
+    ``split-on-h1`` cuts the chapter in two at a heading that was never a chapter break. The
+    demotion is also the honest structure: in one combined document the chapter titles *are* the
+    top level and everything inside one is subordinate to it.
+
+    The cost is at the floor. The editor offers three levels, so a body H3 is written as ``####``
+    and comes back from an import at level 3 with a notice saying so - a loss that announces
+    itself, in the file that never promised a round trip. :func:`document_to_markdown`, which
+    does promise one, is untouched.
     """
     parts: list[str] = []
     for title, content in chapters:
         heading = _heading_line(_MIN_HEADING_LEVEL, _inline_text_of(title))
-        body = document_to_markdown(content)
+        body = "\n".join(_group_lines(_children(content), level_offset=_CHAPTER_BODY_OFFSET))
         parts.append(f"{heading}\n\n{body}" if body else heading)
     return "\n\n".join(parts)
 
@@ -181,16 +209,20 @@ def chapters_to_markdown(chapters: Iterable[tuple[str, Mapping[str, Any]]]) -> s
 # -- blocks ---------------------------------------------------------------------------------
 
 
-def _group_lines(nodes: Iterable[Mapping[str, Any]]) -> list[str]:
+def _group_lines(nodes: Iterable[Mapping[str, Any]], *, level_offset: int = 0) -> list[str]:
     """A run of sibling blocks, separated by exactly one blank line.
 
     A block that writes nothing - an empty paragraph - takes no blank line with it, so two
     paragraphs with an empty one between them come out adjacent. That is the projection's rule
     (``tidy_block``) applied one level up, and it is the one thing export does not preserve.
+
+    ``level_offset`` pushes every heading below here down that many levels, and travels into
+    blockquotes and list items with the walk: a heading is subordinate to the chapter title
+    wherever in the chapter it sits. It is zero everywhere but the combined export.
     """
     lines: list[str] = []
     for child in nodes:
-        block = _block_lines(child)
+        block = _block_lines(child, level_offset=level_offset)
         if not block:
             continue
         if lines:
@@ -199,24 +231,25 @@ def _group_lines(nodes: Iterable[Mapping[str, Any]]) -> list[str]:
     return lines
 
 
-def _block_lines(node: Mapping[str, Any]) -> list[str]:
+def _block_lines(node: Mapping[str, Any], *, level_offset: int = 0) -> list[str]:
     """One block, as the lines it occupies. Empty when the block writes nothing."""
     node_type = node.get("type")
 
     if node_type == "paragraph":
         return _text_block_lines(node)
     if node_type == "heading":
-        return _heading_block_lines(node)
+        return _heading_block_lines(node, level_offset=level_offset)
     if node_type == "horizontalRule":
         return [SCENE_BREAK]
     if node_type == "blockquote":
         # `>` on a line of its own when the quote is empty, rather than nothing: an empty
         # blockquote is a node the schema can hold, and dropping it would lose it silently.
-        return _prefixed(_group_lines(_children(node)) or [""], marker="> ", indent="> ")
+        body = _group_lines(_children(node), level_offset=level_offset) or [""]
+        return _prefixed(body, marker="> ", indent="> ")
     if node_type == "bulletList":
-        return _list_lines(node, ordered=False)
+        return _list_lines(node, ordered=False, level_offset=level_offset)
     if node_type == "orderedList":
-        return _list_lines(node, ordered=True)
+        return _list_lines(node, ordered=True, level_offset=level_offset)
 
     if node_type in INLINE_NODES or node_type in STRUCTURAL_NODES:
         raise UnknownNodeError(f"{node_type} (not a block)")
@@ -232,7 +265,7 @@ def _text_block_lines(node: Mapping[str, Any]) -> list[str]:
     return [line + HARD_BREAK for line in lines[:-1]] + lines[-1:]
 
 
-def _heading_block_lines(node: Mapping[str, Any]) -> list[str]:
+def _heading_block_lines(node: Mapping[str, Any], *, level_offset: int = 0) -> list[str]:
     """A heading: one line, always. An internal line break becomes a space."""
     attrs = node.get("attrs")
     raw_level = attrs.get("level") if isinstance(attrs, Mapping) else None
@@ -242,7 +275,7 @@ def _heading_block_lines(node: Mapping[str, Any]) -> list[str]:
         else _MIN_HEADING_LEVEL
     )
     text = tidy_block(_inline_text(_children(node)))
-    return [_heading_line(level, " ".join(text.split("\n")))]
+    return [_heading_line(level + level_offset, " ".join(text.split("\n")))]
 
 
 def _heading_line(level: int, text: str) -> str:
@@ -257,7 +290,7 @@ def _heading_line(level: int, text: str) -> str:
     return f"{hashes} {text}"
 
 
-def _list_lines(node: Mapping[str, Any], *, ordered: bool) -> list[str]:
+def _list_lines(node: Mapping[str, Any], *, ordered: bool, level_offset: int = 0) -> list[str]:
     """A list: one marker per item, continuation lines indented to the marker's width.
 
     Items are written tight - no blank line between them - and an item holding more than one
@@ -271,7 +304,7 @@ def _list_lines(node: Mapping[str, Any], *, ordered: bool) -> list[str]:
         if item.get("type") != "listItem":
             raise UnknownNodeError(f"{item.get('type')} (not a list item)")
         marker = f"{number}. " if ordered else f"{BULLET} "
-        body = _group_lines(_children(item)) or [""]
+        body = _group_lines(_children(item), level_offset=level_offset) or [""]
         lines.extend(_prefixed(body, marker=marker, indent=" " * len(marker)))
         number += 1
     return lines
