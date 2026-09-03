@@ -346,4 +346,379 @@ export const ERROR_CODES = {
   payloadTooLarge: 'payload_too_large',
   validation: 'validation_error',
   internal: 'internal_error',
+  entryNotFound: 'entry_not_found',
+  linkNotFound: 'link_not_found',
+  revisionNotFound: 'revision_not_found',
+  entryVersionConflict: 'entry_version_conflict',
+  duplicateLink: 'duplicate_link',
+  invalidAttributes: 'invalid_attributes',
 } as const;
+
+/* -------------------------------------------------------------------------------------------
+ * The story bible (P3-9 … P3-11, D25 – D28).
+ *
+ * Seven kinds share one record, and the difference between them is **data** (D26): the per-kind
+ * field list and the relation vocabulary arrive from `GET /api/bible/schema`, and the client
+ * renders one generic form over the six field types. Nothing below spells out which kinds exist
+ * or which relations there are — a copy here would be the second copy D26 exists to prevent, and
+ * it would be the one that drifts.
+ * ---------------------------------------------------------------------------------------- */
+
+/** One bible record, in the shape every kind shares. */
+export interface Entry {
+  id: string;
+  project_id: string;
+  kind: string;
+  name: string;
+  summary: string;
+  body_md: string;
+  /** The per-kind fields, validated server-side against the kind's definition. */
+  attributes: Record<string, unknown>;
+  status: string;
+  origin: string;
+  /** Monotonic. The D19 guard, applied to entries — an update presents the one it read. */
+  revision: number;
+  /**
+   * "Something this entry depended on moved" (D27).
+   *
+   * Orthogonal to `status`: one is the retcon flag, the other is the proposal lifecycle.
+   * `superseded` is not the answer to "this entry is out of date".
+   */
+  needs_review: boolean;
+  review_reason: string;
+  created_at: string;
+  updated_at: string;
+  /** `null` while the entry is live; a timestamp once it is soft-deleted (D25). */
+  deleted_at: string | null;
+}
+
+/**
+ * `GET /api/projects/{pid}/entries` and `…/entries/deleted`.
+ *
+ * `counts` is live and **unfiltered**, so a list showing only the places can still say how many
+ * characters there are. `truncated` says the `q` filter hit its cap — a filter that cannot say
+ * "there are more" is lying about what it found.
+ */
+export interface EntryList {
+  entries: Entry[];
+  counts: Record<string, number>;
+  truncated: boolean;
+}
+
+/**
+ * Where an entry sits in the book, derived from its `source` anchor and never stored.
+ *
+ * It follows a chapter reorder for free, and an entry with no source anchor simply has none.
+ */
+export interface NarrativePosition {
+  entry_id: string;
+  document_id: string;
+  order_index: number;
+  from_pos: number;
+}
+
+/**
+ * One citation, carrying the anchor **as it reads now** (P3-7).
+ *
+ * The anchor's `status` is the effective one, derived server-side in the single place D22 put it
+ * — so a citation can never disagree with the *Marks* tab about the same anchor. A `stale` one
+ * means the passage that produced this entry has been rewritten.
+ */
+export interface Citation {
+  entry_id: string;
+  anchor: Anchor;
+  role: string;
+  created_at: string;
+  document_id: string;
+  document_title: string;
+}
+
+/** `GET /api/entries/{eid}` — one entry with what points at it and where it sits. */
+export interface EntryDetail {
+  entry: Entry;
+  citations: Citation[];
+  /** Live links in either direction. The links themselves are a separate request. */
+  link_count: number;
+  narrative_position: NarrativePosition | null;
+}
+
+/**
+ * What an entry write did, including what it disturbed (D27).
+ *
+ * `flagged` is the point: the writer is told which entries this retcon put into the review queue
+ * at the moment it happens. `changed_fields` reports the **computed** answer even when `retcon`
+ * was overridden, so an override is legible as one.
+ */
+export interface EntryWriteResult {
+  entry: Entry;
+  revision: number;
+  retcon: boolean;
+  flagged: string[];
+  changed_fields: string[];
+}
+
+/** One revision's metadata. The history list carries these and never the states. */
+export interface RevisionMeta {
+  entry_id: string;
+  revision: number;
+  revised_at: string;
+  reason: string;
+  retcon: boolean;
+  origin: string;
+}
+
+/** `GET /api/entries/{eid}/revisions` — newest first, complete from creation. */
+export interface RevisionList {
+  revisions: RevisionMeta[];
+}
+
+/**
+ * `GET /api/entries/{eid}/revisions/{n}` — one revision with the state it recorded.
+ *
+ * `state` is the entry as it was **after** that write, so reading a past state is one row rather
+ * than a replay. It carries no `needs_review`: that is a note about the entry's surroundings, and
+ * restoring must not drag a neighbour's old disturbance back.
+ */
+export interface EntryRevision {
+  meta: RevisionMeta;
+  state: Record<string, unknown>;
+}
+
+/**
+ * One relationship, as stored.
+ *
+ * `since` and `until` are free text and are stored, displayed, and **never interpreted** (D9).
+ * Nothing sorts by them; the relation that carries ordering power is `precedes`.
+ */
+export interface Link {
+  id: string;
+  project_id: string;
+  from_entry: string;
+  to_entry: string;
+  relation: string;
+  attributes: Record<string, unknown>;
+  since: string | null;
+  until: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+/** `GET /api/projects/{pid}/links` — every live link, optionally of one relation. */
+export interface LinkList {
+  links: Link[];
+}
+
+/** Which end of a link an entry is on. */
+export const LINK_ENDS = {
+  from: 'from',
+  to: 'to',
+} as const;
+
+export type LinkEnd = (typeof LINK_ENDS)[keyof typeof LINK_ENDS];
+
+/**
+ * One link as it reads **from one entry's end**.
+ *
+ * `label` is how that end reads the relation — "is a member of" from one side, "has as a member"
+ * from the other. A symmetric relation reads the same both ways and appears once from each side,
+ * never twice from either: it is one row.
+ */
+export interface LinkView {
+  link: Link;
+  end: string;
+  other_id: string;
+  other_name: string;
+  other_kind: string;
+  label: string;
+}
+
+/** `GET /api/entries/{eid}/links` — both directions in one answer. */
+export interface EntryLinks {
+  links: LinkView[];
+}
+
+/** Why an entry points at a passage. `source` is the one narrative position derives from. */
+export const CITATION_ROLES = {
+  source: 'source',
+  mention: 'mention',
+  setup: 'setup',
+  payoff: 'payoff',
+} as const;
+
+export type CitationRole = (typeof CITATION_ROLES)[keyof typeof CITATION_ROLES];
+
+/** What an uncite removed. Zero is an ordinary answer, not a failure. */
+export interface CitationRemoved {
+  removed: number;
+}
+
+/** One entry that cites an anchor — the reverse view, so *Marks* can say it is spoken for. */
+export interface CitingEntry {
+  entry_id: string;
+  kind: string;
+  name: string;
+  role: string;
+  created_at: string;
+}
+
+/** `GET /api/anchors/{aid}/entries`. */
+export interface AnchorEntries {
+  entries: CitingEntry[];
+}
+
+/**
+ * What *Add to bible* made: an anchor, an entry, and the citation joining them (P3-7).
+ *
+ * One transaction over three tables, so a stale document version leaves none of them behind. The
+ * client sends a range and a version and never a quote — the server derives the words.
+ */
+export interface EntryFromRange {
+  entry: Entry;
+  anchor: Anchor;
+  role: string;
+}
+
+/**
+ * One event as the ordering sees it (D28).
+ *
+ * `label` is what a person reads as "when" and it **never sorts**. `sort_key` is the only number
+ * in story-time, and it is a float so an event can be inserted between two others.
+ */
+export interface StoryEvent {
+  entry_id: string;
+  name: string;
+  label: string;
+  sort_key: number | null;
+  era: string | null;
+}
+
+/** The two contradiction kinds, and there are no others (D28). */
+export const CONTRADICTION_KINDS = {
+  cycle: 'cycle',
+  sortKeyInversion: 'sort_key_inversion',
+} as const;
+
+export type ContradictionKind = (typeof CONTRADICTION_KINDS)[keyof typeof CONTRADICTION_KINDS];
+
+/**
+ * Something the writer said that cannot all be true at once.
+ *
+ * The two kinds are **independent**: an edge inside a cycle whose keys also disagree is reported
+ * as both, because a writer fixes them differently.
+ */
+export interface StoryTimeContradiction {
+  kind: string;
+  events: string[];
+  detail: string;
+}
+
+/** One era and its rank — the least `sort_key` among its members, or `null` for unplaced. */
+export interface StoryTimeEra {
+  era: string;
+  rank: number | null;
+}
+
+/**
+ * `GET /api/projects/{pid}/storytime` — the ordering module's three answers, and the eras.
+ *
+ * `order` and `unplaced` partition the events: every event is in exactly one of them. An event
+ * with neither an edge nor a key is unplaced — not appended, not dropped, and never guessed at.
+ * A contradiction never costs the rest of the graph.
+ */
+export interface StoryTime {
+  order: StoryEvent[];
+  unplaced: StoryEvent[];
+  contradictions: StoryTimeContradiction[];
+  eras: StoryTimeEra[];
+}
+
+/**
+ * The six field types a form renders (D26). Closed, and a test on each side of the wire enforces
+ * it: a seventh must fail here rather than render nothing.
+ */
+export const FIELD_TYPES = {
+  text: 'text',
+  longText: 'long_text',
+  listOfText: 'list_of_text',
+  enum: 'enum',
+  entryRef: 'entry_ref',
+  storyTime: 'story_time',
+} as const;
+
+export type FieldType = (typeof FIELD_TYPES)[keyof typeof FIELD_TYPES];
+
+/** True when `type` is one of the six the form has a renderer for. */
+export function isFieldType(type: string): type is FieldType {
+  return (Object.values(FIELD_TYPES) as string[]).includes(type);
+}
+
+/**
+ * One field of one kind, with every key present whatever the type.
+ *
+ * `members` is the declared set of an `enum` and empty otherwise; `kinds` is what an `entry_ref`
+ * may point at and empty otherwise. Both always arrive, so the renderer branches on `type` alone.
+ */
+export interface FieldDefinition {
+  name: string;
+  type: string;
+  label: string;
+  required: boolean;
+  help: string;
+  members: string[];
+  kinds: string[];
+}
+
+/** One kind's fields, **in the order a form renders them**. */
+export interface KindDefinition {
+  kind: string;
+  label: string;
+  plural: string;
+  fields: FieldDefinition[];
+}
+
+/**
+ * One relation and the kinds it may join in each direction.
+ *
+ * `symmetric` is declared rather than inferred, so a relation picker filtered by the two kinds
+ * asks the vocabulary instead of keeping its own list.
+ */
+export interface RelationDefinition {
+  relation: string;
+  label: string;
+  inverse_label: string;
+  from_kinds: string[];
+  to_kinds: string[];
+  symmetric: boolean;
+}
+
+/**
+ * `GET /api/bible/schema` — D26's definition, and the most load-bearing shape in Phase 3.
+ *
+ * Project-independent: the vocabulary is the product's, not a manuscript's. Everything in the
+ * Bible tab renders from it, so its contract fixture is what fails when a kind gains a field and
+ * the client was not told.
+ */
+export interface BibleSchema {
+  field_types: string[];
+  kinds: KindDefinition[];
+  relations: RelationDefinition[];
+}
+
+/** What an entry's `409` carries (D19, ruling 3). The form stops and offers the server's copy. */
+export interface EntryVersionConflictDetail {
+  entry_id: string;
+  presented_revision: number;
+  current_revision: number;
+  updated_at: string;
+}
+
+/** What a refused attribute, kind, relation, or role carries. `field` names the input. */
+export interface InvalidAttributesDetail {
+  field: string | null;
+}
+
+/** What a refused duplicate link carries: the live link that already says the same thing. */
+export interface DuplicateLinkDetail {
+  link_id: string;
+}

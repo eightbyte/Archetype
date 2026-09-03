@@ -29,7 +29,7 @@ from archetype.app import create_app
 from archetype.bible.citations import CitationStore
 from archetype.bible.entries import Entry, EntryStore
 from archetype.bible.links import LinkStore
-from archetype.bible.schema import EntryKind
+from archetype.bible.schema import EntryKind, FieldDefinition, FieldType
 from archetype.config import CONFIG_FILE_ENV_VAR, Settings, reset_settings_cache
 from archetype.ids import IdPrefix, new_id
 from archetype.manuscript.anchors import EFFECTIVE_STATUS_SQL
@@ -239,6 +239,35 @@ def make_entry(entries: EntryStore):
         return entries.create(kind, name, **fields)
 
     return factory
+
+
+def sample_value(field: FieldDefinition) -> Any:
+    """A legal value for any field type, so a test can satisfy a required field generically.
+
+    Written over :class:`FieldType` rather than over the field names, so that a kind gaining a
+    required field does not need a test edited - which is the D26 property under test. Shared
+    because both the store's suite and the route suite round every one of the seven kinds
+    through one call and each needs the required fields filled.
+    """
+    match field.type:
+        case FieldType.TEXT | FieldType.LONG_TEXT:
+            return "something a person typed"
+        case FieldType.LIST_OF_TEXT:
+            return ["one", "two"]
+        case FieldType.ENUM:
+            return field.members[0]
+        case FieldType.STORY_TIME:
+            return {"label": "the third grey morning"}
+    raise AssertionError(f"no sample value for field type {field.type!r}; add one")
+
+
+def required_attributes(kind: str) -> dict[str, Any]:
+    """The smallest attribute map a kind will accept."""
+    from archetype.bible.schema import definition_for
+
+    return {
+        field.name: sample_value(field) for field in definition_for(kind).fields if field.required
+    }
 
 
 @pytest.fixture

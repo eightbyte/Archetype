@@ -1,0 +1,35 @@
+{
+  "entries": [
+    {
+      "id": "ent_000000000002",
+      "project_id": "prj_000000000001",
+      "kind": "character",
+      "name": "Kurtz",
+      "summary": "the man at the end of the river",
+      "body_md": "",
+      "attributes": {
+        "aliases": [
+          "the agent"
+        ]
+      },
+      "status": "accepted",
+      "origin": "user",
+      "revision": 2,
+      "needs_review": true,
+      "review_reason": "Charlie Marlow changed at revision 2",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "deleted_at": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "counts": {
+    "character": 1,
+    "place": 1,
+    "item": 0,
+    "faction": 0,
+    "event": 3,
+    "thread": 0,
+    "fact": 0
+  },
+  "truncated": false
+}

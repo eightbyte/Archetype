@@ -1,4 +1,8 @@
-"""Wire shapes for the Phase 1 routes (P1-5).
+"""Wire shapes for the manuscript routes (P1-5, P2-7, P2-13).
+
+The bible's are in :mod:`archetype.api.bible_schemas`, which extends this module's :class:`Wire`
+base - one ``extra="forbid"``, one place to change it. The split is length alone: every rule below
+applies to both files.
 
 Pydantic models on the server, mirrored TypeScript in ``web/src/api/types.ts``; the two are held
 together by the contract fixtures (P1-8), so a shape change fails the suite rather than the
@@ -68,11 +72,16 @@ __all__ = [
     "SnapshotReasonIn",
     "SnapshotRestoreIn",
     "SuggestionOut",
+    "Wire",
 ]
 
 
-class _Wire(BaseModel):
-    """Base for every wire model: no undeclared fields in, no surprises out."""
+class Wire(BaseModel):
+    """Base for every wire model: no undeclared fields in, no surprises out.
+
+    Public because :mod:`archetype.api.bible_schemas` extends it. One base, one
+    ``extra="forbid"``, one place to change if that posture ever does.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -80,7 +89,7 @@ class _Wire(BaseModel):
 # -- pieces ---------------------------------------------------------------------------------
 
 
-class HeadingOut(_Wire):
+class HeadingOut(Wire):
     """One heading in a document's derived heading list (D18).
 
     ``ordinal`` is the heading's index among all headings in its document, counting from zero.
@@ -96,7 +105,7 @@ class HeadingOut(_Wire):
         return cls(level=heading.level, text=heading.text, ordinal=heading.ordinal)
 
 
-class SuggestionOut(_Wire):
+class SuggestionOut(Wire):
     """Where a ``stale`` anchor's passage may have gone (``specs/anchors.md`` section 6).
 
     Data on a finding, never an action. Nothing on the server applies one; the writer accepts it
@@ -113,7 +122,7 @@ class SuggestionOut(_Wire):
         return cls(from_pos=suggestion.from_pos, to_pos=suggestion.to_pos, text=suggestion.text)
 
 
-class SkippedFileOut(_Wire):
+class SkippedFileOut(Wire):
     """A file in the projects directory that is not a usable project.
 
     Reported rather than swallowed, so the picker can say what it found without the list
@@ -133,7 +142,7 @@ class SkippedFileOut(_Wire):
 # -- documents ------------------------------------------------------------------------------
 
 
-class DocumentMetaOut(_Wire):
+class DocumentMetaOut(Wire):
     """A document without its content.
 
     The list routes return these deliberately: the outline panel must never pull the whole
@@ -174,13 +183,13 @@ class DocumentMetaOut(_Wire):
         )
 
 
-class DocumentListOut(_Wire):
+class DocumentListOut(Wire):
     """``GET /api/projects/{pid}/documents``."""
 
     documents: list[DocumentMetaOut]
 
 
-class DocumentOut(_Wire):
+class DocumentOut(Wire):
     """``GET /api/documents/{did}``: the metadata plus the content the list left out.
 
     ``text_plain`` is deliberately **not** here. It is derived from ``content_json`` by rules the
@@ -219,7 +228,7 @@ class DocumentOut(_Wire):
         )
 
 
-class DocumentCreateIn(_Wire):
+class DocumentCreateIn(Wire):
     """``POST /api/projects/{pid}/documents``. Omitting the title takes ``Chapter N``."""
 
     title: str | None = Field(default=None, max_length=MAX_TITLE_LENGTH)
@@ -230,7 +239,7 @@ class DocumentCreateIn(_Wire):
         return None if value is None else clean_title(value)
 
 
-class DocumentRenameIn(_Wire):
+class DocumentRenameIn(Wire):
     """``PATCH /api/documents/{did}``."""
 
     title: str = Field(min_length=1, max_length=MAX_TITLE_LENGTH)
@@ -241,7 +250,7 @@ class DocumentRenameIn(_Wire):
         return clean_title(value)
 
 
-class DocumentReorderIn(_Wire):
+class DocumentReorderIn(Wire):
     """``PUT /api/projects/{pid}/documents/order`` (P2-2, P2-11).
 
     The **complete** ordered list of the project's live chapters. Presenting a partial list is
@@ -253,7 +262,7 @@ class DocumentReorderIn(_Wire):
     document_ids: list[str] = Field(min_length=1)
 
 
-class DocumentSaveIn(_Wire):
+class DocumentSaveIn(Wire):
     """``PUT /api/documents/{did}/content`` (P1-6, D19).
 
     ``version`` is the version the client believes it is editing. If it is not the stored one,
@@ -264,7 +273,7 @@ class DocumentSaveIn(_Wire):
     version: int = Field(ge=1)
 
 
-class SaveResultOut(_Wire):
+class SaveResultOut(Wire):
     """What a successful save returns: the new version and the server's projection (D18).
 
     ``anchors`` carries every anchor this write **moved** - a changed status, a changed position,
@@ -295,7 +304,7 @@ class SaveResultOut(_Wire):
 # -- anchors --------------------------------------------------------------------------------
 
 
-class AnchorOut(_Wire):
+class AnchorOut(Wire):
     """One anchor as a reader sees it (P2-7).
 
     ``status`` is the **effective** status: ``ok`` and ``stale`` are the resolver's answer about
@@ -344,7 +353,7 @@ class AnchorOut(_Wire):
         )
 
 
-class AnchorListOut(_Wire):
+class AnchorListOut(Wire):
     """``GET /api/documents/{did}/anchors`` and ``GET /api/projects/{pid}/anchors``."""
 
     anchors: list[AnchorOut]
@@ -357,7 +366,7 @@ class AnchorListOut(_Wire):
 AnchorStatusFilter = Literal["ok", "stale", "orphaned"]
 
 
-class AnchorCreateIn(_Wire):
+class AnchorCreateIn(Wire):
     """``POST /api/documents/{did}/anchors``.
 
     A range and a version, and nothing else. The server derives ``quote``, ``prefix``, and
@@ -377,7 +386,7 @@ class AnchorCreateIn(_Wire):
         return clean_label(value)
 
 
-class AnchorPatchIn(_Wire):
+class AnchorPatchIn(Wire):
     """``PATCH /api/anchors/{aid}``: re-link to a new range, or change the label, or both.
 
     A re-link carries all three of ``from_pos``, ``to_pos``, and ``version`` or none of them.
@@ -412,7 +421,7 @@ class AnchorPatchIn(_Wire):
 # -- snapshots ------------------------------------------------------------------------------
 
 
-class SnapshotMetaOut(_Wire):
+class SnapshotMetaOut(Wire):
     """One entry in a chapter's history: when, why, and how big (P2-3, D23).
 
     Content is deliberately absent, for the reason ``DocumentMetaOut`` exists: drawing a
@@ -446,7 +455,7 @@ class SnapshotMetaOut(_Wire):
         )
 
 
-class SnapshotListOut(_Wire):
+class SnapshotListOut(Wire):
     """``GET /api/documents/{did}/snapshots``: newest first.
 
     Not filtered by ``deleted_at`` - the history of a deleted chapter is exactly what someone
@@ -456,7 +465,7 @@ class SnapshotListOut(_Wire):
     snapshots: list[SnapshotMetaOut]
 
 
-class SnapshotOut(_Wire):
+class SnapshotOut(Wire):
     """``GET /api/snapshots/{sid}``: one snapshot's metadata and the content it holds."""
 
     id: str
@@ -495,7 +504,7 @@ class SnapshotOut(_Wire):
 SnapshotReasonIn = Literal["handover", "manual"]
 
 
-class SnapshotCaptureIn(_Wire):
+class SnapshotCaptureIn(Wire):
     """``POST /api/documents/{did}/snapshots``: mark this version, or hand the chapter over."""
 
     reason: SnapshotReasonIn = "handover"
@@ -507,7 +516,7 @@ class SnapshotCaptureIn(_Wire):
         return clean_snapshot_label(value)
 
 
-class SnapshotCaptureOut(_Wire):
+class SnapshotCaptureOut(Wire):
     """What a capture answers, including "nothing was written, and that is correct".
 
     An automatic snapshot whose content the newest one already holds is deduplicated (D23), so
@@ -520,7 +529,7 @@ class SnapshotCaptureOut(_Wire):
     snapshot: SnapshotMetaOut | None = None
 
 
-class SnapshotRestoreIn(_Wire):
+class SnapshotRestoreIn(Wire):
     """``POST /api/snapshots/{sid}/restore``.
 
     ``version`` is the document version the client believes it is at, and a restore is an
@@ -534,7 +543,7 @@ class SnapshotRestoreIn(_Wire):
 # -- projects -------------------------------------------------------------------------------
 
 
-class ProjectSummaryOut(_Wire):
+class ProjectSummaryOut(Wire):
     """A project as the picker and the project list see it (P1-12)."""
 
     id: str
@@ -569,14 +578,14 @@ class ProjectSummaryOut(_Wire):
         )
 
 
-class ProjectListOut(_Wire):
+class ProjectListOut(Wire):
     """``GET /api/projects``: what was readable, and what was not."""
 
     projects: list[ProjectSummaryOut]
     skipped: list[SkippedFileOut]
 
 
-class ProjectCreateIn(_Wire):
+class ProjectCreateIn(Wire):
     """``POST /api/projects``."""
 
     title: str = Field(min_length=1, max_length=MAX_TITLE_LENGTH)
@@ -587,7 +596,7 @@ class ProjectCreateIn(_Wire):
         return clean_title(value, what="project title")
 
 
-class ProjectDetailOut(_Wire):
+class ProjectDetailOut(Wire):
     """``GET /api/projects/{pid}``: one project with its document list."""
 
     project: ProjectSummaryOut
@@ -597,7 +606,7 @@ class ProjectDetailOut(_Wire):
 # -- outline --------------------------------------------------------------------------------
 
 
-class OutlineChapterOut(_Wire):
+class OutlineChapterOut(Wire):
     """One chapter in the stitched table of contents."""
 
     document_id: str
@@ -617,7 +626,7 @@ class OutlineChapterOut(_Wire):
         )
 
 
-class OutlineOut(_Wire):
+class OutlineOut(Wire):
     """``GET /api/projects/{pid}/outline``: the TOC across the whole manuscript (D2, D18)."""
 
     project_id: str
@@ -630,7 +639,7 @@ class OutlineOut(_Wire):
 ImportModeIn = Literal["one-chapter", "split-on-h1"]
 
 
-class MarkdownImportIn(_Wire):
+class MarkdownImportIn(Wire):
     """``POST /api/projects/{pid}/import``.
 
     ``one-chapter`` makes the whole file one chapter, keeping a leading heading in the text -
@@ -653,7 +662,7 @@ class MarkdownImportIn(_Wire):
         return None if value is None else clean_title(value)
 
 
-class ImportNoticeOut(_Wire):
+class ImportNoticeOut(Wire):
     """One thing the closed schema could not hold, and what became of it.
 
     Never an error. Where the construct carried words, the words are in the chapter and only the
@@ -670,7 +679,7 @@ class ImportNoticeOut(_Wire):
         return cls(element=notice.element, line=notice.line, detail=notice.detail)
 
 
-class MarkdownImportOut(_Wire):
+class MarkdownImportOut(Wire):
     """What an import created, and what it could not keep.
 
     The chapters come back as metadata rather than as whole documents: an import of a long file

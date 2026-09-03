@@ -22,32 +22,9 @@ from archetype.bible.entries import (
     EntryStore,
     StaleEntryVersionError,
 )
-from archetype.bible.schema import (
-    ENTRY_KINDS,
-    EntryKind,
-    FieldDefinition,
-    FieldType,
-    InvalidAttributesError,
-)
+from archetype.bible.schema import ENTRY_KINDS, EntryKind, InvalidAttributesError
 
-
-def sample_value(field: FieldDefinition):
-    """A legal value for any field type, so a test can satisfy a required field generically.
-
-    Written over :class:`FieldType` rather than over the field names, so that a kind gaining a
-    required field does not need this file edited - which is the D26 property under test.
-    """
-    match field.type:
-        case FieldType.TEXT | FieldType.LONG_TEXT:
-            return "something a person typed"
-        case FieldType.LIST_OF_TEXT:
-            return ["one", "two"]
-        case FieldType.ENUM:
-            return field.members[0]
-        case FieldType.STORY_TIME:
-            return {"label": "the third grey morning"}
-    raise AssertionError(f"no sample value for field type {field.type!r}; add one")
-
+from .conftest import sample_value
 
 # -- the uniform record ------------------------------------------------------------------------
 

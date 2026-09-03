@@ -41,11 +41,14 @@ from ..ids import IdPrefix, is_id
 __all__ = [
     "BIBLE_SCHEMA",
     "ENTRY_KINDS",
+    "KIND_NAMES",
     "MAX_ATTRIBUTES_BYTES",
     "MAX_FIELD_TEXT_CHARS",
     "MAX_LIST_ITEMS",
     "MAX_STORY_TIME_CHARS",
+    "PRECEDES",
     "RELATIONS",
+    "RELATION_NAMES",
     "EntryKind",
     "FieldDefinition",
     "FieldType",
@@ -138,19 +141,22 @@ class FieldDefinition:
     kinds: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
-        data: dict[str, Any] = {
+        """Every key, every time - including the two that only one field type uses (P3-11).
+
+        A ``text`` field carries ``members: []`` and ``kinds: []`` it will never fill. That is
+        deliberate: the client renders one generic form over this, and a shape whose keys depend
+        on the value of another key is one every consumer has to branch on - including the
+        contract test, which compares key sets exactly.
+        """
+        return {
             "name": self.name,
             "type": self.type,
             "label": self.label,
             "required": self.required,
+            "help": self.help,
+            "members": list(self.members),
+            "kinds": list(self.kinds),
         }
-        if self.help:
-            data["help"] = self.help
-        if self.type == FieldType.ENUM:
-            data["members"] = list(self.members)
-        if self.type == FieldType.ENTRY_REF:
-            data["kinds"] = list(self.kinds)
-        return data
 
 
 @dataclass(frozen=True, slots=True)

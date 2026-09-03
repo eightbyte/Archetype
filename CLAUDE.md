@@ -18,9 +18,10 @@ Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository 
 `WritingAssistant` — a path, not the product name.
 
 **Current state: Phase 1 complete (2026-08-30); Phase 2 complete (2026-09-01); Phase 3 in
-progress — its § 2 ruled on 2026-09-01, and Groups A (`P3-1` … `P3-4`) and B (`P3-6` … `P3-8`)
-delivered on 2026-09-02, both suites green.** All twenty-nine decisions are resolved and binding: the writer ruled D21–D24
-on 2026-08-30 and **D25–D29 on 2026-09-01**, each as recommended and including both reversals,
+progress — its § 2 ruled on 2026-09-01, and Groups A (`P3-1` … `P3-4`), B (`P3-6` … `P3-8`), and
+C (`P3-9` … `P3-11`) delivered on 2026-09-02, both suites green.** All twenty-nine decisions are
+resolved and binding: the writer ruled D21–D24 on 2026-08-30 and **D25–D29 on 2026-09-01**, each
+as recommended and including both reversals,
 which settles backlog `Q1`, `Q2`, `Q5`, and `Q7`. Three open questions remain, none due before
 Phase 6.
 
@@ -72,6 +73,15 @@ one place and validated against; and **`EntryStore`**, carrying CRUD for all sev
 `LIKE` filter, the D25 soft delete, complete revision history from creation, and D27's retcon
 flagging with its review queue.
 
+New in Group C — the API, and the first Phase 3 code the client can reach: **`api/bible_routes.py`
+and `api/bible_schemas.py`**, twenty-three routes under the existing `/api` prefix, carrying the
+entry with its history and review queue, links, citations, *Add to bible* from a selection,
+story-time, and **`GET /api/bible/schema`** — the one route in the API with no project scope,
+because D26's vocabulary is the product's and not a manuscript's; **`bible/timeline.py`**, the two
+reads and one pure call behind the story-time route; the locator extended to `entry` and
+`entry_link`; six new error codes in the envelope; and **eighteen new contract fixtures** the
+frontend type-checks against `web/src/api/types.ts`.
+
 New in Group B: **`LinkStore`** — the twelve relations enforced in both directions, symmetric ones
 stored once and read from both ends, bounds that are stored and never interpreted, and the
 three-way live predicate over every read; **`CitationStore`** — citing an anchor in one of four
@@ -81,9 +91,10 @@ which mints an anchor, creates an entry, and cites it in **one transaction**; an
 **`storytime.py`** — D28's partial order as a pure module with a twenty-case corpus, returning the
 order, the unplaced, and the two kinds of contradiction, and nothing else.
 
-Still to come: the routes (Group C); the Bible tab, the generic form, links, citations, and *Add to
-bible* (Group D). Nothing in Groups C and D exists yet, `P3-5` still owes its contract fixture and
-the client half of its closed list, and § 8's fifteen-step acceptance run has not been attempted.
+Still to come: the Bible tab, the generic form, links, citations, and *Add to bible* (Group D).
+**Nothing in Group D exists yet** — there is still no bible the writer can *see*, and the typed
+client has no bible methods; `P3-5` owes only the renderer half of its closed list, its contract
+fixture having landed with Group C; and § 8's fifteen-step acceptance run has not been attempted.
 
 **Four rulings worth knowing, each a product decision rather than an implementation detail:**
 
@@ -145,7 +156,8 @@ corpus was blind to because no test manuscript had a heading where this writer p
   uniform record with per-kind fields as data served by the API, D27 what a revision is and what a
   retcon flags, D28 story-time as a partial order, D29 H1 stays in chapter bodies (settling `Q7`).
   Its § 3 is the record's shape, § 5 ten exit criteria, § 6 the risks, § 7 the deviations table —
-  `A1`–`A4` from Group A, all sequencing rather than behaviour — and § 8 the fifteen-step
+  `A1`–`A4`, `B1`–`B7`, and `C1`–`C7`, of which `B2` is the only one that changes behaviour
+  outside the bible and `C3`, `C4`, and `C7` are D26 taken literally — and § 8 the fifteen-step
   acceptance run, not yet run.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
   phase it must be settled by. `Q1`, `Q2`, `Q5`, and `Q7` are promoted and closed; `Q3`, `Q4`, and
@@ -155,11 +167,13 @@ corpus was blind to because no test manuscript had a heading where this writer p
   file, the four tables, the projection rules, the soft-delete predicate, and the migration
   discipline. Its § 7 sketches later phases and is **not** binding; the rest is a bug if it
   disagrees with the code.
-- [specs/api-contract.md](specs/api-contract.md) — every route that exists, what it promises, and
-  what it refuses: § 5's chapter operations, § 7's five anchor routes and the extended save
-  response, § 8's four snapshot routes, and § 9's two Markdown exports and one import — including
-  the **one non-JSON response in the API** and why it is one. The generated OpenAPI schema is
-  authoritative for types; this is authoritative for behaviour.
+- [specs/api-contract.md](specs/api-contract.md) — what each route promises and what it refuses:
+  § 5's chapter operations, § 7's five anchor routes and the extended save response, § 8's four
+  snapshot routes, and § 9's two Markdown exports and one import — including the **one non-JSON
+  response in the API** and why it is one. The generated OpenAPI schema is authoritative for types;
+  this is authoritative for behaviour. **Phase 3's twenty-three bible routes exist but are not
+  written up here yet** — that is `P3-15`'s pass, so until then the router modules and
+  `specs/bible.md` are what describe them.
 - [specs/anchors.md](specs/anchors.md) — what an anchor stores, the two coordinate systems and
   the block index, the matching ladder with its exact thresholds, the whitespace normal form, the
   suggestion protocol, and **what an anchor does not promise**. Written in `P2-4` before the code
@@ -319,7 +333,10 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/bible/links.py` | `LinkStore` — the relation vocabulary enforced in both directions, symmetry, bounds, and the three-way predicate on every read (`P3-6`) |
 | `server/archetype/bible/citations.py` | `CitationStore` — the four roles, an anchor's live status on an entry, narrative position, and *Add to bible*'s one transaction (`P3-7`) |
 | `server/archetype/bible/storytime.py` | D28's partial order — **pure**: the order, the unplaced, and the two contradiction kinds, plus the era ranking (`P3-8`) |
-| `server/archetype/api/routes.py` | The `/api` router (`P1-5`), including Group C's chapter and snapshot routes (`P2-11`, `P2-12`) and Group D's Markdown routes (`P2-13`, `P2-14`) |
+| `server/archetype/bible/timeline.py` | The database half of story-time: two reads and one call into the pure module (`P3-10`) |
+| `server/archetype/api/routes.py` | The manuscript half of the `/api` router (`P1-5`), including Phase 2 Group C's chapter and snapshot routes (`P2-11`, `P2-12`) and Group D's Markdown routes (`P2-13`, `P2-14`) |
+| `server/archetype/api/bible_routes.py` | The bible half of the same router: entries, revisions, links, citations, *Add to bible*, story-time, and the served definition (`P3-9` … `P3-11`) |
+| `server/archetype/api/bible_schemas.py` | The bible's wire shapes, mirrored in `web/src/api/types.ts`; it restates neither closed vocabulary (`P3-9` … `P3-11`, D26) |
 | `server/archetype/api/logging.py` | Request logging: one line per request, with a request id (`P1-13`) |
 | `server/archetype/api/schemas.py` | Wire shapes, mirrored in `web/src/api/types.ts` |
 | `server/archetype/api/static.py` | The single-process static mount and the `web_not_built` notice (`P1-14`) |
@@ -372,9 +389,51 @@ suite keeps a developer's real config out of its way.
 | `server/tests/test_links.py` | Every refusal writing nothing, symmetry from both ends, and a deleted entry absent from every link read path together (`P3-6`) |
 | `server/tests/test_citations.py` | The one transaction, the two deletions that do not reach each other, and narrative position following a reorder (`P3-7`) |
 | `server/tests/test_storytime.py` | The corpus, and the invariant asserted once over all of it (`P3-8`) |
+| `server/tests/test_entry_routes.py` | Every entry route over the real application: the filters, the `409`, the retcon, and the queue that empties (`P3-9`) |
+| `server/tests/test_link_routes.py` | The link routes, and the story-time route held to the pure module's answer (`P3-10`) |
+| `server/tests/test_citation_routes.py` | *Add to bible* end to end, and the status a citation reports as the passage moves (`P3-10`) |
+| `server/tests/test_bible_routes.py` | The served definition, and that a field added to a kind reaches the wire with no other change (`P3-11`) |
 
 **Invariants established in Phase 1's Groups A, B, and C, in Phase 2's Groups A, B, C, and D, and
-in Phase 3's Groups A and B**, beyond those already listed above.
+in Phase 3's Groups A, B, and C**, beyond those already listed above.
+
+Phase 3's Group C added these:
+
+- **The wire does not restate a closed vocabulary the API already serves.** `kind` and `relation`
+  cross as plain strings and are refused by `bible/schema.py` with a `422` naming the field. A
+  `Literal` of the seven kinds in `bible_schemas.py` would be the second copy D26 exists to prevent
+  — and the copy that drifts, because the client fetches the other one. The rule has an exact
+  boundary: a vocabulary a **module constant** owns *is* restated on the wire and held to it by a
+  test (`EntryStatusFilter`, `CitationRoleIn`), exactly as `AnchorStatusFilter` is; one the
+  **served definition** owns never is.
+- **A status with no writer gets no route that writes it.** `proposed`, `rejected`, `superseded`,
+  and `agent` are absent from every request model, not merely defaulted away — the rule the `pre-*`
+  snapshot reasons already follow. They stay readable as filters, because a filter that cannot ask
+  for a value the column can hold is one that needs changing the moment a writer exists.
+- **An absent field and a field sent as empty are different requests.** `EntryUpdateIn.changes()`
+  reads pydantic's `model_fields_set`, so a `PUT` that does not mention `summary` keeps it and one
+  that sends `attributes: {}` clears them. A link's bounds go one step further: `since: null`
+  clears it and is passed through, because a bound is genuinely nullable and an entry's content
+  fields are not.
+- **A cap is reported, and the report is exact.** The entry list asks the store for
+  `SEARCH_LIMIT + 1` and trims, so `truncated` is true only when a row was actually withheld — a
+  project with exactly two hundred matches does not send the writer looking for a row that is
+  already on screen.
+- **Composition that is not HTTP does not live in a route.** The story-time route is
+  `StoryTimeOut.of(project_timeline(handle))`; the two reads and the pure call are
+  `bible/timeline.py`, so Phase 6's agent and Phase 8's timeline get the same answer without a
+  request. The pure module stays pure, and `Ordering` is passed through unwidened.
+- **A served shape's key set never depends on the value of another key.** `FieldDefinition.as_dict`
+  emits `help`, `members`, and `kinds` always, empty where the type does not use them, because one
+  generic renderer over a shape with conditional keys is a renderer full of branches — and the
+  contract test compares key sets exactly.
+- **An entry's `409` has its own code.** `entry_version_conflict`, not `version_conflict`: the two
+  surfaces recover differently — the editor offers to reload a chapter, the entry form offers to
+  reload a record — and one code for both would make that a branch on which request was in flight.
+- **A bare id is one more prefix over one mechanism.** `entry` and `entry_link` joined `document`,
+  `anchor`, and `snapshot` in the locator's closed `_ADDRESSABLE` set. The bible's errors reach it
+  through a **deferred import**, for `B2`'s reason: bible → manuscript is the static edge, and the
+  incidental direction gives way.
 
 Phase 3's Group B added these:
 

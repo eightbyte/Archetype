@@ -61,6 +61,8 @@ __all__ = [
     "UNSET",
     "Unset",
     "WriteResult",
+    "checked_body",
+    "clean_text",
 ]
 
 # -- constants (specs/bible.md section 5) -------------------------------------------------------
@@ -469,7 +471,7 @@ class EntryStore:
         definition_for(kind)
         resolved_name = clean_text(name, limit=MAX_NAME_CHARS, what="name", allow_empty=False)
         resolved_summary = clean_text(summary, limit=MAX_SUMMARY_CHARS, what="summary")
-        resolved_body = _checked_body(body_md)
+        resolved_body = checked_body(body_md)
         resolved_reason = clean_text(reason, limit=MAX_REASON_CHARS, what="reason")
         _check_vocabulary(status, origin)
 
@@ -763,7 +765,7 @@ class EntryStore:
             if isinstance(summary, Unset)
             else clean_text(summary, limit=MAX_SUMMARY_CHARS, what="summary")
         )
-        resolved_body = current.body_md if isinstance(body_md, Unset) else _checked_body(body_md)
+        resolved_body = current.body_md if isinstance(body_md, Unset) else checked_body(body_md)
         resolved_status = current.status if isinstance(status, Unset) else status
         if resolved_status not in EntryStatus.ALL:
             raise ValueError(
@@ -874,11 +876,14 @@ class EntryStore:
         return kind_of
 
 
-def _checked_body(body_md: str) -> str:
+def checked_body(body_md: str) -> str:
     """``body_md`` bounded by bytes rather than characters, as ``content_json`` is.
 
     Markdown as text, not as a schema: nothing parses it, and an entry is a note rather than a
     manuscript.
+
+    Public for the reason :func:`clean_text` is: the wire model applies the same rule so that an
+    oversized body is a ``422`` rather than a ``500``, and the rule is written once.
     """
     if not isinstance(body_md, str):
         raise ValueError(f"body_md must be a string, got {type(body_md).__name__}")
