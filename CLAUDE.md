@@ -17,21 +17,33 @@ relational data plus keyword and vector indexes. Single user, localhost, Windows
 Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository directory is
 `WritingAssistant` — a path, not the product name.
 
-**Current state: Phase 1 complete (2026-08-30); Phase 2 complete (2026-09-01); Phase 3 in
-progress — its § 2 ruled on 2026-09-01, and Groups A (`P3-1` … `P3-4`), B (`P3-6` … `P3-8`), and
-C (`P3-9` … `P3-11`) delivered on 2026-09-02, both suites green.** All twenty-nine decisions are
-resolved and binding: the writer ruled D21–D24 on 2026-08-30 and **D25–D29 on 2026-09-01**, each
-as recommended and including both reversals,
-which settles backlog `Q1`, `Q2`, `Q5`, and `Q7`. Three open questions remain, none due before
-Phase 6.
+**Current state: Phase 1 complete (2026-08-30); Phase 2 complete (2026-09-01); Phase 3 built
+(2026-09-03) and awaiting its acceptance run.** Its § 2 was ruled on 2026-09-01 and all fifteen
+items (`P3-1` … `P3-15`) are delivered across four groups, both suites green — **1,147 backend,
+524 frontend**. All twenty-nine decisions are resolved and binding: the writer ruled D21–D24 on
+2026-08-30 and **D25–D29 on 2026-09-01**, each as recommended and including both reversals, which
+settles backlog `Q1`, `Q2`, `Q5`, and `Q7`. Three open questions remain, none due before Phase 6.
 
-The app is a place you can write, a place you can **maintain** what you wrote, and now a place
-you can get words **in and out of**: create a project, add chapters, reorder them by drag or by
-keyboard, rename them in place, delete one recoverably and restore it; mark a passage and watch
-the highlight follow it as you type around it; find every mark in the *Marks* tab, see which have
-gone stale, and repair one by hand; mark a version of a chapter, read it beside what is there now,
-and restore it; export a chapter or the whole manuscript to Markdown, and import a Markdown file
-back as chapters — with a list of anything it could not keep.
+**The one thing left in Phase 3 is [specs/phase-3-plan.md](specs/phase-3-plan.md) § 8** — the
+fifteen-step manual acceptance run, by hand, against the single-process build. It is not a
+formality: Phase 2's equivalent found `D15`, a real bug in a case its whole corpus was blind to,
+and this one covers the two things no test reaches — the pointer gestures jsdom cannot make, and
+whether a hand-built bible is actually usable, which is the exit criterion in the outline's own
+words.
+
+The app is a place you can write, a place you can **maintain** what you wrote, a place you can get
+words **in and out of**, and now a place that **knows what is in the story**: create a project, add
+chapters, reorder them by drag or by keyboard, rename them in place, delete one recoverably and
+restore it; mark a passage and watch the highlight follow it as you type around it; find every mark
+in the *Marks* tab, see which have gone stale, and repair one by hand; mark a version of a chapter,
+read it beside what is there now, and restore it; export a chapter or the whole manuscript to
+Markdown, and import a Markdown file back as chapters — with a list of anything it could not keep.
+And now: select a passage and **add it to the bible** as a character, a place, or any of the other
+five kinds; fill in that kind's own fields on one generic form; join two entries with a relation
+the vocabulary allows and no other; see which passages produced an entry and whether they have
+since been rewritten; change something established and watch every entry that depended on it land
+in a **review queue** that empties as you work through it; read any past version of an entry and
+restore it; and delete one recoverably, links and all.
 
 What exists on the server: configuration and the secret guard, the project file schema at
 **version 2** with its migration runner, the ID generator, the project store, the whole Phase 1
@@ -44,14 +56,13 @@ five routes, and re-resolution inside every save's transaction**; Group C's **ni
 snapshot routes**; and — new in Group D — the **Markdown serializer and parser, their round-trip
 corpus, and the two export routes and one import route** over them.
 
-On the client: the three-region workspace with resizable keyboard-accessible dividers, the three
+On the client: the three-region workspace with resizable keyboard-accessible dividers, the **four**
 contexts and their pure reducers, the TipTap editor over a closed schema with autosave, the live
-table of contents with jump-to-heading, the project picker, error boundaries per region; Group C's
+table of contents with jump-to-heading, the project picker, error boundaries per region; Phase 2's
 **anchor decorations mapped live through every transaction, the selection control that marks and
 re-links a passage, the fifth outline tab (*Marks*) with its filters and repair flow, chapter
-management in the Contents tab, and the per-chapter history panel**; and — new in Group D —
-**Markdown export links per chapter and for the manuscript, and an import form that takes a pasted
-or dropped file, offers the two modes, and shows what the import left behind**.
+management in the Contents tab, the per-chapter history panel, Markdown export links, and the
+import form**; and — new in Phase 3's Group D — **the Bible tab and everything behind it**.
 
 Every Phase 1 exit criterion is met, including the acceptance script run by hand against the
 single-process build; the results are in [specs/phase-1-plan.md](specs/phase-1-plan.md) § 6.
@@ -63,15 +74,13 @@ Step 13 found a bug no test could have: a manuscript with an H1 inside a chapter
 and re-imported, came back as three chapters instead of two (`D15`, fixed and the step re-run the
 same day). Step 15 reached the failed save Phase 1 could not, closing that Phase 1 gap.
 
-**In flight: Phase 3 — the story bible.** There is still no AI and no search, and **no bible the
-writer can *see*** — Groups A and B are the model and the structure over it, and every surface is
-Groups C and D. What exists on the server as of Group A: `specs/bible.md` (written before the code,
-as `anchors.md` was); **migration 003** and its four tables (`entry`, `entry_revision`,
-`entry_link`, `entry_anchor`), proved against a captured version-2 project file; the `lnk_` prefix;
-**the kind and relation definition** — seven kinds, six closed field types, twelve relations, in
-one place and validated against; and **`EntryStore`**, carrying CRUD for all seven kinds, the
-`LIKE` filter, the D25 soft delete, complete revision history from creation, and D27's retcon
-flagging with its review queue.
+**Phase 3 — the story bible — is built.** There is still no AI and no search. What exists on the
+server, from Group A: `specs/bible.md` (written before the code, as `anchors.md` was); **migration
+003** and its four tables (`entry`, `entry_revision`, `entry_link`, `entry_anchor`), proved against
+a captured version-2 project file; the `lnk_` prefix; **the kind and relation definition** — seven
+kinds, six closed field types, twelve relations, in one place and validated against; and
+**`EntryStore`**, carrying CRUD for all seven kinds, the `LIKE` filter, the D25 soft delete,
+complete revision history from creation, and D27's retcon flagging with its review queue.
 
 New in Group C — the API, and the first Phase 3 code the client can reach: **`api/bible_routes.py`
 and `api/bible_schemas.py`**, twenty-three routes under the existing `/api` prefix, carrying the
@@ -91,10 +100,20 @@ which mints an anchor, creates an entry, and cites it in **one transaction**; an
 **`storytime.py`** — D28's partial order as a pure module with a twenty-case corpus, returning the
 order, the unplaced, and the two kinds of contradiction, and nothing else.
 
-Still to come: the Bible tab, the generic form, links, citations, and *Add to bible* (Group D).
-**Nothing in Group D exists yet** — there is still no bible the writer can *see*, and the typed
-client has no bible methods; `P3-5` owes only the renderer half of its closed list, its contract
-fixture having landed with Group C; and § 8's fifteen-step acceptance run has not been attempted.
+New in Group D — **the bible the writer can see**. The typed client gained twenty-three bible
+methods and the `409`/`422` readers that go with them; **`BibleContext` and `bibleReducer`** joined
+the three Phase 1 contexts, nested between the project and the document because an entry's lifetime
+is the project's; **`bibleSchema.ts`** is the one place the served definition is interpreted — kind
+labels, an entry_ref's candidates, and the relation options for a pair of kinds, which is what
+makes an illegal link *unbuildable* rather than refused; the **Bible tab** carries four views
+(entries with their filters and live counts, the review queue, a story-time readout, and the
+deleted tray); **`EntryFields.tsx`** is one renderer per field type, six, closed, failing loudly at
+a seventh — which closes `P3-5`; **`EntryForm.tsx`** renders any kind from its definition and puts
+the retcon control on the save; and `EntryDetailView`, `EntryHistory`, `EntryLinksPanel`, and
+`EntryCitations` are the record, its past, its relationships, and the passages behind it. In the
+editor, *Add to bible* joined *Mark passage* and *Re-link here* over the selection.
+
+**§ 8's fifteen-step acceptance run has not been attempted.** That is the whole of what remains.
 
 **Four rulings worth knowing, each a product decision rather than an implementation detail:**
 
@@ -127,12 +146,13 @@ One thing the Phase 1 run surfaced, still true: **some of the app's surfaces are
 to reach from a test.** Phase 1 could not make a save fail where the writer could see it — the
 retry loop absorbed the outage — but § 8's step 15 reached it on 2026-09-01, so that one is
 **closed**. Two remain, both pointer gestures jsdom cannot make: there is no native editing, so a
-text selection cannot be made through the DOM and the mark and re-link gestures are covered in two
-halves that meet at a typed boundary (deviation `C7`); and a file *drop* is a gesture too, so the
+text selection cannot be made through the DOM, and the mark, re-link, **and now *Add to bible***
+gestures are each covered in two halves that meet at a typed boundary (phase-2 deviation `C7`, and
+`web/src/__tests__/entryLinks.test.tsx`'s docstring); and a file *drop* is a gesture too, so the
 import is tested by pasting rather than dropping. The backoff ladder, the `409` reload prompt, the
 selection control, and the drop target are exercised only by the frontend suite; a regression in
-them will not show up by using the app, so those tests and the § 8 run are the only things standing
-under them.
+them will not show up by using the app, so those tests and the § 8 runs are the only things
+standing under them.
 
 **And § 8 is not a formality.** Step 13 found `D15` — a real bug, in a case the whole Markdown
 corpus was blind to because no test manuscript had a heading where this writer puts one.
@@ -156,24 +176,23 @@ corpus was blind to because no test manuscript had a heading where this writer p
   uniform record with per-kind fields as data served by the API, D27 what a revision is and what a
   retcon flags, D28 story-time as a partial order, D29 H1 stays in chapter bodies (settling `Q7`).
   Its § 3 is the record's shape, § 5 ten exit criteria, § 6 the risks, § 7 the deviations table —
-  `A1`–`A4`, `B1`–`B7`, and `C1`–`C7`, of which `B2` is the only one that changes behaviour
-  outside the bible and `C3`, `C4`, and `C7` are D26 taken literally — and § 8 the fifteen-step
-  acceptance run, not yet run.
+  `A1`–`A4`, `B1`–`B7`, `C1`–`C7`, and `D1`–`D8`, of which `B2` is the only one that changes
+  behaviour outside the bible, `C3`/`C4`/`C7` are D26 taken literally, and `D1`, `D3`, and `D5`
+  are the three worth reading — and **§ 8 the fifteen-step acceptance run, not yet run**.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
   phase it must be settled by. `Q1`, `Q2`, `Q5`, and `Q7` are promoted and closed; `Q3`, `Q4`, and
   `Q6` are open, none due before Phase 6. `Q2` and `Q7` were each settled **against** the leaning
   recorded there, and § 3 keeps the reasoning so a future reversal is a deliberate act.
-- [specs/data-model.md](specs/data-model.md) — storage as built at schema version 2: the project
-  file, the four tables, the projection rules, the soft-delete predicate, and the migration
-  discipline. Its § 7 sketches later phases and is **not** binding; the rest is a bug if it
-  disagrees with the code.
+- [specs/data-model.md](specs/data-model.md) — storage as built at schema version 3: the project
+  file, the **nine** tables, the projection rules, the write rules, all three soft-delete
+  predicates, and the migration discipline. Its § 7 sketches Phases 5 and 6 and is **not** binding;
+  the rest is a bug if it disagrees with the code.
 - [specs/api-contract.md](specs/api-contract.md) — what each route promises and what it refuses:
   § 5's chapter operations, § 7's five anchor routes and the extended save response, § 8's four
-  snapshot routes, and § 9's two Markdown exports and one import — including the **one non-JSON
-  response in the API** and why it is one. The generated OpenAPI schema is authoritative for types;
-  this is authoritative for behaviour. **Phase 3's twenty-three bible routes exist but are not
-  written up here yet** — that is `P3-15`'s pass, so until then the router modules and
-  `specs/bible.md` are what describe them.
+  snapshot routes, § 9's two Markdown exports and one import — including the **one non-JSON
+  response in the API** and why it is one — and **§ 10's twenty-three bible routes**, the served
+  definition among them. The generated OpenAPI schema is authoritative for types; this is
+  authoritative for behaviour.
 - [specs/anchors.md](specs/anchors.md) — what an anchor stores, the two coordinate systems and
   the block index, the matching ladder with its exact thresholds, the whitespace normal form, the
   suggestion protocol, and **what an anchor does not promise**. Written in `P2-4` before the code
@@ -351,15 +370,26 @@ suite keeps a developer's real config out of its way.
 | `server/tests/fixtures/contract/` | API responses written by pytest, type-checked by vitest (`P1-8`) |
 | `server/tests/fakes/` | `FakeProvider` and `FakeEmbedder` land here in Phases 4 and 5 |
 | `web/src/api/` | The typed client, its interface, and the mirrored wire types |
-| `web/src/state/` | The three contexts and their pure reducers, plus toasts and `localStorage` (`P1-9`, D10) |
+| `web/src/state/` | The **four** contexts and their pure reducers, plus toasts and `localStorage` (`P1-9`, `P3-12`, D10) |
 | `web/src/state/projectReducer.ts` | The project's chapters, outline, deleted list, **and every anchor in it** (`P2-10`) |
+| `web/src/state/bibleReducer.ts` | The served definition, the browse list with its filters and counts, the review queue, and the deleted tray — three lists, and why they are three (`P3-12`) |
+| `web/src/state/BibleContext.tsx` | The reads and writes over them: the debounced filter, the refresh after every write, and the detail reads it deliberately does **not** hold (`P3-12`) |
+| `web/src/bibleSchema.ts` | The one place the served definition is *read*: kind labels, an `entry_ref`'s candidates, the relation options for a pair of kinds, and the closed field-type guard (`P3-12` … `P3-14`, D26) |
 | `web/src/shell/` | The workspace frame, the split dividers, the editor region, error boundaries, toasts |
 | `web/src/panels/` | The outline panel and its five tabs, the contents, the *Marks* tab, the history, the picker |
 | `web/src/panels/MarkdownTransfer.tsx` | Export links and the import form, with the report of what an import left behind (`P2-13`, `P2-14`) |
+| `web/src/panels/BibleTab.tsx` | The fifth tab: the browse list, the review queue, the story-time readout, the deleted tray, and making an entry by hand (`P3-12`) |
+| `web/src/panels/EntryFields.tsx` | **One renderer per field type — six, closed.** A seventh fails loudly rather than rendering nothing (`P3-5`, `P3-13`, D26) |
+| `web/src/panels/EntryForm.tsx` | One form for seven kinds, rendered from the definition, with the retcon control on the save (`P3-13`, D27) |
+| `web/src/panels/EntryDetailView.tsx` | One entry whole: the form, its citations, its links, its history, and the `409` that stops rather than merges (`P3-13`, `P3-14`) |
+| `web/src/panels/EntryHistory.tsx` | Revisions, the preview, and restore-through-the-update-path (`P3-13`, D27) |
+| `web/src/panels/EntryLinksPanel.tsx` | Both directions in one list, and the picker that makes an illegal link unbuildable (`P3-14`) |
+| `web/src/panels/EntryCitations.tsx` | The passages behind an entry, with each anchor's current status — and the route to *Marks* for a repair (`P3-14`) |
+| `web/src/panels/StoryTimeCheck.tsx` | D28's three answers, as three lists. **Not a timeline** — Phase 8 owns that (`P3-12`, deviation `D1`) |
 | `web/src/anchorText.ts` | The one place an anchor is put into words, for the panel, the control, and the decoration |
 | `web/src/editor/extensions.ts` | The closed TipTap schema — a change here is a spec change (`P1-10`, D1) |
 | `web/src/editor/anchors.ts` | The decoration plugin: mapping, collapse, clamping — display-only (`P2-9`, D21) |
-| `web/src/editor/SelectionActions.tsx` | The control over a selection: *Mark passage*, and *Re-link here* (`P2-9`, `P2-10`) |
+| `web/src/editor/SelectionActions.tsx` | The control over a selection: *Mark passage*, *Re-link here*, and *Add to bible* (`P2-9`, `P2-10`, `P3-14`) |
 | `web/src/editor/autosave.ts` | `SaveScheduler` — *when* a save happens, with no React in it (`P1-10`) |
 | `web/src/editor/projection.ts` | The client mirror of the projection, held to the server by shared fixtures |
 | `web/src/format.ts` | The display edge: the only place a UTC timestamp becomes words |
@@ -393,9 +423,73 @@ suite keeps a developer's real config out of its way.
 | `server/tests/test_link_routes.py` | The link routes, and the story-time route held to the pure module's answer (`P3-10`) |
 | `server/tests/test_citation_routes.py` | *Add to bible* end to end, and the status a citation reports as the passage moves (`P3-10`) |
 | `server/tests/test_bible_routes.py` | The served definition, and that a field added to a kind reaches the wire with no other change (`P3-11`) |
+| `web/src/__tests__/bibleReducer.test.ts` | The reducer, and the readers over the real served definition — including that a seventh field type fails (`P3-12`, `P3-13`) |
+| `web/src/__tests__/bible.test.tsx` | The tab: filters, live counts, the review queue that empties, the deleted tray, and the story-time readout (`P3-12`) |
+| `web/src/__tests__/entryForm.test.tsx` | Every field type round-tripping, the retcon default and its override, the `409`, and the history (`P3-13`) |
+| `web/src/__tests__/entryLinks.test.tsx` | Links both ways, the picker's refusals, citations and their status, and *Add to bible* below the gesture (`P3-14`) |
 
 **Invariants established in Phase 1's Groups A, B, and C, in Phase 2's Groups A, B, C, and D, and
-in Phase 3's Groups A, B, and C**, beyond those already listed above.
+in Phase 3's Groups A, B, C, and D**, beyond those already listed above.
+
+Phase 3's Group D added these:
+
+- **One form for seven kinds, and the difference is still data.** `EntryForm` is handed a
+  `KindDefinition` and renders it; nothing in it knows which kinds exist. The six field renderers
+  are a closed list and `assertFieldType` **throws** for a seventh — taking the Bible tab into its
+  own error boundary with a sentence saying the definition and the renderer have parted company.
+  Rendering nothing would be a form that silently drops a field somebody typed into, which is the
+  failure D26's closure exists to prevent.
+- **The Bible tab has its own error boundary, inside the outline panel's.** It is the largest
+  surface in the panel and the one with the most to go wrong in it; a bible that cannot draw must
+  not take the table of contents down with it, let alone the editor. That is the P1-12 rule one
+  level in.
+- **An illegal link is unbuildable, not refused.** The writer picks the *other entry* first and the
+  relation picker is then built from `relationOptions`, which reads the served vocabulary — so a
+  `place` that `knows` an `item` is never on offer. The server refuses it anyway, because that is
+  where the rule lives; a form that offers a choice and then rejects it has taught the writer
+  something untrue about their own bible. A symmetric relation yields exactly **one** option, never
+  two, because it is one row read from both ends.
+- **The retcon default is computed by the store and predicted by the client, and the prediction
+  never decides.** The box has to be right *before* the save, which is only possible on this side —
+  so `retconFields()` drives the checkbox and its sentence, and the form sends `retcon` **only when
+  the writer moves the box**. An ordinary save carries no override, the store's own answer stands,
+  and `changed_fields` is what the writer is then told. It is the one place Phase 3 states a rule
+  twice, it is marked as such in `specs/bible.md` § 12, and this clause is what keeps it honest.
+- **Every bible write refreshes the list.** A rename can move a row out of a `q` filter, a retcon
+  can put three entries into the queue, a delete removes one from a count. Deciding on the client
+  which of those happened means re-implementing the route's filters here, and the second
+  implementation is the one that drifts. One request after a write is cheaper than that, and it is
+  always right. Only the **search box** is debounced, because that is what "without a refetch per
+  keystroke" is about; a kind or a status is one deliberate click and goes out at once.
+- **The review queue is its own read, not a mode of the browse list.** It has to be right whatever
+  the writer is filtering by — a queue you can only see by clearing your filters is a queue nobody
+  works through, and a retcon's whole point is that the writer walks the consequences.
+- **`BibleContext` holds the lists and not the open entry.** Its citations, its links, and its
+  revisions belong to the one record being looked at and are re-read when it is opened; a second
+  copy of that entry beside the one in the list would exist only for the two to disagree. `openId`
+  is the whole of what the reducer knows about the detail view.
+- **An entry's `409` stops the form and keeps the typing.** It never merges (D19). The writer is
+  offered the server's copy and nothing else, and taking it is their act — the same posture the
+  editor has for a chapter, reached through the entry's own error code.
+- **The bible never repairs an anchor, and never deletes one.** A `stale` citation says so and
+  sends the writer to *Marks*, which is where the suggestion protocol already lives (ruling 5).
+  Removing a citation removes the **join**: the entry keeps what a person typed and loses one
+  reason to believe it, and the anchor stays.
+- **The story-time surface is a readout, not a timeline.** Three lists — the order, the unplaced,
+  the contradictions — with no axis, no scale, and nothing positioned by a number. It exists
+  because § 8's steps 6 and 7 are not demonstrable against a route nothing calls, and Phase 8 will
+  replace it rather than extend it (deviation `D1`).
+- **The fake computes the retcon answer and nothing else in the bible.** The resolver was refused a
+  place there because it is a ladder with tuned thresholds and a corpus; D27's rule is two
+  sentences that *are* written down, and the review queue is the phase's headline surface. The fake
+  still does **not** validate attributes, kinds, or relations — one validator, `bible/schema.py`,
+  and a test that needs a refusal stages one — and does **not** order events. And it does not
+  hand-write the served definition: `getBibleSchema` returns the **contract fixture**, so client
+  tests render the real seven kinds and a kind that gains a field reaches them in the same commit.
+- **The document layer keeps one upward dependency.** `addToBible` flushes, reads the open chapter
+  and its version, calls the one route, and hands the anchor to the project — exactly as
+  `createAnchor` does. It does **not** tell the bible; `EditorRegion` does, because it is the one
+  component that already holds the project, the document, and the bible at once.
 
 Phase 3's Group C added these:
 

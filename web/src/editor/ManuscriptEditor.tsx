@@ -39,7 +39,8 @@ import { setAnchorsTransaction } from './anchors';
 import { EDITOR_EXTENSIONS } from './extensions';
 import { EditorToolbar } from './EditorToolbar';
 import { SelectionActions } from './SelectionActions';
-import type { SelectionRange } from './SelectionActions';
+import type { BibleDraft, SelectionRange } from './SelectionActions';
+import type { KindDefinition } from '../api/types';
 
 export interface ManuscriptEditorProps {
   /** The document to seed. Only read when `seedKey` changes. */
@@ -66,6 +67,10 @@ export interface ManuscriptEditorProps {
   onCancelRelink: () => void;
   /** True while an anchor request is in the air. */
   anchorBusy: boolean;
+  /** The kinds an entry may be, from the served definition (P3-14, D26). */
+  bibleKinds: readonly KindDefinition[];
+  /** Anchor the selection *and* make an entry out of it, in one act. */
+  onAddToBible: (range: SelectionRange, draft: BibleDraft) => void;
 }
 
 export function ManuscriptEditor({
@@ -84,6 +89,8 @@ export function ManuscriptEditor({
   onRelink,
   onCancelRelink,
   anchorBusy,
+  bibleKinds,
+  onAddToBible,
 }: ManuscriptEditorProps) {
   const callbacks = useRef({ onChange, onBlur });
   callbacks.current = { onChange, onBlur };
@@ -169,6 +176,8 @@ export function ManuscriptEditor({
           onRelink={onRelink}
           onCancelRelink={onCancelRelink}
           busy={anchorBusy}
+          kinds={bibleKinds}
+          onAddToBible={onAddToBible}
         />
       </div>
     </div>

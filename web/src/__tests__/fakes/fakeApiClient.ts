@@ -34,13 +34,66 @@
  * {@link FakeApiClient.stageImport} - one plainly-named chapter by default. What the client is
  * responsible for is collecting the file, sending the mode, and drawing what came back; that is
  * what these tests are for.
+ *
+ * ## The bible (P3-12 - P3-14), and where the same rule lands differently
+ *
+ * The bible half keeps real state too: entries with complete revision histories, links with the
+ * three-way live predicate, and citations that carry an anchor's current status.
+ *
+ * **It does not validate attributes, kinds, or relations.** Those are one closed vocabulary with
+ * one validator, `bible/schema.py`, and it has its own tests; a second one here would be the copy
+ * D26 exists to prevent. A test that needs a refusal - an `enum` outside its set, an `entry_ref`
+ * to the wrong kind, a duplicate link - stages one with {@link FakeApiClient.failNext}, exactly
+ * as a test that needs a `409` does.
+ *
+ * **It does compute the retcon answer and the entries it flags**, which is the one place this
+ * fake goes further than the resolver rule allows - deliberately, and for a reason that does not
+ * generalise. The resolver was refused a place here because it is a ladder with thresholds and a
+ * corpus, so a second one would be "a rule nobody wrote down". D27's is not that: it is two
+ * sentences - a write is a retcon when the name, the attributes, or the status changed, and a
+ * dependent is an entry joined by a live link in either direction - and the review queue is the
+ * phase's headline surface, which cannot be exercised end to end against a staged answer. The
+ * rule is transcribed here and nothing is inferred beyond it.
+ *
+ * The served definition is **not** hand-written either: `getBibleSchema` returns the contract
+ * fixture, so these tests render the real seven kinds with their real fields, and a kind that
+ * gains a field reaches the client tests in the same commit it reaches the wire (D26).
  */
 
-import type { AnchorPatch, AnchorRange, ApiClient } from '../../api/client';
+import type {
+  AnchorPatch,
+  AnchorRange,
+  ApiClient,
+  EntryFilter,
+  EntryFromRangeInput,
+  EntryInput,
+  EntryPatch,
+  LinkInput,
+  LinkPatch,
+} from '../../api/client';
 import { ApiError } from '../../api/client';
 import type {
   Anchor,
+  AnchorEntries,
   AnchorList,
+  BibleSchema,
+  Citation,
+  CitationRemoved,
+  CitationRole,
+  CitingEntry,
+  Entry,
+  EntryDetail,
+  EntryFromRange,
+  EntryLinks,
+  EntryList,
+  EntryRevision,
+  EntryWriteResult,
+  Link,
+  LinkList,
+  LinkView,
+  RelationDefinition,
+  RevisionList,
+  StoryTime,
   AnchorStatus,
   AnchorSuggestion,
   Document,
@@ -66,11 +119,15 @@ import type {
 } from '../../api/types';
 import { ERROR_CODES } from '../../api/types';
 import { emptyDocument, project } from '../../editor/projection';
+import { readServerFixture } from '../fixtures';
 
 const FIXED_NOW = '2026-01-01T00:00:00Z';
 
 /** How much of `text_plain` either side of a quote is kept as context. Matches `CONTEXT_CHARS`. */
 const CONTEXT_CHARS = 48;
+
+/** The entry list's cap, matching `bible.entries.SEARCH_LIMIT`. Reported, not merely applied. */
+const SEARCH_LIMIT = 200;
 
 interface StoredDocument {
   meta: DocumentMeta;
@@ -80,6 +137,20 @@ interface StoredDocument {
 interface StoredSnapshot {
   meta: SnapshotMeta;
   content: ProseMirrorDocument;
+}
+
+/** An entry and everything it has ever said. Nothing here is deduplicated or pruned (D27). */
+interface StoredEntry {
+  entry: Entry;
+  revisions: EntryRevision[];
+}
+
+/** One row of `entry_anchor`: an entry pointing at a passage, in a role. */
+interface StoredCitation {
+  entry_id: string;
+  anchor_id: string;
+  role: string;
+  created_at: string;
 }
 
 /** What a test says the server's resolver will answer for one anchor on the next save. */
@@ -135,7 +206,12 @@ export class FakeApiClient implements ApiClient {
   private readonly anchors = new Map<string, Anchor>();
   private readonly snapshots = new Map<string, StoredSnapshot>();
   private readonly staged = new Map<string, StagedResolution[]>();
+  private readonly entries = new Map<string, StoredEntry>();
+  private readonly links = new Map<string, Link>();
+  private citations: StoredCitation[] = [];
   private readonly stagedImports: StagedImport[] = [];
+  private stagedStoryTime: StoryTime | null = null;
+  private schemaCache: BibleSchema | null = null;
   private skipped: SkippedFile[];
   private failures = new Map<string, ApiError | Error>();
   private readonly persistentFailures = new Map<string, ApiError | Error>();
@@ -259,6 +335,80 @@ export class FakeApiClient implements ApiClient {
     };
     this.anchors.set(id, anchor);
     return anchor;
+  }
+
+  /**
+   * Put an entry in the store directly, without going through the client.
+   *
+   * The bible tests need a populated bible to browse, filter, link, and retcon; building one
+   * through `createEntry` would make every test's arrangement three times its assertion.
+   */
+  seedEntry(
+    projectId: string,
+    fields: {
+      kind: string;
+      name: string;
+      summary?: string;
+      body_md?: string;
+      attributes?: Record<string, unknown>;
+    },
+  ): Entry {
+    this.requireProject(projectId);
+    return copyEntry(this.addEntry(projectId, fields, 'created'));
+  }
+
+  /** Join two entries directly. The vocabulary is the server's to enforce; see the docstring. */
+  seedLink(
+    projectId: string,
+    fromEntry: string,
+    relation: string,
+    toEntry: string,
+  ): Link {
+    const id = this.nextId('lnk');
+    const link: Link = {
+      id,
+      project_id: projectId,
+      from_entry: fromEntry,
+      to_entry: toEntry,
+      relation,
+      attributes: {},
+      since: null,
+      until: null,
+      created_at: FIXED_NOW,
+      updated_at: FIXED_NOW,
+      deleted_at: null,
+    };
+    this.links.set(id, link);
+    return { ...link };
+  }
+
+  /** Point an entry at an anchor directly, in a role. */
+  seedCitation(entryId: string, anchorId: string, role: CitationRole = 'source'): void {
+    this.citations.push({ entry_id: entryId, anchor_id: anchorId, role, created_at: FIXED_NOW });
+  }
+
+  /**
+   * Say what the ordering module answers.
+   *
+   * The fake does not order events and must not learn to — see the module docstring. Without a
+   * staged answer every event is reported unplaced, which is the honest thing for a fake with no
+   * topological sort in it to say.
+   */
+  stageStoryTime(answer: StoryTime): void {
+    this.stagedStoryTime = answer;
+  }
+
+  /** The stored entry, for asserting that a write actually landed. */
+  entryOf(entryId: string): Entry | undefined {
+    const stored = this.entries.get(entryId);
+    return stored ? copyEntry(stored.entry) : undefined;
+  }
+
+  /** Every link in the project, deleted ones included — what a soft delete has to leave behind. */
+  linksOf(projectId: string): Link[] {
+    return [...this.links.values()]
+      .filter((link) => link.project_id === projectId)
+      .map((link) => ({ ...link }));
   }
 
   /** Report a file the server could not read (P1-12). */
@@ -529,6 +679,11 @@ export class FakeApiClient implements ApiClient {
     this.record('deleteAnchor');
     this.requireAnchor(anchorId);
     this.anchors.delete(anchorId);
+    // Deleting an anchor removes its citations and leaves the entries (`B2`). On the server this
+    // is not a courtesy: `entry_anchor.anchor_id` is a real foreign key, so without it deleting
+    // a cited anchor fails. The entry keeps what a person typed and loses one reason to believe
+    // it.
+    this.citations = this.citations.filter((citation) => citation.anchor_id !== anchorId);
   }
 
   // -- markdown -----------------------------------------------------------------------------
@@ -627,6 +782,458 @@ export class FakeApiClient implements ApiClient {
     this.captureWithin(document, 'pre-restore', '');
     // A restore is an ordinary save: it goes through the same path and bumps the version.
     return this.saveDocumentContent(document.meta.id, snapshot.content, version);
+  }
+
+  // -- the bible (P3-12 - P3-14) ------------------------------------------------------------
+
+  /**
+   * D26's definition, read from the **contract fixture** rather than written out here.
+   *
+   * So the client tests render the real seven kinds with their real fields, and a kind that
+   * gains one reaches them in the commit that puts it on the wire. A hand-written copy would be
+   * the second copy that decision exists to prevent - and it would be the stale one.
+   */
+  async getBibleSchema(): Promise<BibleSchema> {
+    this.record('getBibleSchema');
+    return this.bibleSchema();
+  }
+
+  async listEntries(projectId: string, filter?: EntryFilter): Promise<EntryList> {
+    this.record('listEntries');
+    this.requireProject(projectId);
+    const wanted = (filter?.q ?? '').trim().toLowerCase();
+    const found = [...this.entries.values()]
+      .map((stored) => stored.entry)
+      .filter((entry) => entry.project_id === projectId)
+      .filter((entry) => (filter?.include_deleted ? true : entry.deleted_at === null))
+      .filter((entry) => filter?.kind === undefined || entry.kind === filter.kind)
+      .filter((entry) => filter?.status === undefined || entry.status === filter.status)
+      .filter(
+        (entry) => filter?.needs_review === undefined || entry.needs_review === filter.needs_review,
+      )
+      .filter((entry) => wanted === '' || matches(entry, wanted))
+      .sort(byName);
+    return {
+      entries: found.slice(0, SEARCH_LIMIT).map(copyEntry),
+      counts: this.countsByKind(projectId),
+      truncated: found.length > SEARCH_LIMIT,
+    };
+  }
+
+  async listDeletedEntries(projectId: string): Promise<EntryList> {
+    this.record('listDeletedEntries');
+    this.requireProject(projectId);
+    const deleted = [...this.entries.values()]
+      .map((stored) => stored.entry)
+      .filter((entry) => entry.project_id === projectId && entry.deleted_at !== null)
+      .sort((a, b) => (a.deleted_at! < b.deleted_at! ? 1 : -1));
+    return {
+      entries: deleted.map(copyEntry),
+      counts: this.countsByKind(projectId),
+      truncated: false,
+    };
+  }
+
+  async createEntry(projectId: string, input: EntryInput): Promise<Entry> {
+    this.record('createEntry');
+    this.requireProject(projectId);
+    return copyEntry(this.addEntry(projectId, input, 'created'));
+  }
+
+  async getEntry(entryId: string): Promise<EntryDetail> {
+    this.record('getEntry');
+    const entry = this.requireEntry(entryId).entry;
+    const citations = this.citationsOf(entryId);
+    return {
+      entry: copyEntry(entry),
+      citations,
+      link_count: this.liveLinksOf(entryId).length,
+      narrative_position: this.narrativePosition(entryId, citations),
+    };
+  }
+
+  async updateEntry(entryId: string, patch: EntryPatch): Promise<EntryWriteResult> {
+    this.record('updateEntry');
+    const stored = this.requireEntry(entryId);
+    this.guardRevision(stored.entry, patch.revision);
+
+    // D27's rule, transcribed: `status` is absent because no route in this phase writes one.
+    const changed: string[] = [];
+    if (patch.name !== undefined && patch.name !== stored.entry.name) {
+      changed.push('name');
+    }
+    if (
+      patch.attributes !== undefined &&
+      JSON.stringify(patch.attributes) !== JSON.stringify(stored.entry.attributes)
+    ) {
+      changed.push('attributes_json');
+    }
+    const retcon = patch.retcon ?? changed.length > 0;
+
+    stored.entry = {
+      ...stored.entry,
+      ...(patch.name === undefined ? {} : { name: patch.name }),
+      ...(patch.summary === undefined ? {} : { summary: patch.summary }),
+      ...(patch.body_md === undefined ? {} : { body_md: patch.body_md }),
+      ...(patch.attributes === undefined ? {} : { attributes: patch.attributes }),
+      revision: stored.entry.revision + 1,
+      updated_at: this.tick(),
+    };
+    this.writeRevision(stored, patch.reason ?? '', retcon);
+
+    // A dependent is an entry joined by a **live** link in either direction - the only
+    // relationship the data actually knows. Flagging writes no revision on the dependent: it is
+    // a note about that entry's surroundings, not a claim it makes.
+    const flagged = retcon ? this.flagDependents(stored.entry) : [];
+    return {
+      entry: copyEntry(stored.entry),
+      revision: stored.entry.revision,
+      retcon,
+      flagged,
+      changed_fields: changed,
+    };
+  }
+
+  async deleteEntry(entryId: string): Promise<Entry> {
+    this.record('deleteEntry');
+    const stored = this.requireEntry(entryId);
+    stored.entry = {
+      ...stored.entry,
+      deleted_at: this.tick(),
+      updated_at: FIXED_NOW,
+      revision: stored.entry.revision + 1,
+    };
+    this.writeRevision(stored, 'deleted', false);
+    return copyEntry(stored.entry);
+  }
+
+  async restoreEntry(entryId: string): Promise<Entry> {
+    this.record('restoreEntry');
+    const stored = this.requireEntry(entryId, true);
+    if (stored.entry.deleted_at === null) {
+      return copyEntry(stored.entry);
+    }
+    // Nothing is written to a link: an endpoint's deletion *hid* them through the predicate, so
+    // restoring brings back exactly the links it had (D25, ruling 9).
+    stored.entry = {
+      ...stored.entry,
+      deleted_at: null,
+      updated_at: FIXED_NOW,
+      revision: stored.entry.revision + 1,
+    };
+    this.writeRevision(stored, 'restored', false);
+    return copyEntry(stored.entry);
+  }
+
+  async clearEntryReview(entryId: string, revision: number): Promise<EntryWriteResult> {
+    this.record('clearEntryReview');
+    const stored = this.requireEntry(entryId);
+    this.guardRevision(stored.entry, revision);
+    stored.entry = {
+      ...stored.entry,
+      needs_review: false,
+      review_reason: '',
+      revision: stored.entry.revision + 1,
+      updated_at: this.tick(),
+    };
+    this.writeRevision(stored, 'review cleared', false);
+    // Never a retcon, not by default and not by override: a queue that re-flags every neighbour
+    // as it is worked through is a queue that never empties (P3-4).
+    return {
+      entry: copyEntry(stored.entry),
+      revision: stored.entry.revision,
+      retcon: false,
+      flagged: [],
+      changed_fields: [],
+    };
+  }
+
+  async listEntryRevisions(entryId: string): Promise<RevisionList> {
+    this.record('listEntryRevisions');
+    const stored = this.requireEntry(entryId, true);
+    return {
+      revisions: [...stored.revisions]
+        .sort((a, b) => b.meta.revision - a.meta.revision)
+        .map((revision) => ({ ...revision.meta })),
+    };
+  }
+
+  async getEntryRevision(entryId: string, number: number): Promise<EntryRevision> {
+    this.record('getEntryRevision');
+    const stored = this.requireEntry(entryId, true);
+    const found = stored.revisions.find((revision) => revision.meta.revision === number);
+    if (!found) {
+      throw new ApiError(
+        404,
+        ERROR_CODES.revisionNotFound,
+        `entry ${entryId} has no revision ${number}`,
+        null,
+      );
+    }
+    return { meta: { ...found.meta }, state: { ...found.state } };
+  }
+
+  async restoreEntryRevision(
+    entryId: string,
+    number: number,
+    revision: number,
+  ): Promise<EntryWriteResult> {
+    this.record('restoreEntryRevision');
+    const past = await this.getEntryRevision(entryId, number);
+    // Through the ordinary update path, so it bumps the revision, appends to the history rather
+    // than rewriting it, is guarded by D19, and computes its own retcon answer.
+    return this.updateEntry(entryId, {
+      revision,
+      name: String(past.state['name'] ?? ''),
+      summary: String(past.state['summary'] ?? ''),
+      body_md: String(past.state['body_md'] ?? ''),
+      attributes: (past.state['attributes'] as Record<string, unknown>) ?? {},
+      reason: `restored revision ${number}`,
+    });
+  }
+
+  // -- links --------------------------------------------------------------------------------
+
+  async listLinks(projectId: string, relation?: string): Promise<LinkList> {
+    this.record('listLinks');
+    this.requireProject(projectId);
+    return {
+      links: [...this.links.values()]
+        .filter((link) => link.project_id === projectId && this.isLiveLink(link))
+        .filter((link) => relation === undefined || link.relation === relation)
+        .map((link) => ({ ...link })),
+    };
+  }
+
+  async createLink(projectId: string, input: LinkInput): Promise<Link> {
+    this.record('createLink');
+    this.requireProject(projectId);
+    if (input.from_entry === input.to_entry) {
+      throw new ApiError(
+        422,
+        ERROR_CODES.invalidAttributes,
+        'an entry cannot be linked to itself',
+        { field: 'to_entry' },
+      );
+    }
+    const duplicate = [...this.links.values()].find(
+      (link) => this.isLiveLink(link) && this.sameStatement(link, input),
+    );
+    if (duplicate) {
+      throw new ApiError(409, ERROR_CODES.duplicateLink, 'that link already exists', {
+        link_id: duplicate.id,
+      });
+    }
+    const id = this.nextId('lnk');
+    const link: Link = {
+      id,
+      project_id: projectId,
+      from_entry: input.from_entry,
+      to_entry: input.to_entry,
+      relation: input.relation,
+      attributes: input.attributes ?? {},
+      since: input.since ?? null,
+      until: input.until ?? null,
+      created_at: FIXED_NOW,
+      updated_at: FIXED_NOW,
+      deleted_at: null,
+    };
+    this.links.set(id, link);
+    return { ...link };
+  }
+
+  async listEntryLinks(entryId: string): Promise<EntryLinks> {
+    this.record('listEntryLinks');
+    // Deliberately not an error for a deleted or unknown entry: the predicate is what hides a
+    // link, and a read path that raised instead would be a second answer to the same question.
+    return { links: this.liveLinksOf(entryId).map((link) => this.viewOf(link, entryId)) };
+  }
+
+  async patchLink(linkId: string, patch: LinkPatch): Promise<Link> {
+    this.record('patchLink');
+    const link = this.requireLink(linkId);
+    const next: Link = {
+      ...link,
+      ...('since' in patch ? { since: patch.since ?? null } : {}),
+      ...('until' in patch ? { until: patch.until ?? null } : {}),
+      ...(patch.attributes === undefined ? {} : { attributes: patch.attributes }),
+      updated_at: FIXED_NOW,
+    };
+    this.links.set(linkId, next);
+    return { ...next };
+  }
+
+  async deleteLink(linkId: string): Promise<Link> {
+    this.record('deleteLink');
+    const link = this.requireLink(linkId);
+    const next: Link = { ...link, deleted_at: this.tick(), updated_at: FIXED_NOW };
+    this.links.set(linkId, next);
+    return { ...next };
+  }
+
+  async restoreLink(linkId: string): Promise<Link> {
+    this.record('restoreLink');
+    const link = this.requireLink(linkId);
+    const duplicate = [...this.links.values()].find(
+      (other) => other.id !== linkId && this.isLiveLink(other) && this.sameStatement(other, link),
+    );
+    if (duplicate) {
+      throw new ApiError(409, ERROR_CODES.duplicateLink, 'that link already exists', {
+        link_id: duplicate.id,
+      });
+    }
+    const next: Link = { ...link, deleted_at: null, updated_at: FIXED_NOW };
+    this.links.set(linkId, next);
+    return { ...next };
+  }
+
+  // -- citations ----------------------------------------------------------------------------
+
+  async citeAnchor(entryId: string, anchorId: string, role: CitationRole): Promise<Citation> {
+    this.record('citeAnchor');
+    this.requireEntry(entryId);
+    this.requireAnchor(anchorId);
+    if (
+      !this.citations.some(
+        (citation) =>
+          citation.entry_id === entryId &&
+          citation.anchor_id === anchorId &&
+          citation.role === role,
+      )
+    ) {
+      this.citations.push({
+        entry_id: entryId,
+        anchor_id: anchorId,
+        role,
+        created_at: FIXED_NOW,
+      });
+    }
+    const found = this.citationsOf(entryId).find(
+      (citation) => citation.anchor.id === anchorId && citation.role === role,
+    );
+    if (!found) {
+      throw new Error('fake: a citation was written but could not be read back');
+    }
+    return found;
+  }
+
+  async unciteAnchor(
+    entryId: string,
+    anchorId: string,
+    role?: CitationRole,
+  ): Promise<CitationRemoved> {
+    this.record('unciteAnchor');
+    this.requireEntry(entryId, true);
+    const before = this.citations.length;
+    // The **anchor stays**: it is a fact about the manuscript, and *Marks* is where one is
+    // removed. Removing a citation that is not there is zero, not a `404`.
+    this.citations = this.citations.filter(
+      (citation) =>
+        !(
+          citation.entry_id === entryId &&
+          citation.anchor_id === anchorId &&
+          (role === undefined || citation.role === role)
+        ),
+    );
+    return { removed: before - this.citations.length };
+  }
+
+  async listAnchorEntries(anchorId: string): Promise<AnchorEntries> {
+    this.record('listAnchorEntries');
+    this.requireAnchor(anchorId);
+    const entries: CitingEntry[] = [];
+    for (const citation of this.citations) {
+      if (citation.anchor_id !== anchorId) {
+        continue;
+      }
+      const entry = this.entries.get(citation.entry_id)?.entry;
+      if (entry && entry.deleted_at === null) {
+        entries.push({
+          entry_id: entry.id,
+          kind: entry.kind,
+          name: entry.name,
+          role: citation.role,
+          created_at: citation.created_at,
+        });
+      }
+    }
+    return { entries };
+  }
+
+  /**
+   * *Add to bible* - the anchor, the entry, and the citation, in one act (P3-7, `B1`).
+   *
+   * The version guard runs **first**, so a stale one leaves no anchor, no entry, and no
+   * citation. The client sends a range and never a quote; this reads the words out of the
+   * stored content, which is an extraction and not a resolution.
+   */
+  async createEntryFromRange(
+    documentId: string,
+    input: EntryFromRangeInput,
+  ): Promise<EntryFromRange> {
+    this.record('createEntryFromRange');
+    const stored = this.guardedDocument(documentId, input.version);
+    const anchor = this.seedAnchor(documentId, {
+      ...this.extract(stored, { from_pos: input.from_pos, to_pos: input.to_pos, version: input.version }),
+      status: 'ok',
+      label: input.label ?? '',
+      from_pos: input.from_pos,
+      to_pos: input.to_pos,
+    });
+    const entry = this.addEntry(
+      stored.meta.project_id,
+      {
+        kind: input.kind,
+        name: input.name,
+        ...(input.summary === undefined ? {} : { summary: input.summary }),
+        ...(input.body_md === undefined ? {} : { body_md: input.body_md }),
+        ...(input.attributes === undefined ? {} : { attributes: input.attributes }),
+      },
+      'created from a selection',
+    );
+    const role = input.role ?? 'source';
+    this.citations.push({
+      entry_id: entry.id,
+      anchor_id: anchor.id,
+      role,
+      created_at: FIXED_NOW,
+    });
+    return { entry: copyEntry(entry), anchor: { ...anchor }, role };
+  }
+
+  /**
+   * D28's answer - **staged, never computed**.
+   *
+   * The ordering module is a topological sort with a stated tiebreak, two independent
+   * contradiction kinds, and a twenty-case corpus behind it. A second one here would be exactly
+   * the second resolver this fake refuses to grow. So every event is reported unplaced until a
+   * test says what the server answered, through {@link FakeApiClient.stageStoryTime}.
+   */
+  async getStoryTime(projectId: string): Promise<StoryTime> {
+    this.record('getStoryTime');
+    this.requireProject(projectId);
+    if (this.stagedStoryTime !== null) {
+      return this.stagedStoryTime;
+    }
+    return {
+      order: [],
+      unplaced: [...this.entries.values()]
+        .map((stored) => stored.entry)
+        .filter(
+          (entry) =>
+            entry.project_id === projectId && entry.deleted_at === null && entry.kind === 'event',
+        )
+        .sort(byName)
+        .map((entry) => ({
+          entry_id: entry.id,
+          name: entry.name,
+          label: '',
+          sort_key: null,
+          era: null,
+        })),
+      contradictions: [],
+      eras: [],
+    };
   }
 
   // -- internals ----------------------------------------------------------------------------
@@ -879,6 +1486,263 @@ export class FakeApiClient implements ApiClient {
     };
   }
 
+  // -- bible internals ----------------------------------------------------------------------
+
+  private bibleSchema(): BibleSchema {
+    this.schemaCache ??= readServerFixture<BibleSchema>('contract/bible_schema.json');
+    return this.schemaCache;
+  }
+
+  private countsByKind(projectId: string): Record<string, number> {
+    // Every kind appears, including the ones with none - so a tab showing only the places can
+    // still say how many characters there are.
+    const counts: Record<string, number> = {};
+    for (const definition of this.bibleSchema().kinds) {
+      counts[definition.kind] = 0;
+    }
+    for (const stored of this.entries.values()) {
+      const entry = stored.entry;
+      if (entry.project_id === projectId && entry.deleted_at === null) {
+        counts[entry.kind] = (counts[entry.kind] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }
+
+  private addEntry(projectId: string, input: EntryInput, reason: string): Entry {
+    const id = this.nextId('ent');
+    const entry: Entry = {
+      id,
+      project_id: projectId,
+      kind: input.kind,
+      name: input.name,
+      summary: input.summary ?? '',
+      body_md: input.body_md ?? '',
+      attributes: input.attributes ?? {},
+      // Everything a person types is `accepted` and `user`. The other three statuses and `agent`
+      // have no writer in this phase.
+      status: 'accepted',
+      origin: 'user',
+      revision: 1,
+      needs_review: false,
+      review_reason: '',
+      created_at: FIXED_NOW,
+      updated_at: FIXED_NOW,
+      deleted_at: null,
+    };
+    const stored: StoredEntry = { entry, revisions: [] };
+    this.entries.set(id, stored);
+    // Revision 1 is the creation, so the history is complete from the beginning and restoring
+    // the original is an ordinary restore rather than a special case.
+    this.writeRevision(stored, reason, false);
+    return stored.entry;
+  }
+
+  private writeRevision(stored: StoredEntry, reason: string, retcon: boolean): void {
+    const entry = stored.entry;
+    stored.revisions.push({
+      meta: {
+        entry_id: entry.id,
+        revision: entry.revision,
+        revised_at: FIXED_NOW,
+        reason,
+        retcon,
+        origin: entry.origin,
+      },
+      // The state **after** the write, so revision *n* is what the entry was at revision *n*.
+      // `needs_review` is excluded: it is a note about the entry's surroundings, and restoring
+      // must not drag a neighbour's old disturbance back.
+      state: {
+        kind: entry.kind,
+        name: entry.name,
+        summary: entry.summary,
+        body_md: entry.body_md,
+        attributes: entry.attributes,
+        status: entry.status,
+        origin: entry.origin,
+        revision: entry.revision,
+        updated_at: entry.updated_at,
+        deleted_at: entry.deleted_at,
+      },
+    });
+  }
+
+  /** Set `needs_review` on every dependent, naming what moved. No revision is written on them. */
+  private flagDependents(entry: Entry): string[] {
+    const flagged: string[] = [];
+    const reason = `${entry.name} changed at revision ${entry.revision}`;
+    for (const link of this.liveLinksOf(entry.id)) {
+      const otherId = link.from_entry === entry.id ? link.to_entry : link.from_entry;
+      const dependent = this.entries.get(otherId);
+      if (!dependent || dependent.entry.deleted_at !== null || flagged.includes(otherId)) {
+        continue;
+      }
+      dependent.entry = { ...dependent.entry, needs_review: true, review_reason: reason };
+      flagged.push(otherId);
+    }
+    return flagged.sort();
+  }
+
+  /** A link is live when it is not deleted **and neither endpoint is** (ruling 9). */
+  private isLiveLink(link: Link): boolean {
+    if (link.deleted_at !== null) {
+      return false;
+    }
+    const from = this.entries.get(link.from_entry)?.entry;
+    const to = this.entries.get(link.to_entry)?.entry;
+    return from?.deleted_at === null && to?.deleted_at === null;
+  }
+
+  private liveLinksOf(entryId: string): Link[] {
+    return [...this.links.values()].filter(
+      (link) =>
+        this.isLiveLink(link) && (link.from_entry === entryId || link.to_entry === entryId),
+    );
+  }
+
+  /**
+   * One link as it reads from one entry's end.
+   *
+   * The label comes from the served definition, so a symmetric relation reads the same both ways
+   * because its definition repeats its label — rather than because anything here decided to.
+   */
+  private viewOf(link: Link, entryId: string): LinkView {
+    const forward = link.from_entry === entryId;
+    const otherId = forward ? link.to_entry : link.from_entry;
+    const other = this.entries.get(otherId)?.entry;
+    const definition: RelationDefinition | undefined = this.bibleSchema().relations.find(
+      (relation) => relation.relation === link.relation,
+    );
+    return {
+      link: { ...link },
+      end: forward ? 'from' : 'to',
+      other_id: otherId,
+      other_name: other?.name ?? otherId,
+      other_kind: other?.kind ?? '',
+      label: forward
+        ? (definition?.label ?? link.relation)
+        : (definition?.inverse_label ?? link.relation),
+    };
+  }
+
+  /** Two rows say the same thing when the pair and the relation match, in either order. */
+  private sameStatement(
+    link: Link,
+    other: { from_entry: string; to_entry: string; relation: string },
+  ): boolean {
+    if (link.relation !== other.relation) {
+      return false;
+    }
+    return (
+      (link.from_entry === other.from_entry && link.to_entry === other.to_entry) ||
+      (link.from_entry === other.to_entry && link.to_entry === other.from_entry)
+    );
+  }
+
+  /** An entry's citations, each carrying the anchor **as it reads now**. */
+  private citationsOf(entryId: string): Citation[] {
+    const citations: Citation[] = [];
+    for (const citation of this.citations) {
+      if (citation.entry_id !== entryId) {
+        continue;
+      }
+      const anchor = this.anchors.get(citation.anchor_id);
+      if (!anchor) {
+        continue;
+      }
+      const document = this.documents.get(anchor.document_id);
+      citations.push({
+        entry_id: entryId,
+        anchor: this.withEffectiveStatus(anchor),
+        role: citation.role,
+        created_at: citation.created_at,
+        document_id: anchor.document_id,
+        document_title: document?.meta.title ?? '',
+      });
+    }
+    return citations;
+  }
+
+  /**
+   * Where an entry sits in the book — derived from its `source` anchor and never stored.
+   *
+   * Chapter order, then position. A source in a soft-deleted chapter places nothing: the passage
+   * is away, and a position in a chapter no reader can reach would sort the entry into a book it
+   * is not in.
+   */
+  private narrativePosition(
+    entryId: string,
+    citations: readonly Citation[],
+  ): EntryDetail['narrative_position'] {
+    let best: { document_id: string; order_index: number; from_pos: number } | null = null;
+    for (const citation of citations) {
+      if (citation.role !== 'source') {
+        continue;
+      }
+      const document = this.documents.get(citation.document_id);
+      if (!document || document.meta.deleted_at !== null) {
+        continue;
+      }
+      const candidate = {
+        document_id: citation.document_id,
+        order_index: document.meta.order_index,
+        from_pos: citation.anchor.from_pos,
+      };
+      if (
+        best === null ||
+        candidate.order_index < best.order_index ||
+        (candidate.order_index === best.order_index && candidate.from_pos < best.from_pos)
+      ) {
+        best = candidate;
+      }
+    }
+    return best === null ? null : { entry_id: entryId, ...best };
+  }
+
+  private requireEntry(entryId: string, includeDeleted = false): StoredEntry {
+    const stored = this.entries.get(entryId);
+    if (!stored || (!includeDeleted && stored.entry.deleted_at !== null)) {
+      throw new ApiError(
+        404,
+        ERROR_CODES.entryNotFound,
+        `no entry '${entryId}' in this workspace`,
+        null,
+      );
+    }
+    return stored;
+  }
+
+  private requireLink(linkId: string): Link {
+    const link = this.links.get(linkId);
+    if (!link) {
+      throw new ApiError(
+        404,
+        ERROR_CODES.linkNotFound,
+        `no link '${linkId}' in this workspace`,
+        null,
+      );
+    }
+    return link;
+  }
+
+  /** D19, applied to entries: a stale revision writes nothing and carries its own code. */
+  private guardRevision(entry: Entry, presented: number): void {
+    if (entry.revision !== presented) {
+      throw new ApiError(
+        409,
+        ERROR_CODES.entryVersionConflict,
+        `entry ${entry.id} is at revision ${entry.revision}, not ${presented}; ` +
+          'reload before saving',
+        {
+          entry_id: entry.id,
+          presented_revision: presented,
+          current_revision: entry.revision,
+          updated_at: entry.updated_at,
+        },
+      );
+    }
+  }
+
   private documentOf(documentId: string): Document {
     const stored = this.requireDocument(documentId);
     const { deleted_at: _deleted, ...meta } = stored.meta;
@@ -929,4 +1793,38 @@ function textRuns(document: ProseMirrorDocument): TextRun[] {
     walk(child);
   }
   return runs;
+}
+
+/** A copy, so a caller mutating what it was handed cannot reach into the store. */
+function copyEntry(entry: Entry): Entry {
+  return { ...entry, attributes: { ...entry.attributes } };
+}
+
+/** `ORDER BY name COLLATE NOCASE, created_at, id` — the order the entry list comes back in. */
+function byName(a: Entry, b: Entry): number {
+  const left = a.name.toLowerCase();
+  const right = b.name.toLowerCase();
+  if (left !== right) {
+    return left < right ? -1 : 1;
+  }
+  if (a.created_at !== b.created_at) {
+    return a.created_at < b.created_at ? -1 : 1;
+  }
+  return a.id < b.id ? -1 : 1;
+}
+
+/**
+ * The `q` filter: a `LIKE` over names, aliases, and summaries.
+ *
+ * A filter, not search — Phase 5 owns search, and this is deliberately as dumb as `LIKE` is.
+ */
+function matches(entry: Entry, wanted: string): boolean {
+  if (entry.name.toLowerCase().includes(wanted) || entry.summary.toLowerCase().includes(wanted)) {
+    return true;
+  }
+  const aliases = entry.attributes['aliases'];
+  return (
+    Array.isArray(aliases) &&
+    aliases.some((alias) => typeof alias === 'string' && alias.toLowerCase().includes(wanted))
+  );
 }

@@ -1,6 +1,6 @@
 # Archetype — Decision Register & Development Phases
 
-**Status:** Active · **Version:** 1.7 · **Date:** 2026-09-01
+**Status:** Active · **Version:** 1.8 · **Date:** 2026-09-03
 **Parent:** [`specs/project-outline.md`](project-outline.md)
 
 This document is the **authoritative register of binding decisions** (§ 1) and the **work
@@ -108,15 +108,17 @@ version") · Markdown import and export (D15) · the anchor record · position r
 ProseMirror transactions · quote + prefix + suffix re-verification on load · the `ok` / `stale` /
 `orphaned` lifecycle · re-linking UI · the dedicated anchor test suite.
 
-**Phase 3 — [Story Bible](phase-3-plan.md)** *(`specs/bible.md` written here, at `P3-1`, before the code it governs; `specs/data-model.md` completed here)*
-**Superseded by the plan** — fifteen items (`P3-1` … `P3-15`) in four groups. Uniform entry record
+**Phase 3 — [Story Bible](phase-3-plan.md)** — **built 2026-09-03; § 8's acceptance run outstanding** *(`specs/bible.md` written here, at `P3-1`, before the code it governs; `specs/data-model.md` completed here)*
+**Superseded by the plan** — fifteen items (`P3-1` … `P3-15`) in four groups, all delivered. Uniform entry record
 with a `kind` discriminator · per-kind attribute schemas **served by the API and rendered by one
 generic form** (D26) · CRUD for all seven kinds · links with a closed relation vocabulary
 and story-time bounds (D9) · revision history and retcon dependent-flagging with a review queue
 (D27) · story-time as a partial order, with a pure ordering module and its corpus
 (D28) · create-entry-from-selection with an anchor minted through `AnchorStore.create` ·
 bible browser, filter-search, and detail views. Soft delete for entries and links (D25,
-settling `Q2`); `Q7` settled without adopting it (D29).
+settling `Q2`); `Q7` settled without adopting it (D29). One surface the plan did not budget: a
+story-time **readout** in the Bible tab — three lists, no drawing — so that D28's answers have a
+consumer a person can look at before Phase 8 draws the timeline (plan § 7, `D1`).
 
 **Phase 4 — LLM Provider Layer & Chat** *(`specs/api-contract.md` extended here)*
 The `LLMProvider` port · Anthropic and OpenAI-compatible adapters · prompted-JSON tool fallback

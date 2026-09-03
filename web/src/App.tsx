@@ -11,6 +11,12 @@
  * outlives the documents inside it, and a document is innermost (D10). Remounting
  * `ProjectProvider` on a different project id is deliberate — everything scoped to a project,
  * including the open chapter, should be gone when the project is.
+ *
+ * `BibleProvider` joins that order in Phase 3, between the project and the document (P3-12): an
+ * entry's lifetime is the project's, exactly as an anchor's is, and putting it inside the
+ * document layer would make the bible something that resets when a chapter is opened. Being an
+ * ancestor of the document layer is also what lets the editor's *Add to bible* tell it that an
+ * entry now exists.
  */
 
 import { useCallback, useMemo, useState } from 'react';
@@ -27,6 +33,7 @@ import {
   withRecentProject,
   writeStored,
 } from './state/persistence';
+import { BibleProvider } from './state/BibleContext';
 import { ProjectProvider } from './state/ProjectContext';
 import { ToastProvider } from './state/ToastContext';
 import { UiProvider } from './state/UiContext';
@@ -74,9 +81,11 @@ export function App({ client, initialProjectId }: AppProps = {}) {
             <ProjectPicker client={api} onOpen={open} recentIds={recentIds} />
           ) : (
             <ProjectProvider key={projectId} client={api} projectId={projectId}>
-              <DocumentProvider client={api}>
-                <Workspace onLeaveProject={leave} />
-              </DocumentProvider>
+              <BibleProvider client={api} projectId={projectId}>
+                <DocumentProvider client={api}>
+                  <Workspace onLeaveProject={leave} />
+                </DocumentProvider>
+              </BibleProvider>
             </ProjectProvider>
           )}
         </ErrorBoundary>

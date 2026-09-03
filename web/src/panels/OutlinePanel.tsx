@@ -1,13 +1,21 @@
 /**
- * The outline panel and its tabs (P1-9, P1-11, P2-10).
+ * The outline panel and its tabs (P1-9, P1-11, P2-10, P3-12).
  *
- * Five tabs, two of which have anything behind them: Contents (P1-11) and Marks (P2-10). The
- * other three are here rather than added later because the tab strip is a layout commitment: a
- * panel that grows a tab strip in Phase 3 is a panel whose every measurement changes in Phase 3.
- * They say which phase they arrive in rather than pretending to be empty.
+ * Five tabs, three of which now have something behind them: Contents (P1-11), Marks (P2-10), and
+ * Bible (P3-12). The other two are here rather than added later because the tab strip is a layout
+ * commitment: a panel that grows a tab strip in Phase 8 is a panel whose every measurement
+ * changes in Phase 8. They say which phase they arrive in rather than pretending to be empty.
  *
  * Marks was the one deliberate widening (phase-2-plan section 2, ruling 6): anchors needed a home
- * this phase, and folding them into Contents would have put two unrelated trees in one scroll.
+ * that phase, and folding them into Contents would have put two unrelated trees in one scroll. It
+ * **stays exactly as it is** now that the Bible tab exists (phase-3-plan § 2, ruling 5): the two
+ * answer different questions — *Marks* is every anchor in the project, including the many no entry
+ * cites, and it is the only place a `stale` one is repaired.
+ *
+ * The Bible tab carries its **own** error boundary rather than relying on the panel's (P3-12). It
+ * is the largest surface in the panel and the one with the most to go wrong in it, and a bible
+ * that cannot draw must not take the table of contents down with it — let alone the editor, which
+ * may be holding the only copy of a sentence (the P1-12 rule, one level in).
  *
  * The tab strip follows the ARIA tabs pattern, including roving focus: one tab is in the tab
  * order and the arrow keys move between them, so reaching the Contents list does not mean
@@ -16,9 +24,11 @@
 
 import { useCallback, useRef } from 'react';
 import type { KeyboardEvent } from 'react';
+import { ErrorBoundary } from '../shell/ErrorBoundary';
 import { useUi } from '../state/UiContext';
 import type { OutlineTab } from '../state/uiReducer';
 import { OUTLINE_TABS } from '../state/uiReducer';
+import { BibleTab } from './BibleTab';
 import { MarksTab } from './MarksTab';
 import { TableOfContents } from './TableOfContents';
 
@@ -42,11 +52,7 @@ const TABS: Record<OutlineTab, TabDefinition> = {
     label: 'Characters',
     note: 'The character interaction chart is built in Phase 8 (D14).',
   },
-  bible: {
-    id: 'bible',
-    label: 'Bible',
-    note: 'The story bible is built in Phase 3.',
-  },
+  bible: { id: 'bible', label: 'Bible', note: '' },
 };
 
 export function OutlinePanel() {
@@ -118,7 +124,12 @@ export function OutlinePanel() {
       >
         {active === 'contents' && <TableOfContents />}
         {active === 'marks' && <MarksTab />}
-        {active !== 'contents' && active !== 'marks' && (
+        {active === 'bible' && (
+          <ErrorBoundary region="Bible">
+            <BibleTab />
+          </ErrorBoundary>
+        )}
+        {active !== 'contents' && active !== 'marks' && active !== 'bible' && (
           <p className="panel-placeholder">{TABS[active].note}</p>
         )}
       </div>

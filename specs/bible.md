@@ -1,13 +1,14 @@
 # Archetype — The Story Bible
 
 **Status:** Specification · written at `P3-1`, **before** the code it governs; § 7's tiebreak
-made exact at `P3-8`, still before the module it governs ·
-**Version:** 1.1 · **Date:** 2026-09-02
+made exact at `P3-8`, still before the module it governs; reconciled with the built code at
+`P3-15`, with every correction in § 12 ·
+**Version:** 1.2 · **Date:** 2026-09-03
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 (D5, D9, **D25**, **D26**, **D27**, **D28**, D19, D22)
 **Plan:** [`specs/phase-3-plan.md`](phase-3-plan.md) — this document is `P3-1`; it governs `P3-2`
-through `P3-8`, and any place the code corrects it is marked here and cross-referenced to that
+through `P3-14`, and any place the code corrects it is marked here and cross-referenced to that
 plan's § 7
 **Companions:** [`specs/data-model.md`](data-model.md) § 3 (the four tables) ·
 [`specs/anchors.md`](anchors.md) (what a citation points through) ·
@@ -298,6 +299,14 @@ default with its reason on the save control, so a retcon is a visible act rather
 consequence. That is D12's posture — the writer sees what is about to happen and decides — applied
 to the bible.
 
+**Showing that default costs a second statement of this rule, and here is how it stays honest.**
+The form has to say what the save is about to do *before* it happens, which is not possible
+without predicting the answer on the client. So `web/src/bibleSchema.ts` restates the rule — for
+presentation only — and the form sends `retcon` **only when the writer has moved the box**. An
+untouched save therefore carries no override at all, the store's own computation stands, and the
+write result reports which fields it found had moved. The prediction never decides; it only
+explains. (Group D, deviation `D3`.)
+
 Flagging on every edit was rejected: fixing a typo in a body would flag every neighbour, the flag
 would become noise within a day, and **a noisy flag is an ignored flag**, which is the exact
 failure this mechanism exists to prevent (outline § 9's "stale conclusions after a retcon").
@@ -539,4 +548,14 @@ Named so that a later phase recognises the seam rather than inventing one beside
 [`specs/phase-3-plan.md`](phase-3-plan.md) § 7 — the discipline `anchors.md` carries for its four.
 A specification that describes something the code no longer does is a bug.*
 
-**None yet.** This document precedes the code it governs.
+**One, from Group D.** Groups A, B, and C built what this document describes without needing to
+correct it — their deviations were all in the shape of the code rather than in what it does.
+
+| # | Where | The correction |
+|---|---|---|
+| **1** | § 6, *What a retcon is* | This document said the **store** computes the retcon default, and left the client's part at "shows the computed default with its reason". Doing that requires the client to *predict* the answer, which is a second statement of the rule — the thing this document is otherwise careful to avoid. § 6 now says so in as many words, and says what keeps it honest: the form sends `retcon` only when the writer moves the box, so the store's answer stands on an ordinary save and the prediction never decides. Cross-referenced to [`phase-3-plan`](phase-3-plan.md) § 7, `D3`. |
+
+Everything else in this document survived contact with its implementation, including the two
+places most likely to have needed adjusting: § 7's tiebreak (made exact at `P3-8`, *before* the
+module, and unchanged since) and § 4's relation vocabulary, which the Group D link picker reads
+without keeping a list of its own.

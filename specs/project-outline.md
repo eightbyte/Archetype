@@ -1,22 +1,24 @@
 # Archetype — Project Outline
 
-**Status:** **Phase 2 complete**; **Phase 3 planned** — its plan is written and awaiting rulings on D25–D29 · **Version:** 1.5 · **Date:** 2026-09-01
-**Phase:** 3 (Story Bible) — planned, not started. Phase 2 (Manuscript Model & Anchors) closed on 2026-09-01
+**Status:** **Phase 2 complete**; **Phase 3 built** — all fifteen items delivered, both suites green, its § 8 acceptance run outstanding · **Version:** 1.6 · **Date:** 2026-09-03
+**Phase:** 3 (Story Bible) — built, not closed. Phase 2 (Manuscript Model & Anchors) closed on 2026-09-01
 **Child documents:**
 - [`specs/development-phases.md`](development-phases.md) — binding decision register (D1–D24) and the work breakdown across all phases
 - [`specs/phase-1-plan.md`](phase-1-plan.md) — Phase 1 work items
 - [`specs/phase-2-plan.md`](phase-2-plan.md) — Phase 2 work items; its § 2 carries the rulings (D21–D24), its § 7 the as-built deviations, its § 8 the acceptance run
-- [`specs/phase-3-plan.md`](phase-3-plan.md) — Phase 3 work items; its § 2 **proposes** D25–D29 and settles `Q2` and `Q7`, its § 8 the acceptance run
+- [`specs/phase-3-plan.md`](phase-3-plan.md) — Phase 3 work items; its § 2 carries the rulings (D25–D29, settling `Q2` and `Q7`), its § 7 the as-built deviations, its § 8 the acceptance run
 - [`specs/backlog.md`](backlog.md) — deferred ideas and revisit list
-- [`specs/data-model.md`](data-model.md) — storage at schema version 2 as built, later phases sketched
+- [`specs/data-model.md`](data-model.md) — storage at schema version 3 as built, later phases sketched
 - [`specs/api-contract.md`](api-contract.md) — the HTTP surface as built
 - [`specs/anchors.md`](anchors.md) — what an anchor stores, the two coordinate systems, the matching ladder, and what an anchor does **not** promise (written at `P2-4`, before the code it governs)
-- `specs/bible.md` *(written at `P3-1`, before the code it governs)*
+- [`specs/bible.md`](bible.md) — what an entry is and is not, the two vocabularies, story-time, the retcon rule, and both live predicates (written at `P3-1`, before the code it governs)
 - `specs/agent-tools.md` *(written as its phase begins)*
 
 > This is the root planning document. Every phase plan links back to it, and any change to
 > scope, architecture, or phase boundaries is recorded **here first**, then propagated to the
 > affected phase plan and to `CLAUDE.md`.
+
+**Changes in 1.6 (2026-09-03):** **Phase 3 built.** All fifteen items (`P3-1` … `P3-15`) delivered across four groups; both suites green (1,147 backend, 524 frontend). The five proposed register entries were ruled as recommended on 2026-09-01 and are binding — D25 soft delete for entries (settling `Q2`), D26 the uniform record with per-kind fields as served data, D27 what a revision is and what a retcon flags, D28 story-time as a partial order, D29 H1 stays in chapter bodies (settling `Q7`, resolved but not adopted) — and `specs/bible.md` now exists. Two things this document said are corrected below: § 5's sketch is superseded for the four bible tables that now exist, and § 6's Phase 3 row is brought level with what shipped. **One surface arrived that § 1's non-goals arguably ruled out** and it was a deliberate reading rather than drift: the Bible tab carries a story-time **readout** — three lists and no drawing — because § 8's steps 6 and 7 require a contradiction to be reported and an unplaced event to be listed, and neither is demonstrable against a route nothing calls. Phase 8 still owns the timeline and will replace it (phase-3 plan § 7, `D1`). No phase boundary moved and no decision changed. The phase is **built, not closed**: its manual acceptance script (phase-3 plan § 8) is the remaining act, and it covers what no test reaches — the pointer gestures, and whether a hand-built bible is actually usable.
 
 **Changes in 1.5 (2026-09-01):** [`specs/phase-3-plan.md`](phase-3-plan.md) written — fifteen items (`P3-1` … `P3-15`) in four groups, exit criteria, and a manual acceptance script. No scope changed and no phase boundary moved. The plan **proposes** five register entries (D25 soft delete for bible entries settling `Q2`, D26 the uniform record with per-kind fields as served data, D27 what a revision is and what a retcon flags, D28 story-time as a partial order settling D9's shape, D29 H1 stays available in chapter bodies settling `Q7`). **None is binding until ruled on and promoted to the register.** Two of them **reverse a recorded backlog leaning** and say so: `Q2` leaned "revision history is enough" and is recommended as a soft delete instead, because an entry is the target of links and a hard delete either cascades them away or leaves them dangling — the identical argument D22 made about snapshots; `Q7` leaned "probably yes, reserve H1" and is recommended against, because the manuscript that exposed the `D15` collision had a body H1 precisely because that is how this writer writes. One child document is added: `specs/bible.md`, to be written at `P3-1` before the code it governs, on the `P2-4` pattern.
 
@@ -317,7 +319,7 @@ Three resizable regions plus a settings screen.
 
 ## 5. Data Model Sketch
 
-**Superseded for the tables that exist.** [`specs/data-model.md`](data-model.md) documents `project`, `document`, `anchor`, `snapshot`, and `schema_version` **as built at schema version 2**, and is the authority on them. The five below are kept only as the shape they were sketched in; where the sketch and the data model disagree, the data model is right and the sketch is history. Two differences are worth naming because they are decisions rather than drift: `document` carries a nullable `deleted_at`, because deleting a chapter is a **soft** delete (D22); and `anchor.status` holds the resolver's text answer alone — `orphaned` is **derived** from the chapter's `deleted_at` on read and never written into the row.
+**Superseded for the tables that exist.** [`specs/data-model.md`](data-model.md) documents `project`, `document`, `anchor`, `snapshot`, `schema_version`, and the four bible tables — `entry`, `entry_revision`, `entry_link`, `entry_anchor` — **as built at schema version 3**, and is the authority on them. The nine below are kept only as the shape they were sketched in; where the sketch and the data model disagree, the data model is right and the sketch is history. Four differences are worth naming because each is a decision rather than drift: `document` carries a nullable `deleted_at`, because deleting a chapter is a **soft** delete (D22); `anchor.status` holds the resolver's text answer alone — `orphaned` is **derived** from the chapter's `deleted_at` on read and never written into the row; `entry`, `entry_link`, and `entry_anchor` likewise carry what a soft delete needs, because D25 ruled for entries exactly as D22 ruled for chapters; and `entry_revision` has **no id of its own** — it is keyed `(entry_id, revision)`, because a revision is only ever reached through its entry and an id would be an identity nobody dereferences.
 
 What is below stays as the sketch for the tables later phases will add — illustrative, not final:
 

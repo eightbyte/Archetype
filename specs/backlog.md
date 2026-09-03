@@ -1,6 +1,6 @@
 # Archetype — Backlog
 
-**Status:** Active · **Version:** 1.5 · **Date:** 2026-09-01
+**Status:** Active · **Version:** 1.6 · **Date:** 2026-09-03
 **Parent:** [`specs/project-outline.md`](project-outline.md)
 
 Where ideas go so they do not become scope creep (outline § 9). Two kinds live here: **open
@@ -41,6 +41,13 @@ needed to prove the system works end to end.
 - Node-link interaction graph (D14 stretch).
 - Map view for places; relationship strength or sentiment on links.
 - Bible entry templates per genre.
+- A **word-level diff** between two revisions of an entry. `P3-13` pre-marked it as the correct
+  thing to cut, and it was cut (phase-3 plan § 7, `D4`); what shipped is a field-level marker
+  saying which of an entry's four parts a revision holds differently from the record as it stands
+  now. The remaining want is seeing *what changed inside a paragraph*, which is a real diff
+  algorithm and a real dependency decision (D10).
+- **Merging or de-duplicating two entries.** Phase 7 needs it, because extraction produces
+  near-duplicates; a person typing does not, and Phase 3's non-goals say so.
 
 **AI**
 - Automatic background extraction as you write (D13 — plumbing stays scheduler-ready).
