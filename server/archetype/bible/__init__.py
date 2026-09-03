@@ -9,9 +9,10 @@ the contents of ``attributes_json``, validated against the per-kind definition i
 the two closed vocabularies, story-time and its two contradiction kinds, the revision and retcon
 rules, and what an entry does **not** promise. Read it before changing anything here.
 
-The package exports the pure half only. :class:`~archetype.bible.entries.EntryStore` and its
-siblings are imported from their own modules, for the reason ``anchors/__init__`` does the same:
-the pure modules must stay importable without dragging a store - and its errors - along with them.
+The package exports the pure half only - the definition (:mod:`~archetype.bible.schema`) and the
+story-time ordering (:mod:`~archetype.bible.storytime`). ``EntryStore`` and its siblings are
+imported from their own modules, for the reason ``anchors/__init__`` does the same: the pure
+modules must stay importable without dragging a store - and its errors - along with them.
 """
 
 from __future__ import annotations
@@ -27,6 +28,15 @@ from .schema import (
     RelationDefinition,
     validate,
 )
+from .storytime import (
+    ContradictionKind,
+    Ordering,
+    StoryEvent,
+    StoryTimeContradiction,
+    era_ranks,
+    events_from_entries,
+    order_events,
+)
 
 __all__ = [
     "BIBLE_SCHEMA",
@@ -36,6 +46,13 @@ __all__ = [
     "FieldType",
     "InvalidAttributesError",
     "KindDefinition",
+    "ContradictionKind",
+    "Ordering",
     "RelationDefinition",
+    "StoryEvent",
+    "StoryTimeContradiction",
+    "era_ranks",
+    "events_from_entries",
+    "order_events",
     "validate",
 ]

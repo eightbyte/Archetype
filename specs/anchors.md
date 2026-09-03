@@ -1,7 +1,8 @@
 # Archetype — Anchors
 
-**Status:** Specification · built in P2-5 to P2-8, reconciled with the code at P2-15 ·
-**Version:** 1.2 · **Date:** 2026-08-31
+**Status:** Specification · built in P2-5 to P2-8, reconciled with the code at P2-15; § 9 gained
+what a deletion does to a Phase 3 citation at `P3-7` ·
+**Version:** 1.3 · **Date:** 2026-09-02
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1 (D1, D18, **D21**, **D22**)
 **Plan:** [`specs/phase-2-plan.md`](phase-2-plan.md) — this document is `P2-4`; it governs `P2-5`
@@ -458,6 +459,13 @@ emptied, then restored by undo" as a case, and why the resolver has no notion of
 "been" stale.
 
 An anchor is only ever removed by the writer deleting it.
+
+**And a deletion takes the anchor's citations with it** (Phase 3, `P3-7`). From Phase 3 an entry in
+the story bible may cite an anchor; those rows live in `entry_anchor` and are removed inside the
+same transaction that removes the anchor, because `entry_anchor.anchor_id` is a real foreign key.
+The **entries stay** — an entry keeps what a person typed and loses one reason to believe it
+([`specs/bible.md`](bible.md) § 8). Nothing else about an anchor changes: the bible reads anchors
+and never writes one, and it mints them only through `AnchorStore`.
 
 ---
 

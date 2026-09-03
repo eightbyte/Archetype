@@ -26,7 +26,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from archetype.app import create_app
+from archetype.bible.citations import CitationStore
 from archetype.bible.entries import Entry, EntryStore
+from archetype.bible.links import LinkStore
 from archetype.bible.schema import EntryKind
 from archetype.config import CONFIG_FILE_ENV_VAR, Settings, reset_settings_cache
 from archetype.ids import IdPrefix, new_id
@@ -43,6 +45,7 @@ CONTRACT_FIXTURES_DIR = FIXTURES_DIR / "contract"
 ANCHOR_FIXTURES_DIR = FIXTURES_DIR / "anchors"
 MARKDOWN_FIXTURES_DIR = FIXTURES_DIR / "markdown"
 SCHEMA_FIXTURES_DIR = FIXTURES_DIR / "schema"
+STORYTIME_FIXTURES_DIR = FIXTURES_DIR / "bible" / "storytime"
 
 
 @pytest.fixture(autouse=True)
@@ -239,6 +242,18 @@ def make_entry(entries: EntryStore):
 
 
 @pytest.fixture
+def links(project: ProjectHandle) -> LinkStore:
+    """The link store for :func:`project` (P3-6)."""
+    return LinkStore(project)
+
+
+@pytest.fixture
+def citations(project: ProjectHandle) -> CitationStore:
+    """The citation store for :func:`project` (P3-7)."""
+    return CitationStore(project)
+
+
+@pytest.fixture
 def make_link(project: ProjectHandle):
     """Insert a link row directly, and return its id.
 
@@ -378,3 +393,13 @@ def load_closed_schema() -> dict[str, Any]:
     """
     raw = (SCHEMA_FIXTURES_DIR / "closed_schema.json").read_text(encoding="utf-8")
     return json.loads(raw)
+
+
+def load_storytime_cases() -> list[dict[str, Any]]:
+    """The story-time corpus (P3-8), written from ``specs/bible.md`` section 7.
+
+    Not recorded from the ordering module: every answer in it is what that document says must
+    happen, so a disagreement is a bug in one of the two rather than a fixture to re-record.
+    """
+    raw = (STORYTIME_FIXTURES_DIR / "cases.json").read_text(encoding="utf-8")
+    return json.loads(raw)["cases"]

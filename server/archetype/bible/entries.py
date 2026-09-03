@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from ..ids import IdPrefix, new_id
-from ..projects.db import transaction, utc_now
+from ..projects.db import touch_project, transaction, utc_now
 from ..projects.store import ProjectHandle
 from .predicates import LIVE_ENTRY, live_link
 from .schema import ENTRY_KINDS, KindLookup, definition_for, validate
@@ -59,6 +59,7 @@ __all__ = [
     "RevisionNotFoundError",
     "StaleEntryVersionError",
     "UNSET",
+    "Unset",
     "WriteResult",
 ]
 
@@ -103,8 +104,12 @@ class EntryOrigin:
     ALL: Final[frozenset[str]] = frozenset({"user", "agent"})
 
 
-class _Unset:
-    """The sentinel for "this field was not presented", so ``None`` can mean "clear it"."""
+class Unset:
+    """The sentinel for "this field was not presented", so ``None`` can mean "clear it".
+
+    Public because ``links.py`` presents the same distinction on a link's bounds, and a second
+    sentinel for the same idea would be two ways to say "not presented".
+    """
 
     __slots__ = ()
 
@@ -114,7 +119,7 @@ class _Unset:
 
 #: Distinguishes an omitted field from one deliberately set to a falsy value. A ``PUT`` that does
 #: not mention ``summary`` must not blank it.
-UNSET: Final[_Unset] = _Unset()
+UNSET: Final[Unset] = Unset()
 
 _FIRST_REVISION: Final[int] = 1
 
@@ -297,15 +302,6 @@ def _revision_meta_from_row(row: sqlite3.Row) -> RevisionMeta:
     )
 
 
-def _touch_project(conn: sqlite3.Connection, project_id: str, now: str) -> None:
-    """Stamp the project's ``updated_at`` in the same transaction as the entry write.
-
-    The picker sorts on this (P1-12). Building the bible is working on the project, so a project
-    whose entry changed a minute ago must not claim it was last touched when it was created.
-    """
-    conn.execute("UPDATE project SET updated_at = ? WHERE id = ?", (now, project_id))
-
-
 class EntryStore:
     """Create, read, update, delete, and restore the entries of one project."""
 
@@ -322,7 +318,7 @@ class EntryStore:
                 ``include_deleted`` is false.
         """
         with self.handle.connect() as conn:
-            return self._require(conn, entry_id, include_deleted=include_deleted)
+            return self.require(conn, entry_id, include_deleted=include_deleted)
 
     def list(
         self,
@@ -332,6 +328,7 @@ class EntryStore:
         needs_review: bool | None = None,
         q: str | None = None,
         include_deleted: bool = False,
+        limit: int | None = SEARCH_LIMIT,
     ) -> list[Entry]:
         """The project's entries, filtered.
 
@@ -341,6 +338,10 @@ class EntryStore:
         ``q`` is a ``LIKE`` filter over ``name``, the ``aliases`` attribute, and ``summary`` - a
         filter, not search, and deliberately not ``/search`` (plan section 2, ruling 4). Phase 5
         owns search and owns that route name. Results are capped at :data:`SEARCH_LIMIT`.
+
+        ``limit=None`` lifts that cap, and exists for the one caller that may not be lied to:
+        :mod:`archetype.bible.storytime` orders *every* event in the project, and a timeline that
+        silently stopped at two hundred would report a wrong order rather than a slow one.
 
         Raises:
             InvalidAttributesError: If ``kind`` is not one of the seven.
@@ -376,8 +377,10 @@ class EntryStore:
             pattern = f"%{_like_escape(q.strip())}%"
             params.extend([pattern, pattern, pattern])
 
-        sql = f"SELECT {_COLUMNS} FROM entry WHERE {' AND '.join(clauses)} {_ORDERED} LIMIT ?"
-        params.append(SEARCH_LIMIT)
+        sql = f"SELECT {_COLUMNS} FROM entry WHERE {' AND '.join(clauses)} {_ORDERED}"
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(limit)
         with self.handle.connect() as conn:
             return [_entry_from_row(row) for row in conn.execute(sql, params)]
 
@@ -426,6 +429,43 @@ class EntryStore:
                 declare, of the wrong type, or outside a declared ``enum`` set. Nothing written.
             ValueError: For a blank or oversized name, summary, body, status, or origin.
         """
+        with self.handle.connect() as conn, transaction(conn):
+            return self.create_within(
+                conn,
+                kind,
+                name,
+                summary=summary,
+                body_md=body_md,
+                attributes=attributes,
+                status=status,
+                origin=origin,
+                reason=reason,
+            )
+
+    def create_within(
+        self,
+        conn: sqlite3.Connection,
+        kind: str,
+        name: str,
+        *,
+        summary: str = "",
+        body_md: str = "",
+        attributes: dict[str, Any] | None = None,
+        status: str = EntryStatus.ACCEPTED,
+        origin: str = EntryOrigin.USER,
+        reason: str = "",
+    ) -> Entry:
+        """The same create, inside a transaction the caller already owns.
+
+        It exists for *Add to bible*, which mints an anchor, creates an entry, and cites it in
+        **one** transaction so that a stale document version leaves none of the three behind
+        (``specs/bible.md`` section 8, and :meth:`AnchorStore.create_within` for the other half).
+        :meth:`create` is this method plus a transaction, so there is still one place an ``entry``
+        row is written and one place revision 1 is recorded.
+
+        Raises:
+            As :meth:`create`.
+        """
         definition_for(kind)
         resolved_name = clean_text(name, limit=MAX_NAME_CHARS, what="name", allow_empty=False)
         resolved_summary = clean_text(summary, limit=MAX_SUMMARY_CHARS, what="summary")
@@ -436,51 +476,50 @@ class EntryStore:
         entry_id = new_id(IdPrefix.ENTRY)
         now = utc_now()
 
-        with self.handle.connect() as conn, transaction(conn):
-            resolved_attributes = validate(kind, attributes, kind_of=self._kind_lookup(conn))
-            conn.execute(
-                "INSERT INTO entry (id, project_id, kind, name, summary, body_md, "
-                "attributes_json, status, origin, revision, needs_review, review_reason, "
-                "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '', ?, ?)",
-                (
-                    entry_id,
-                    self.handle.id,
-                    kind,
-                    resolved_name,
-                    resolved_summary,
-                    resolved_body,
-                    _dump(resolved_attributes),
-                    status,
-                    origin,
-                    _FIRST_REVISION,
-                    now,
-                    now,
-                ),
-            )
-            entry = self._require(conn, entry_id)
-            # Revision 1 is the creation, so history is complete from the beginning and a
-            # "restore the original" is an ordinary restore rather than a special case.
-            _write_revision(
-                conn,
-                entry,
-                revised_at=now,
-                reason=resolved_reason,
-                retcon=False,
-                origin=origin,
-            )
-            _touch_project(conn, self.handle.id, now)
-            return entry
+        resolved_attributes = validate(kind, attributes, kind_of=self._kind_lookup(conn))
+        conn.execute(
+            "INSERT INTO entry (id, project_id, kind, name, summary, body_md, "
+            "attributes_json, status, origin, revision, needs_review, review_reason, "
+            "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '', ?, ?)",
+            (
+                entry_id,
+                self.handle.id,
+                kind,
+                resolved_name,
+                resolved_summary,
+                resolved_body,
+                _dump(resolved_attributes),
+                status,
+                origin,
+                _FIRST_REVISION,
+                now,
+                now,
+            ),
+        )
+        entry = self.require(conn, entry_id)
+        # Revision 1 is the creation, so history is complete from the beginning and a
+        # "restore the original" is an ordinary restore rather than a special case.
+        _write_revision(
+            conn,
+            entry,
+            revised_at=now,
+            reason=resolved_reason,
+            retcon=False,
+            origin=origin,
+        )
+        touch_project(conn, self.handle.id, now)
+        return entry
 
     def update(
         self,
         entry_id: str,
         revision: int,
         *,
-        name: str | _Unset = UNSET,
-        summary: str | _Unset = UNSET,
-        body_md: str | _Unset = UNSET,
-        attributes: dict[str, Any] | _Unset = UNSET,
-        status: str | _Unset = UNSET,
+        name: str | Unset = UNSET,
+        summary: str | Unset = UNSET,
+        body_md: str | Unset = UNSET,
+        attributes: dict[str, Any] | Unset = UNSET,
+        status: str | Unset = UNSET,
         retcon: bool | None = None,
         reason: str = "",
     ) -> WriteResult:
@@ -507,7 +546,7 @@ class EntryStore:
         resolved_reason = clean_text(reason, limit=MAX_REASON_CHARS, what="reason")
 
         with self.handle.connect() as conn, transaction(conn):
-            current = self._require(conn, entry_id)
+            current = self.require(conn, entry_id)
             # Re-read and compared under the write lock, so two saves cannot both pass the guard.
             if current.revision != revision:
                 raise StaleEntryVersionError(
@@ -543,17 +582,17 @@ class EntryStore:
         now = utc_now()
         with self.handle.connect() as conn, transaction(conn):
             # Refuses a missing or already-deleted entry before anything is written.
-            self._require(conn, entry_id)
+            self.require(conn, entry_id)
             conn.execute(
                 "UPDATE entry SET deleted_at = ?, updated_at = ?, revision = revision + 1 "
                 "WHERE id = ? AND project_id = ?",
                 (now, now, entry_id, self.handle.id),
             )
-            entry = self._require(conn, entry_id, include_deleted=True)
+            entry = self.require(conn, entry_id, include_deleted=True)
             _write_revision(
                 conn, entry, revised_at=now, reason="deleted", retcon=False, origin=entry.origin
             )
-            _touch_project(conn, self.handle.id, now)
+            touch_project(conn, self.handle.id, now)
             return entry
 
     def restore(self, entry_id: str) -> Entry:
@@ -569,7 +608,7 @@ class EntryStore:
         """
         now = utc_now()
         with self.handle.connect() as conn, transaction(conn):
-            current = self._require(conn, entry_id, include_deleted=True)
+            current = self.require(conn, entry_id, include_deleted=True)
             if current.deleted_at is None:
                 return current
             conn.execute(
@@ -577,11 +616,11 @@ class EntryStore:
                 "WHERE id = ? AND project_id = ?",
                 (now, entry_id, self.handle.id),
             )
-            entry = self._require(conn, entry_id)
+            entry = self.require(conn, entry_id)
             _write_revision(
                 conn, entry, revised_at=now, reason="restored", retcon=False, origin=entry.origin
             )
-            _touch_project(conn, self.handle.id, now)
+            touch_project(conn, self.handle.id, now)
             return entry
 
     # -- revisions (P3-4) ---------------------------------------------------------------------
@@ -596,7 +635,7 @@ class EntryStore:
         what someone deciding whether to restore it wants to see.
         """
         with self.handle.connect() as conn:
-            self._require(conn, entry_id, include_deleted=True)
+            self.require(conn, entry_id, include_deleted=True)
             rows = conn.execute(
                 "SELECT entry_id, revision, revised_at, reason, retcon, origin "
                 "FROM entry_revision WHERE entry_id = ? ORDER BY revision DESC",
@@ -612,7 +651,7 @@ class EntryStore:
             RevisionNotFoundError: If the entry has no such revision.
         """
         with self.handle.connect() as conn:
-            self._require(conn, entry_id, include_deleted=True)
+            self.require(conn, entry_id, include_deleted=True)
             row = conn.execute(
                 "SELECT entry_id, revision, revised_at, reason, retcon, origin, snapshot_json "
                 "FROM entry_revision WHERE entry_id = ? AND revision = ?",
@@ -662,7 +701,7 @@ class EntryStore:
         """
         now = utc_now()
         with self.handle.connect() as conn, transaction(conn):
-            current = self._require(conn, entry_id)
+            current = self.require(conn, entry_id)
             if current.revision != revision:
                 raise StaleEntryVersionError(
                     entry_id, revision, current.revision, current.updated_at
@@ -672,7 +711,7 @@ class EntryStore:
                 "revision = revision + 1 WHERE id = ? AND project_id = ?",
                 (now, entry_id, self.handle.id),
             )
-            entry = self._require(conn, entry_id)
+            entry = self.require(conn, entry_id)
             _write_revision(
                 conn,
                 entry,
@@ -681,7 +720,7 @@ class EntryStore:
                 retcon=False,
                 origin=entry.origin,
             )
-            _touch_project(conn, self.handle.id, now)
+            touch_project(conn, self.handle.id, now)
             return WriteResult(entry=entry, revision=entry.revision, retcon=False, flagged=())
 
     def dependents(self, entry_id: str) -> list[str]:
@@ -705,32 +744,32 @@ class EntryStore:
         current: Entry,
         *,
         now: str,
-        name: str | _Unset,
-        summary: str | _Unset,
-        body_md: str | _Unset,
-        attributes: dict[str, Any] | _Unset,
-        status: str | _Unset,
+        name: str | Unset,
+        summary: str | Unset,
+        body_md: str | Unset,
+        attributes: dict[str, Any] | Unset,
+        status: str | Unset,
         retcon: bool | None,
         reason: str,
     ) -> WriteResult:
         """The one write path an edit and a revision restore both go through."""
         resolved_name = (
             current.name
-            if isinstance(name, _Unset)
+            if isinstance(name, Unset)
             else clean_text(name, limit=MAX_NAME_CHARS, what="name", allow_empty=False)
         )
         resolved_summary = (
             current.summary
-            if isinstance(summary, _Unset)
+            if isinstance(summary, Unset)
             else clean_text(summary, limit=MAX_SUMMARY_CHARS, what="summary")
         )
-        resolved_body = current.body_md if isinstance(body_md, _Unset) else _checked_body(body_md)
-        resolved_status = current.status if isinstance(status, _Unset) else status
+        resolved_body = current.body_md if isinstance(body_md, Unset) else _checked_body(body_md)
+        resolved_status = current.status if isinstance(status, Unset) else status
         if resolved_status not in EntryStatus.ALL:
             raise ValueError(
                 f"unknown status {resolved_status!r}; expected one of {sorted(EntryStatus.ALL)}"
             )
-        if isinstance(attributes, _Unset):
+        if isinstance(attributes, Unset):
             resolved_attributes = current.attributes
         else:
             resolved_attributes = validate(
@@ -767,7 +806,7 @@ class EntryStore:
                 self.handle.id,
             ),
         )
-        entry = self._require(conn, current.id, include_deleted=True)
+        entry = self.require(conn, current.id, include_deleted=True)
         _write_revision(
             conn,
             entry,
@@ -785,7 +824,7 @@ class EntryStore:
                 entry=entry,
                 now=now,
             )
-        _touch_project(conn, self.handle.id, now)
+        touch_project(conn, self.handle.id, now)
         return WriteResult(
             entry=entry,
             revision=entry.revision,
@@ -794,9 +833,19 @@ class EntryStore:
             changed_fields=changed,
         )
 
-    def _require(
+    def require(
         self, conn: sqlite3.Connection, entry_id: str, *, include_deleted: bool = False
     ) -> Entry:
+        """One entry, read inside a transaction the caller owns.
+
+        Public for the same reason :meth:`create_within` is: :mod:`archetype.bible.citations`
+        checks an entry is there in the same transaction that cites it, and a guard checked
+        outside the transaction it guards is a race (the P1-6 rule).
+
+        Raises:
+            EntryNotFoundError: If this project holds no such entry, or it is deleted and
+                ``include_deleted`` is false.
+        """
         sql = f"SELECT {_COLUMNS} FROM entry WHERE id = ? AND project_id = ?"
         if not include_deleted:
             sql += f" AND {LIVE_ENTRY}"

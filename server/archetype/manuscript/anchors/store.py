@@ -161,34 +161,63 @@ class AnchorStore:
             AnchorRangeError: For every refusal in ``specs/anchors.md`` section 8.
             ValueError: If the label is too long.
         """
+        with self.handle.connect() as conn, transaction(conn):
+            return self.create_within(
+                conn, document_id, from_pos=from_pos, to_pos=to_pos, version=version, label=label
+            )
+
+    def create_within(
+        self,
+        conn: sqlite3.Connection,
+        document_id: str,
+        *,
+        from_pos: int,
+        to_pos: int,
+        version: int,
+        label: str = "",
+    ) -> Anchor:
+        """The same create, inside a transaction the caller already owns.
+
+        It exists for the one operation that has to mint an anchor and write something else
+        atomically: Phase 3's *Add to bible* creates an anchor, an entry, and the citation joining
+        them in **one** transaction, so that a stale document version leaves none of the three
+        behind (``specs/bible.md`` section 8). Two connections cannot do that, and a second insert
+        elsewhere would be a second path by which an anchor is minted - which is exactly what
+        phase-3-plan section 2, ruling 8 forbids.
+
+        So :meth:`create` is this method plus a transaction, and there is still one place where
+        an ``anchor`` row is written.
+
+        Raises:
+            As :meth:`create`.
+        """
         resolved_label = clean_label(label)
         anchor_id = new_id(IdPrefix.ANCHOR)
         now = utc_now()
 
-        with self.handle.connect() as conn, transaction(conn):
-            projection = self._guarded_projection(conn, document_id, version)
-            found = extract(projection, from_pos, to_pos)
-            conn.execute(
-                "INSERT INTO anchor (id, project_id, document_id, from_pos, to_pos, quote, "
-                "prefix, suffix, status, label, document_version, created_at, updated_at, "
-                "checked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, ?, ?, ?)",
-                (
-                    anchor_id,
-                    self.handle.id,
-                    document_id,
-                    found.from_pos,
-                    found.to_pos,
-                    found.quote,
-                    found.prefix,
-                    found.suffix,
-                    resolved_label,
-                    version,
-                    now,
-                    now,
-                    now,
-                ),
-            )
-            return self._require(conn, anchor_id)
+        projection = self._guarded_projection(conn, document_id, version)
+        found = extract(projection, from_pos, to_pos)
+        conn.execute(
+            "INSERT INTO anchor (id, project_id, document_id, from_pos, to_pos, quote, "
+            "prefix, suffix, status, label, document_version, created_at, updated_at, "
+            "checked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, ?, ?, ?)",
+            (
+                anchor_id,
+                self.handle.id,
+                document_id,
+                found.from_pos,
+                found.to_pos,
+                found.quote,
+                found.prefix,
+                found.suffix,
+                resolved_label,
+                version,
+                now,
+                now,
+                now,
+            ),
+        )
+        return self._require(conn, anchor_id)
 
     def relink(self, anchor_id: str, *, from_pos: int, to_pos: int, version: int) -> Anchor:
         """Point an existing anchor at a new range, re-deriving its quote and context.
@@ -232,11 +261,23 @@ class AnchorStore:
     def delete(self, anchor_id: str) -> None:
         """Remove an anchor. The only way one ever goes away (``specs/anchors.md`` section 9).
 
+        Its **citations go with it, and the entries stay** (``specs/bible.md`` section 8): a bible
+        entry keeps what a person typed and loses one reason to believe it. The two rows are
+        removed in one transaction, because a citation pointing at an anchor that is gone is a
+        broken foreign key, not a stale view.
+
         Raises:
             AnchorNotFoundError: If this project holds no such anchor.
         """
+        # Deferred because the bible imports the manuscript: a citation is *of* an anchor, so
+        # that is the static edge. An anchor's deletion happening to clear citations is the
+        # incidental direction, and it is the one that gives way - the rule documents.py already
+        # follows for the snapshot a delete records.
+        from ...bible.citations import uncite_anchor_within
+
         with self.handle.connect() as conn, transaction(conn):
             self._require(conn, anchor_id)
+            uncite_anchor_within(conn, anchor_id)
             conn.execute(
                 "DELETE FROM anchor WHERE id = ? AND project_id = ?",
                 (anchor_id, self.handle.id),

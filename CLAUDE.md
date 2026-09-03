@@ -18,8 +18,8 @@ Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository 
 `WritingAssistant` — a path, not the product name.
 
 **Current state: Phase 1 complete (2026-08-30); Phase 2 complete (2026-09-01); Phase 3 in
-progress — its § 2 ruled on 2026-09-01 and Group A (`P3-1` … `P3-4`) delivered on 2026-09-02,
-both suites green.** All twenty-nine decisions are resolved and binding: the writer ruled D21–D24
+progress — its § 2 ruled on 2026-09-01, and Groups A (`P3-1` … `P3-4`) and B (`P3-6` … `P3-8`)
+delivered on 2026-09-02, both suites green.** All twenty-nine decisions are resolved and binding: the writer ruled D21–D24
 on 2026-08-30 and **D25–D29 on 2026-09-01**, each as recommended and including both reversals,
 which settles backlog `Q1`, `Q2`, `Q5`, and `Q7`. Three open questions remain, none due before
 Phase 6.
@@ -62,18 +62,28 @@ Step 13 found a bug no test could have: a manuscript with an H1 inside a chapter
 and re-imported, came back as three chapters instead of two (`D15`, fixed and the step re-run the
 same day). Step 15 reached the failed save Phase 1 could not, closing that Phase 1 gap.
 
-**In flight: Phase 3 — the story bible.** There is still no AI and no search, and no bible the
-writer can *see* — Group A is the model, and every surface is Groups C and D. What exists on the
-server as of Group A: `specs/bible.md` (written before the code, as `anchors.md` was); **migration
-003** and its four tables (`entry`, `entry_revision`, `entry_link`, `entry_anchor`), proved against
-a captured version-2 project file; the `lnk_` prefix; **the kind and relation definition** — seven
-kinds, six closed field types, twelve relations, in one place and validated against; and
-**`EntryStore`**, carrying CRUD for all seven kinds, the `LIKE` filter, the D25 soft delete,
-complete revision history from creation, and D27's retcon flagging with its review queue.
+**In flight: Phase 3 — the story bible.** There is still no AI and no search, and **no bible the
+writer can *see*** — Groups A and B are the model and the structure over it, and every surface is
+Groups C and D. What exists on the server as of Group A: `specs/bible.md` (written before the code,
+as `anchors.md` was); **migration 003** and its four tables (`entry`, `entry_revision`,
+`entry_link`, `entry_anchor`), proved against a captured version-2 project file; the `lnk_` prefix;
+**the kind and relation definition** — seven kinds, six closed field types, twelve relations, in
+one place and validated against; and **`EntryStore`**, carrying CRUD for all seven kinds, the
+`LIKE` filter, the D25 soft delete, complete revision history from creation, and D27's retcon
+flagging with its review queue.
 
-Still to come: `LinkStore`, citations, and the story-time ordering module (Group B); the routes
-(Group C); the Bible tab, the generic form, links, citations, and *Add to bible* (Group D). Nothing
-in Groups B–D exists yet, and § 8's fifteen-step acceptance run has not been attempted.
+New in Group B: **`LinkStore`** — the twelve relations enforced in both directions, symmetric ones
+stored once and read from both ends, bounds that are stored and never interpreted, and the
+three-way live predicate over every read; **`CitationStore`** — citing an anchor in one of four
+roles, an entry's citations carrying each anchor's *current* status, the reverse view for *Marks*,
+narrative position derived from the `source` anchor and never stored, and **`create_from_range`**,
+which mints an anchor, creates an entry, and cites it in **one transaction**; and
+**`storytime.py`** — D28's partial order as a pure module with a twenty-case corpus, returning the
+order, the unplaced, and the two kinds of contradiction, and nothing else.
+
+Still to come: the routes (Group C); the Bible tab, the generic form, links, citations, and *Add to
+bible* (Group D). Nothing in Groups C and D exists yet, `P3-5` still owes its contract fixture and
+the client half of its closed list, and § 8's fifteen-step acceptance run has not been attempted.
 
 **Four rulings worth knowing, each a product decision rather than an implementation detail:**
 
@@ -306,6 +316,9 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/bible/schema.py` | The **one** place the seven kinds' fields and the twelve relations are written down; the six closed field types, `validate()`, and the JSON dump (`P3-5`, D26) |
 | `server/archetype/bible/predicates.py` | The live predicate for an entry, and the **three-way** one for a link — written once (`P3-3`, D25) |
 | `server/archetype/bible/entries.py` | `EntryStore` — CRUD for all seven kinds, the filters, the D25 soft delete, revisions, and D27's retcon flagging (`P3-3`, `P3-4`) |
+| `server/archetype/bible/links.py` | `LinkStore` — the relation vocabulary enforced in both directions, symmetry, bounds, and the three-way predicate on every read (`P3-6`) |
+| `server/archetype/bible/citations.py` | `CitationStore` — the four roles, an anchor's live status on an entry, narrative position, and *Add to bible*'s one transaction (`P3-7`) |
+| `server/archetype/bible/storytime.py` | D28's partial order — **pure**: the order, the unplaced, and the two contradiction kinds, plus the era ranking (`P3-8`) |
 | `server/archetype/api/routes.py` | The `/api` router (`P1-5`), including Group C's chapter and snapshot routes (`P2-11`, `P2-12`) and Group D's Markdown routes (`P2-13`, `P2-14`) |
 | `server/archetype/api/logging.py` | Request logging: one line per request, with a request id (`P1-13`) |
 | `server/archetype/api/schemas.py` | Wire shapes, mirrored in `web/src/api/types.ts` |
@@ -317,6 +330,7 @@ suite keeps a developer's real config out of its way.
 | `server/tests/fixtures/anchors/` | The anchor corpus, hand-written from `specs/anchors.md` (`P2-8`) |
 | `server/tests/fixtures/markdown/` | The round-trip corpus: each chapter stated twice, as JSON and as the Markdown it must export to (`P2-13`, `P2-14`) |
 | `server/tests/fixtures/schema/` | The closed schema, stated once and read by **both** suites (`P2-13`) |
+| `server/tests/fixtures/bible/storytime/` | The story-time corpus, hand-written from `specs/bible.md` § 7 (`P3-8`) |
 | `server/tests/fixtures/contract/` | API responses written by pytest, type-checked by vitest (`P1-8`) |
 | `server/tests/fakes/` | `FakeProvider` and `FakeEmbedder` land here in Phases 4 and 5 |
 | `web/src/api/` | The typed client, its interface, and the mirrored wire types |
@@ -355,9 +369,77 @@ suite keeps a developer's real config out of its way.
 | `server/tests/test_bible_schema.py` | The closed field-type list, the definition's own consistency, and validation's refusals (`P3-5`) |
 | `server/tests/test_entries.py` | All seven kinds through one store, every refusal writing nothing, and the deleted entry absent from every read path together (`P3-3`) |
 | `server/tests/test_entry_revisions.py` | Revisions, restore-through-update, the retcon computation, and the review queue that empties (`P3-4`) |
+| `server/tests/test_links.py` | Every refusal writing nothing, symmetry from both ends, and a deleted entry absent from every link read path together (`P3-6`) |
+| `server/tests/test_citations.py` | The one transaction, the two deletions that do not reach each other, and narrative position following a reorder (`P3-7`) |
+| `server/tests/test_storytime.py` | The corpus, and the invariant asserted once over all of it (`P3-8`) |
 
 **Invariants established in Phase 1's Groups A, B, and C, in Phase 2's Groups A, B, C, and D, and
-in Phase 3's Group A**, beyond those already listed above.
+in Phase 3's Groups A and B**, beyond those already listed above.
+
+Phase 3's Group B added these:
+
+- **A link is directed in storage and may be symmetric in meaning** (D26, plan § 2 ruling 7). One
+  row, always. A relation the definition marks `symmetric` is stored once and read from both ends,
+  and `for_entry` returns **both directions in one answer**, each marked with which end the entry
+  is on and labelled the way that end reads it. Storing a symmetric relation twice means two rows
+  that can disagree — one deleted and one not, one bounded and one not — and a Phase 8 adjacency
+  matrix that double-counts.
+- **A relation is refused on the side it is offered from.** `member_of` runs character → faction;
+  faction → character is a different statement and is refused, never silently reversed. The only
+  exception is a relation whose *definition* says it is symmetric, and that answer comes from the
+  vocabulary rather than from a list any consumer keeps.
+- **A link's endpoints and its relation are not editable — only its bounds and its attributes.**
+  Changing either is a delete and a create, and both are recoverable; editing them in place would
+  let a link's own history describe a relationship it never had, which is `kind`'s immutability one
+  table over. A link carries no revision and so presents none: the D19 guard lives on the entry.
+- **`since` and `until` are stored, displayed, and never interpreted** (D9). Nothing in Phase 3 or
+  Phase 8 sorts by them. The relation that carries ordering power is `precedes`, and it does so
+  through the ordering module, which reads *edges* and never bounds.
+- **Uniqueness is judged on the link's own row, and visibility on all three.** A duplicate is
+  refused against live links by `entry_link.deleted_at` alone — including a restore that would
+  produce one — because two rows for the same pair are duplicates whether or not an endpoint is
+  currently away, and letting one in would double-count the moment that entry came back.
+- **`create_from_range` is one transaction over three tables, and that is why the two stores have
+  connection-scoped twins.** `AnchorStore.create_within` and `EntryStore.create_within` exist so
+  *Add to bible* can mint an anchor, create an entry, and cite it atomically; each `create` is now
+  its `create_within` plus a transaction, so there is still exactly **one** place an anchor row is
+  written and one place an entry and its revision 1 are (ruling 8). A stale document version leaves
+  no anchor, no entry, and no citation.
+- **Deleting an anchor removes its citations and leaves the entries; soft-deleting an entry leaves
+  its citations and its anchors.** The first is not a courtesy — `entry_anchor.anchor_id` is a real
+  foreign key with `PRAGMA foreign_keys` on, so without it deleting a cited anchor *fails*. It runs
+  inside `AnchorStore.delete`'s own transaction through a deferred import of
+  `bible.citations.uncite_anchor_within`: a citation is *of* an anchor, so bible → manuscript is
+  the static edge and the incidental direction gives way — the rule `documents.py` already follows
+  for the snapshot a delete records.
+- **An entry's narrative position is derived from its `source` anchor and never stored.** Chapter
+  `order_index`, then `from_pos`, computed on read — so it moves when the writer reorders chapters,
+  for free, and an entry with no `source` anchor simply has none, which is D9's unplaced tray
+  arriving from the data rather than from a flag somebody maintains. A source in a soft-deleted
+  chapter places nothing: the passage is away, and a position in a chapter no reader can reach
+  would sort the entry into a book it is not in.
+- **A citation reports the anchor's status, and the bible never derives one.** The anchor rows come
+  back in the citation query and are built by the anchors package's own row mapper, so `orphaned`
+  is derived in the one place D22 put it. A second derivation is how a citation would come to
+  disagree with the *Marks* tab about the same anchor.
+- **The ordering module is pure and returns three things: the order, the unplaced, and the
+  contradictions** (D28). There are exactly two contradiction kinds — a cycle in `precedes`, and a
+  `sort_key` inversion across an edge — and they are **independent**: an edge inside a cycle whose
+  keys also disagree is reported as both, because a writer fixes them differently. The era rule is
+  a separate function rather than a fourth answer, so "three things and never more" stays literal.
+- **An edge always wins, and nothing is ever ordered by a name or a creation date.** The tiebreak
+  is exact and written down (`specs/bible.md` § 7): the edge first, then the smaller `sort_key`
+  among events the edges leave unordered, then keyed before unkeyed, then the order the events
+  arrived in. An event with neither an edge nor a key is **unplaced** — not appended, not dropped,
+  and never guessed at.
+- **A contradiction never costs the rest of the graph.** A cycle is condensed, reported, and
+  everything outside it is still ordered, because a timeline that refuses to draw anything until
+  two events agree is a timeline nobody can use to find the disagreement. The invariant is asserted
+  **once over the whole corpus** — every returned order respects every edge outside a reported
+  cycle — so a case added later is covered without anyone remembering.
+- **`EntryStore.list` may be asked for everything, and the timeline is the one caller that does.**
+  `SEARCH_LIMIT` is the `q` filter's cap; the ordering reads with `limit=None`, because a timeline
+  that silently stopped at two hundred events would report a wrong order rather than a slow one.
 
 Phase 3's Group A added these:
 

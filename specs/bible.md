@@ -1,7 +1,8 @@
 # Archetype — The Story Bible
 
-**Status:** Specification · written at `P3-1`, **before** the code it governs ·
-**Version:** 1.0 · **Date:** 2026-09-02
+**Status:** Specification · written at `P3-1`, **before** the code it governs; § 7's tiebreak
+made exact at `P3-8`, still before the module it governs ·
+**Version:** 1.1 · **Date:** 2026-09-02
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 (D5, D9, **D25**, **D26**, **D27**, **D28**, D19, D22)
@@ -377,6 +378,30 @@ It returns exactly three things and never more:
   1. a **cycle** in `precedes`, reported with the cycle's members;
   2. a **`sort_key` inversion**: an edge `A precedes B` where both carry a `sort_key` and A's is
      the greater.
+
+  The two kinds are **independent**, and one never masks the other: an edge inside a cycle whose
+  keys also disagree is reported as both, because a writer fixes them differently — one by
+  removing a link, the other by changing a number.
+
+### The tiebreak, exactly
+
+"Refined by `sort_key`" leaves a real choice, and a corpus written from this document cannot state
+an expected order until the choice is made. So, in as many words, and in this order:
+
+1. **An edge always wins.** If `A precedes B`, `A` comes first — including when their `sort_key`s
+   say otherwise, which is the inversion above: the contradiction is *reported*, and the edge
+   still orders the pair.
+2. **Among events the edges leave unordered, the smaller `sort_key` comes first.**
+3. **An event with no `sort_key` comes after every event that has one**, where the edges leave
+   them unordered. It is in the order because an edge placed it, not because anybody said when it
+   happens.
+4. **The final fallback is the order the events were given in** — stable, so two runs never
+   disagree, and no event is ever ordered by its name or its creation date, which would be an
+   invented answer wearing a determinism costume.
+
+Events inside a reported cycle stay in the order, placed by these same rules. **A cycle's own
+edges are the only ones a returned order may violate**, which is what makes the invariant below
+assertable over every case at once.
 
 ### What it must never do
 
