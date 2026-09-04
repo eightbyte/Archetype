@@ -17,19 +17,23 @@ relational data plus keyword and vector indexes. Single user, localhost, Windows
 Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository directory is
 `WritingAssistant` — a path, not the product name.
 
-**Current state: Phase 1 complete (2026-08-30); Phase 2 complete (2026-09-01); Phase 3 built
-(2026-09-03) and awaiting its acceptance run.** Its § 2 was ruled on 2026-09-01 and all fifteen
-items (`P3-1` … `P3-15`) are delivered across four groups, both suites green — **1,147 backend,
-524 frontend**. All twenty-nine decisions are resolved and binding: the writer ruled D21–D24 on
-2026-08-30 and **D25–D29 on 2026-09-01**, each as recommended and including both reversals, which
-settles backlog `Q1`, `Q2`, `Q5`, and `Q7`. Three open questions remain, none due before Phase 6.
+**Current state: Phase 1 complete (2026-08-30); Phase 2 complete (2026-09-01); Phase 3 complete
+(2026-09-04). Phase 4 is planned and not started — its § 2 is unruled.** Phase 3's § 2 was ruled on
+2026-09-01, all fifteen items (`P3-1` … `P3-15`) are delivered across four groups, **§ 8's
+fifteen-step acceptance run passed on 2026-09-04**, and all ten exit criteria are met. Both suites
+green — **1,147 backend, 526 frontend**. All twenty-nine decisions are resolved and binding: the
+writer ruled D21–D24 on 2026-08-30 and **D25–D29 on 2026-09-01**, each as recommended and including
+both reversals, which settles backlog `Q1`, `Q2`, `Q5`, and `Q7`. Three open questions remain, none
+due before Phase 6.
 
-**The one thing left in Phase 3 is [specs/phase-3-plan.md](specs/phase-3-plan.md) § 8** — the
-fifteen-step manual acceptance run, by hand, against the single-process build. It is not a
-formality: Phase 2's equivalent found `D15`, a real bug in a case its whole corpus was blind to,
-and this one covers the two things no test reaches — the pointer gestures jsdom cannot make, and
-whether a hand-built bible is actually usable, which is the exit criterion in the outline's own
-words.
+**Next is [specs/phase-4-plan.md](specs/phase-4-plan.md) — the LLM provider layer and chat.** The
+plan is written; **none of its five proposed decisions (D30–D34) is binding until the writer rules
+on § 2**, and no work item may start before that. It proposes: where a conversation lives and that a
+Phase 4 turn is *not* a Phase 6 run (D30); whether the port carries tool declarations before any
+tool exists (D31 — the one place the phase deliberately builds ahead); one stream event vocabulary
+shared with Phase 6 (D32); that an accepted rewrite is an ordinary editor transaction rather than a
+durable proposal (D33); and that the API key stays environment-only with the settings UI read-only
+about it (D34).
 
 The app is a place you can write, a place you can **maintain** what you wrote, a place you can get
 words **in and out of**, and now a place that **knows what is in the story**: create a project, add
@@ -113,9 +117,26 @@ the retcon control on the save; and `EntryDetailView`, `EntryHistory`, `EntryLin
 `EntryCitations` are the record, its past, its relationships, and the passages behind it. In the
 editor, *Add to bible* joined *Mark passage* and *Re-link here* over the selection.
 
-**§ 8's fifteen-step acceptance run has not been attempted.** That is the whole of what remains.
+**§ 8's fifteen-step acceptance run passed on 2026-09-04**, by hand against the single-process
+build, and it earned its keep the way Phase 2's did. **Step 12 found a real defect no test could
+have caught**, recorded as `E2`: rewriting a marked passage *wholesale* — new sentences rather than
+an edit — leaves the anchor `stale` with its positions deliberately unmoved, and the editor was
+still drawing that range as a **wavy red underline**, which is the browser's own spellcheck idiom.
+The writer read it as a spelling squiggle and reported no highlight at all; the range was in fact
+landing on words the anchor had never referred to, a mid-word fragment of the replacement. The whole
+Phase 2 anchor corpus edits a character or a word wherever it touches this path, so nothing on
+either side of the wire said so. **Ruled by the writer: keep the range and restyle it** — the
+positions stay the server's answer, unedited, and how the mark *reads* becomes the guard.
+`.anchor-stale` is now a tinted alarm wash under a solid rule, two tests in
+`web/src/__tests__/anchorPlugin.test.ts` pin the wholesale-rewrite case in both halves, and
+`specs/anchors.md` § 1 carries what a stale range does **not** promise. A second, smaller finding
+(`E1`): **step 3 cannot be performed by hand at all** — an `enum` is a `<select>` of its declared
+members and an `entry_ref` a `<select>` of the candidate kinds, so the UI offers no gesture that
+submits an illegal value and the server refusal the step asked for is unreachable. That is D26's
+*unbuildable, not refused* working exactly as designed; the refusal is still real, still
+load-bearing for Phase 7's proposals, and still covered by three backend suites.
 
-**Four rulings worth knowing, each a product decision rather than an implementation detail:**
+**Five rulings worth knowing, each a product decision rather than an implementation detail:**
 
 - Deviation `B4` in [specs/phase-2-plan.md](specs/phase-2-plan.md) § 7. `specs/anchors.md` § 10
   said a paragraph split through an anchored range yields `stale`, while its own neighbouring row
@@ -141,6 +162,15 @@ editor, *Add to bible* joined *Mark passage* and *Re-link here* over the selecti
   goes out as `####` and returns at level 3 with a notice. The per-chapter export, which is the
   half that promises a round trip, is untouched. Reserving H1 for chapter titles in the editor is
   the better long-term answer and is backlog `Q7`, to be settled by Phase 3.
+- Deviation `E2` in [specs/phase-3-plan.md](specs/phase-3-plan.md) § 7: **a `stale` anchor keeps
+  its range, and the styling is the guard.** The resolver leaves a stale anchor's positions exactly
+  where they were — they are true at no version — so after a wholesale rewrite the range covers
+  whatever now occupies those offsets. Two answers were put to the writer on 2026-09-04 and the
+  ruling was to **keep the range and restyle it** rather than collapse it to a marker: the positions
+  stay the server's answer, unedited, and how the mark reads carries the whole meaning. Hence a
+  tinted alarm wash under a solid rule, and not a wavy underline — which is the browser's own
+  spellcheck idiom and was read as one. **A stale anchor's range is not a claim about the text under
+  it, and no consumer may read it as one** (`specs/anchors.md` § 1).
 
 One thing the Phase 1 run surfaced, still true: **some of the app's surfaces are hard or impossible
 to reach from a test.** Phase 1 could not make a save fail where the writer could see it — the
@@ -154,15 +184,20 @@ selection control, and the drop target are exercised only by the frontend suite;
 them will not show up by using the app, so those tests and the § 8 runs are the only things
 standing under them.
 
-**And § 8 is not a formality.** Step 13 found `D15` — a real bug, in a case the whole Markdown
-corpus was blind to because no test manuscript had a heading where this writer puts one.
+**And § 8 is not a formality — it has now found a real bug in each of the two phases that ran
+one.** Phase 2's step 13 found `D15`, in a case the whole Markdown corpus was blind to because no
+test manuscript had a heading where this writer puts one. Phase 3's step 12 found `E2`, in a case
+the whole anchor corpus was blind to because every test that touches that path edits a character or
+a word, and a writer rewriting a paragraph does neither. Both were found by a person doing the thing
+the corpus abstracts, and Phase 4's § 8 adds a third kind of blindness the suite cannot cover:
+**whether the answers are any good.**
 
 ## The specs are the contract
 
 - [specs/project-outline.md](specs/project-outline.md) — the root document: vision, architecture,
   phase list, testing strategy, risks. **Read this first.**
 - [specs/development-phases.md](specs/development-phases.md) — the **authoritative decision
-  register** (D1–D24) and the work breakdown across all phases. Cite these IDs.
+  register** (D1–D29) and the work breakdown across all phases. Cite these IDs.
 - [specs/phase-1-plan.md](specs/phase-1-plan.md) — Phase 1 work items (`P1-1` … `P1-15`), exit
   criteria, and the as-built deviations table.
 - [specs/phase-2-plan.md](specs/phase-2-plan.md) — Phase 2 work items (`P2-1` … `P2-15`). Its § 2
@@ -177,8 +212,17 @@ corpus was blind to because no test manuscript had a heading where this writer p
   retcon flags, D28 story-time as a partial order, D29 H1 stays in chapter bodies (settling `Q7`).
   Its § 3 is the record's shape, § 5 ten exit criteria, § 6 the risks, § 7 the deviations table —
   `A1`–`A4`, `B1`–`B7`, `C1`–`C7`, and `D1`–`D8`, of which `B2` is the only one that changes
-  behaviour outside the bible, `C3`/`C4`/`C7` are D26 taken literally, and `D1`, `D3`, and `D5`
-  are the three worth reading — and **§ 8 the fifteen-step acceptance run, not yet run**.
+  behaviour outside the bible, `C3`/`C4`/`C7` are D26 taken literally, `D1`, `D3`, and `D5` are
+  the three worth reading, and **`E1` and `E2` are the acceptance run's two findings** — and **§ 8
+  the fifteen-step acceptance run, run on 2026-09-04, all fifteen passed**, step 12 having found
+  `E2` and been re-run against the fix.
+- [specs/phase-4-plan.md](specs/phase-4-plan.md) — Phase 4 work items (`P4-1` … `P4-15`), **not
+  started**. **Its § 2 is unruled**: five proposed register entries (D30–D34), none binding until
+  the writer rules on them, and no work item may start first. Its § 3 is the port's shape, § 5
+  twelve exit criteria, § 6 the risks — of which "money" and "the port is shaped by whichever
+  adapter is written first" are the two with no precedent in earlier phases — § 7 an empty
+  deviations table, and § 8 the fifteen-step acceptance run, which must additionally **record what
+  the model actually said**, because the suite cannot assess an answer.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
   phase it must be settled by. `Q1`, `Q2`, `Q5`, and `Q7` are promoted and closed; `Q3`, `Q4`, and
   `Q6` are open, none due before Phase 6. `Q2` and `Q7` were each settled **against** the leaning
@@ -186,7 +230,8 @@ corpus was blind to because no test manuscript had a heading where this writer p
 - [specs/data-model.md](specs/data-model.md) — storage as built at schema version 3: the project
   file, the **nine** tables, the projection rules, the write rules, all three soft-delete
   predicates, and the migration discipline. Its § 7 sketches Phases 5 and 6 and is **not** binding;
-  the rest is a bug if it disagrees with the code.
+  the rest is a bug if it disagrees with the code. Phase 4's `conversation` and `message` tables
+  (`P4-4`) are proposed in that plan and are not in this document until they are built.
 - [specs/api-contract.md](specs/api-contract.md) — what each route promises and what it refuses:
   § 5's chapter operations, § 7's five anchor routes and the extended save response, § 8's four
   snapshot routes, § 9's two Markdown exports and one import — including the **one non-JSON
@@ -199,7 +244,9 @@ corpus was blind to because no test manuscript had a heading where this writer p
   it governs; `P2-8`'s corpus is written from it, not from the implementation. Read it before
   touching anything in `manuscript/anchors/`. Four places where the code corrected it are marked
   and cross-referenced to the phase plan's `B1`–`B5`; its § 7 says why a Markdown import is
-  *not* one of the writes that re-resolves an anchor.
+  *not* one of the writes that re-resolves an anchor; and its § 1 carries what the Phase 3
+  acceptance run added (`E2`) — **a `stale` anchor's range is not a claim about the text under
+  it**, which is the fifth thing an anchor does not promise.
 - [specs/bible.md](specs/bible.md) — written at `P3-1`, **before** the code it governs, on the
   `anchors.md` pattern. It fixes the entry record and why `kind` is immutable, the *vocabularies*
   of field types and relations, the `entry_ref`-versus-link distinction, the constants, the
@@ -210,6 +257,9 @@ corpus was blind to because no test manuscript had a heading where this writer p
   exactly the third place to disagree that `specs/markdown.md` was refused for being. Its § 12
   carries the corrections the code makes to it — empty so far.
 - `specs/agent-tools.md` — written as its phase begins (Phase 6).
+
+`specs/providers.md` does not exist yet: it is written at `P4-1`, before the code it governs, on
+the `anchors.md` and `bible.md` pattern.
 
 There is no `specs/markdown.md`, deliberately. The syntax is a docstring
 (`manuscript/markdown/serialize.py`) and a corpus (`tests/fixtures/markdown/cases.json`); the
@@ -789,6 +839,16 @@ Established earlier, and still true:
   positions onto one; an inline decoration over nothing draws nothing, so it becomes a visible
   marker instead. The plugin does not call it `stale` — a status is the server's to give, and
   nothing on the client may become a second resolver (phase-2-plan § 2, ruling 2).
+- **A `stale` anchor keeps its range, and the styling carries the whole meaning** (phase-3 `E2`,
+  ruled 2026-09-04). The resolver leaves a stale anchor's positions exactly where they were, so
+  after a wholesale rewrite the range covers whatever now occupies those offsets — a mid-word
+  fragment of the replacement, in the case § 8's step 12 actually made. The range is still drawn,
+  because the positions are the server's answer and the client may not become a second resolver;
+  what changed is that `.anchor-stale` is a tinted alarm wash under a solid rule rather than a wavy
+  underline, which is the browser's spellcheck idiom and was read as one. **A stale anchor's range
+  is not a claim about the text under it, and nothing may read it as one** (`specs/anchors.md`
+  § 1). The two tests that pin the wholesale-rewrite case are what keep this from regressing —
+  every other test on this path edits a character or a word.
 - **A decoration is clamped into the document before it is built.** The server leaves a `stale`
   anchor's positions where they were, deliberately, and that document may since have got shorter;
   a decoration built out of bounds throws and takes the writing surface with it.

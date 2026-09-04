@@ -1,6 +1,6 @@
 # Archetype — Backlog
 
-**Status:** Active · **Version:** 1.6 · **Date:** 2026-09-03
+**Status:** Active · **Version:** 1.7 · **Date:** 2026-09-04
 **Parent:** [`specs/project-outline.md`](project-outline.md)
 
 Where ideas go so they do not become scope creep (outline § 9). Two kinds live here: **open
@@ -20,9 +20,11 @@ Promoting anything from here into a phase means editing the outline first, then 
 | **Q4** | Does the agent get an external web-search tool? | No for 1.0 — offline story consistency is the product | Phase 6 |
 | **Q6** | Does the interaction chart get a node-link view alongside the matrix? | Matrix ships first (D14); the writer asked to revisit the design when the phase starts | Phase 8 |
 
-**`Q2` and `Q7` were due this phase and are settled** — both against their recorded leanings, both
-ruled by the writer on 2026-09-01, and both now in § 3. Three questions remain, none due before
-Phase 6.
+**`Q2` and `Q7` were due in Phase 3 and are settled** — both against their recorded leanings, both
+ruled by the writer on 2026-09-01, and both now in § 3. Three questions remain, and **none is due in
+Phase 4**: `Q4` is due by Phase 6, `Q3` by Phase 7, `Q6` by Phase 8. Phase 4 settles nothing from
+this list; what it opens instead is five *decisions* (D30–D34) in its own plan's § 2, which is where
+a decision belongs — a backlog question is one nobody has had to answer yet.
 
 ---
 
@@ -41,11 +43,14 @@ needed to prove the system works end to end.
 - Node-link interaction graph (D14 stretch).
 - Map view for places; relationship strength or sentiment on links.
 - Bible entry templates per genre.
-- A **word-level diff** between two revisions of an entry. `P3-13` pre-marked it as the correct
-  thing to cut, and it was cut (phase-3 plan § 7, `D4`); what shipped is a field-level marker
-  saying which of an entry's four parts a revision holds differently from the record as it stands
-  now. The remaining want is seeing *what changed inside a paragraph*, which is a real diff
-  algorithm and a real dependency decision (D10).
+- A **word-level diff**, in two places that want the same thing. Between two revisions of an
+  entry: `P3-13` pre-marked it as the correct thing to cut, and it was cut (phase-3 plan § 7,
+  `D4`); what shipped is a field-level marker saying which of an entry's four parts a revision
+  holds differently from the record as it stands now. And between the before and after of a
+  proofread or rewrite: `P4-14` makes the identical call, "desirable, not required", and may cut it
+  the same way. The remaining want in both is seeing *what changed inside a paragraph*, which is a
+  real diff algorithm and a real dependency decision (D10) — and it is now wanted twice, which is
+  the argument for doing it properly once rather than twice badly.
 - **Merging or de-duplicating two entries.** Phase 7 needs it, because extraction produces
   near-duplicates; a person typing does not, and Phase 3's non-goals say so.
 

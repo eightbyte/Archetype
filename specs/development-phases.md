@@ -1,6 +1,6 @@
 # Archetype — Decision Register & Development Phases
 
-**Status:** Active · **Version:** 1.8 · **Date:** 2026-09-03
+**Status:** Active · **Version:** 1.9 · **Date:** 2026-09-04
 **Parent:** [`specs/project-outline.md`](project-outline.md)
 
 This document is the **authoritative register of binding decisions** (§ 1) and the **work
@@ -83,7 +83,7 @@ Binding on the same terms as D1–D24. The plan's § 2 table stays as the reason
 | 1 | [Skeleton & Editor](phase-1-plan.md) | Write, format, and reload a multi-chapter document; navigate by TOC; both suites green | **Complete** (2026-08-30) — every exit criterion met; acceptance recorded in its § 6 |
 | 2 | [Manuscript Model & Anchors](phase-2-plan.md) | An anchor survives heavy editing around it; deleted text yields `stale`, never a wrong match | **Complete (2026-09-01)** — § 2 ruled (D21–D24 binding, 2026-08-30); Groups A–D delivered 2026-08-31, both suites green; the § 8 acceptance run passed all fifteen steps, step 13 having found and closed `D15` |
 | 3 | [Story Bible (manual)](phase-3-plan.md) | Build a bible by hand; retcon an entry and see dependents flagged | **Complete (2026-09-04)** — § 2 ruled 2026-09-01 (D25–D29 binding, both reversals accepted), closing `Q2` and `Q7`; Groups A–D delivered 2026-09-02/03; the § 8 acceptance run passed all fifteen steps, step 12 having found and closed `E2`. All ten exit criteria met |
-| 4 | LLM Provider Layer & Chat | Ask a question about a selection, get a streamed answer; swap providers in settings with no code change | Not started |
+| 4 | [LLM Provider Layer & Chat](phase-4-plan.md) | Ask a question about a selection, get a streamed answer; swap providers in settings with no code change | **Planned** — plan written 2026-09-04; its § 2 is **unruled** and holds the decisions Phase 4 cannot start without |
 | 5 | Retrieval & Indexing | Search 50k words by meaning and by exact phrase; edits reindex within seconds | Not started |
 | 6 | Agent Harness & Tools | Watch the agent plan, search, read, and answer with citations | Not started |
 | 7 | AI Bible Extraction & Continuity | Accept proposals from a chapter run; a contradictory paragraph is flagged with citations | Not started |
