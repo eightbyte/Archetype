@@ -1,0 +1,20 @@
+{
+  "revisions": [
+    {
+      "entry_id": "ent_000000000001",
+      "revision": 2,
+      "revised_at": "2026-01-01T00:00:00Z",
+      "reason": "he was never only Marlow",
+      "retcon": true,
+      "origin": "user"
+    },
+    {
+      "entry_id": "ent_000000000001",
+      "revision": 1,
+      "revised_at": "2026-01-01T00:00:00Z",
+      "reason": "created from a selection",
+      "retcon": false,
+      "origin": "user"
+    }
+  ]
+}

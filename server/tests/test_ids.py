@@ -99,7 +99,8 @@ def test_registered_prefixes_are_distinct() -> None:
         IdPrefix.ANCHOR,
         IdPrefix.SNAPSHOT,
         IdPrefix.ENTRY,
+        IdPrefix.LINK,
         IdPrefix.RUN,
     }
     assert declared == set(IdPrefix.ALL)
-    assert len(IdPrefix.ALL) == 6
+    assert len(IdPrefix.ALL) == 7

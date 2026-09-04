@@ -1,7 +1,9 @@
 # Archetype — Anchors
 
-**Status:** Specification · built in P2-5 to P2-8, reconciled with the code at P2-15 ·
-**Version:** 1.2 · **Date:** 2026-08-31
+**Status:** Specification · built in P2-5 to P2-8, reconciled with the code at P2-15; § 9 gained
+what a deletion does to a Phase 3 citation at `P3-7`, and § 1 what a `stale` anchor's range does
+**not** promise, from the Phase 3 acceptance run (`E2`) ·
+**Version:** 1.4 · **Date:** 2026-09-04
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1 (D1, D18, **D21**, **D22**)
 **Plan:** [`specs/phase-2-plan.md`](phase-2-plan.md) — this document is `P2-4`; it governs `P2-5`
@@ -78,6 +80,13 @@ Stated in as many words, because each of these is a thing someone will reasonabl
   at. The writer owns the words (D12).
 - **Its positions are a cache.** `from_pos`/`to_pos` are what the last resolution concluded. A
   reader that has not re-resolved must not treat them as current.
+- **A `stale` anchor's range is not a claim about the text under it.** The resolver leaves the
+  positions exactly where they were, deliberately — they are true at no version (§ 5, step 5) —
+  so after a passage is rewritten wholesale the range covers whatever now occupies those offsets,
+  which may be a fragment starting and ending mid-word. Nothing may read that range as the
+  anchored passage, and anything that *draws* it has to say plainly that it is stale: this is a
+  finding from the Phase 3 acceptance run, where the mark was drawn with a wavy underline and was
+  read as a spellcheck squiggle ([phase-3-plan](phase-3-plan.md) § 7, `E2`).
 - **It is not stable across a change to the projection rules.** `text_plain` is the coordinate
   space anchors live in, so changing how a node projects moves every anchor in every project. That
   is why the projection's rules are a written specification with a shared fixture corpus behind
@@ -458,6 +467,13 @@ emptied, then restored by undo" as a case, and why the resolver has no notion of
 "been" stale.
 
 An anchor is only ever removed by the writer deleting it.
+
+**And a deletion takes the anchor's citations with it** (Phase 3, `P3-7`). From Phase 3 an entry in
+the story bible may cite an anchor; those rows live in `entry_anchor` and are removed inside the
+same transaction that removes the anchor, because `entry_anchor.anchor_id` is a real foreign key.
+The **entries stay** — an entry keeps what a person typed and loses one reason to believe it
+([`specs/bible.md`](bible.md) § 8). Nothing else about an anchor changes: the bible reads anchors
+and never writes one, and it mints them only through `AnchorStore`.
 
 ---
 

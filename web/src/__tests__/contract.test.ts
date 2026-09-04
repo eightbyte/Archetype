@@ -23,23 +23,41 @@
 import { describe, expect, test } from 'vitest';
 import type {
   Anchor,
+  AnchorEntries,
   AnchorList,
+  BibleSchema,
+  Citation,
+  CitationRemoved,
   Document,
   DocumentList,
   DocumentMeta,
+  Entry,
+  EntryDetail,
+  EntryFromRange,
+  EntryLinks,
+  EntryList,
+  EntryRevision,
+  EntryVersionConflictDetail,
+  EntryWriteResult,
   ErrorResponse,
   Health,
+  InvalidAttributesDetail,
+  Link,
+  LinkList,
   MarkdownImport,
   Outline,
   ProjectDetail,
   ProjectList,
   ReorderMismatchDetail,
+  RevisionList,
   SaveResult,
   Snapshot,
   SnapshotCapture,
   SnapshotList,
+  StoryTime,
   VersionConflictDetail,
 } from '../api/types';
+import { CITATION_ROLES, ERROR_CODES, FIELD_TYPES, LINK_ENDS, isFieldType } from '../api/types';
 import { readServerFixture } from './fixtures';
 
 function load<T>(name: string): T {
@@ -130,6 +148,60 @@ const KEYS = {
     'updated_at',
   ],
   reorderMismatchDetail: ['missing', 'unexpected', 'duplicated'],
+  entry: [
+    'id',
+    'project_id',
+    'kind',
+    'name',
+    'summary',
+    'body_md',
+    'attributes',
+    'status',
+    'origin',
+    'revision',
+    'needs_review',
+    'review_reason',
+    'created_at',
+    'updated_at',
+    'deleted_at',
+  ],
+  narrativePosition: ['entry_id', 'document_id', 'order_index', 'from_pos'],
+  citation: ['entry_id', 'anchor', 'role', 'created_at', 'document_id', 'document_title'],
+  citingEntry: ['entry_id', 'kind', 'name', 'role', 'created_at'],
+  revisionMeta: ['entry_id', 'revision', 'revised_at', 'reason', 'retcon', 'origin'],
+  link: [
+    'id',
+    'project_id',
+    'from_entry',
+    'to_entry',
+    'relation',
+    'attributes',
+    'since',
+    'until',
+    'created_at',
+    'updated_at',
+    'deleted_at',
+  ],
+  linkView: ['link', 'end', 'other_id', 'other_name', 'other_kind', 'label'],
+  storyEvent: ['entry_id', 'name', 'label', 'sort_key', 'era'],
+  storyTimeEra: ['era', 'rank'],
+  fieldDefinition: ['name', 'type', 'label', 'required', 'help', 'members', 'kinds'],
+  kindDefinition: ['kind', 'label', 'plural', 'fields'],
+  relationDefinition: [
+    'relation',
+    'label',
+    'inverse_label',
+    'from_kinds',
+    'to_kinds',
+    'symmetric',
+  ],
+  entryVersionConflictDetail: [
+    'entry_id',
+    'presented_revision',
+    'current_revision',
+    'updated_at',
+  ],
+  invalidAttributesDetail: ['field'],
 } as const;
 
 function expectKeys(value: unknown, expected: readonly string[]): void {
@@ -366,5 +438,244 @@ describe('the error envelope', () => {
     const detail = body.error.detail as ReorderMismatchDetail;
     expectKeys(detail, KEYS.reorderMismatchDetail);
     expect(detail.missing.length).toBeGreaterThan(0);
+  });
+});
+
+describe('the bible schema (P3-11, D26)', () => {
+  test('the definition carries the kinds, their fields, and the relation vocabulary', () => {
+    const body: BibleSchema = load('bible_schema');
+    expectKeys(body, ['field_types', 'kinds', 'relations']);
+    expect(body.kinds).toHaveLength(7);
+    expect(body.relations).toHaveLength(12);
+  });
+
+  test('every field type the server declares has a renderer name on this side', () => {
+    // The closed-list half D26 asks for, on the client (P3-5). A seventh type added to the
+    // server fails here rather than rendering nothing in a form.
+    const body: BibleSchema = load('bible_schema');
+    expect([...body.field_types].sort()).toEqual([...Object.values(FIELD_TYPES)].sort());
+    for (const type of body.field_types) {
+      expect(isFieldType(type)).toBe(true);
+    }
+  });
+
+  test('a field carries every key whatever its type, so the renderer branches on type alone', () => {
+    const body: BibleSchema = load('bible_schema');
+    const seen = new Set<string>();
+    for (const kind of body.kinds) {
+      expectKeys(kind, KEYS.kindDefinition);
+      expect(kind.fields.length).toBeGreaterThan(0);
+      for (const field of kind.fields) {
+        expectKeys(field, KEYS.fieldDefinition);
+        expect(isFieldType(field.type)).toBe(true);
+        seen.add(field.type);
+        expect(field.members.length > 0).toBe(field.type === FIELD_TYPES.enum);
+        expect(field.kinds.length > 0).toBe(field.type === FIELD_TYPES.entryRef);
+      }
+    }
+    // All six reach the wire, so P3-13's form has something to render for each.
+    expect([...seen].sort()).toEqual([...Object.values(FIELD_TYPES)].sort());
+  });
+
+  test('a relation says which kinds it joins and whether it is symmetric', () => {
+    const body: BibleSchema = load('bible_schema');
+    for (const relation of body.relations) {
+      expectKeys(relation, KEYS.relationDefinition);
+      expect(relation.from_kinds.length).toBeGreaterThan(0);
+      expect(relation.to_kinds.length).toBeGreaterThan(0);
+      expect(typeof relation.symmetric).toBe('boolean');
+    }
+  });
+
+  test('the seven kinds are read from the wire and are nowhere in this codebase', () => {
+    // D26 stated as a test: the client knows the *shape* of a kind and never its members.
+    const body: BibleSchema = load('bible_schema');
+    const kinds = body.kinds.map((kind) => kind.kind);
+    expect(new Set(kinds).size).toBe(kinds.length);
+    expect(kinds).toContain('character');
+  });
+});
+
+describe('entry shapes (P3-9, D25 – D27)', () => {
+  test('an entry is one record whatever its kind', () => {
+    const body: Entry = load('entry');
+    expectKeys(body, KEYS.entry);
+    expect(body.revision).toBe(1);
+    expect(body.deleted_at).toBeNull();
+    expect(body.needs_review).toBe(false);
+  });
+
+  test('the list carries live counts for every kind, unfiltered', () => {
+    const body: EntryList = load('entry_list');
+    expectKeys(body, ['entries', 'counts', 'truncated']);
+    expect(body.entries.length).toBeGreaterThan(0);
+    for (const entry of body.entries) {
+      expectKeys(entry, KEYS.entry);
+    }
+    expect(Object.keys(body.counts)).toHaveLength(7);
+    expect(body.truncated).toBe(false);
+  });
+
+  test('the deleted list is the one place an entry deleted_at is not null (D25)', () => {
+    const body: EntryList = load('entry_list_deleted');
+    expect(body.entries.length).toBeGreaterThan(0);
+    for (const entry of body.entries) {
+      expectKeys(entry, KEYS.entry);
+      expect(typeof entry.deleted_at).toBe('string');
+    }
+  });
+
+  test('one entry comes with its citations, its link count, and where it sits', () => {
+    const body: EntryDetail = load('entry_detail');
+    expectKeys(body, ['entry', 'citations', 'link_count', 'narrative_position']);
+    expectKeys(body.entry, KEYS.entry);
+    expect(body.link_count).toBeGreaterThan(0);
+    expectKeys(body.narrative_position, KEYS.narrativePosition);
+    for (const citation of body.citations) {
+      expectKeys(citation, KEYS.citation);
+      expectKeys(citation.anchor, KEYS.anchor);
+    }
+  });
+
+  test('a write says what it flagged and which fields moved (D27)', () => {
+    const body: EntryWriteResult = load('entry_write_result');
+    expectKeys(body, ['entry', 'revision', 'retcon', 'flagged', 'changed_fields']);
+    expect(body.retcon).toBe(true);
+    expect(body.changed_fields).toEqual(['name']);
+    expect(body.flagged.length).toBeGreaterThan(0);
+  });
+
+  test('history is metadata only, newest first, complete from creation', () => {
+    const body: RevisionList = load('entry_revision_list');
+    expectKeys(body, ['revisions']);
+    expect(body.revisions.map((meta) => meta.revision)).toEqual([2, 1]);
+    for (const meta of body.revisions) {
+      expectKeys(meta, KEYS.revisionMeta);
+      expect(meta).not.toHaveProperty('state');
+    }
+  });
+
+  test('one revision carries the state it recorded, and no review flag with it', () => {
+    const body: EntryRevision = load('entry_revision');
+    expectKeys(body, ['meta', 'state']);
+    expectKeys(body.meta, KEYS.revisionMeta);
+    expect(body.state.name).toBe('Marlow');
+    expect(body.state).not.toHaveProperty('needs_review');
+  });
+});
+
+describe('link shapes (P3-10, ruling 7)', () => {
+  test('a link is one row with its bounds', () => {
+    const body: Link = load('link');
+    expectKeys(body, KEYS.link);
+    expect(body.since).toBe('the first voyage');
+    expect(body.until).toBeNull();
+    expect(body.deleted_at).toBeNull();
+  });
+
+  test('the project list is every live link', () => {
+    const body: LinkList = load('link_list');
+    expectKeys(body, ['links']);
+    expect(body.links.length).toBeGreaterThan(0);
+    for (const link of body.links) {
+      expectKeys(link, KEYS.link);
+    }
+  });
+
+  test("an entry's links say which end it is on and how that end reads", () => {
+    const body: EntryLinks = load('entry_links');
+    expectKeys(body, ['links']);
+    expect(body.links.length).toBeGreaterThan(0);
+    for (const view of body.links) {
+      expectKeys(view, KEYS.linkView);
+      expectKeys(view.link, KEYS.link);
+      expect([LINK_ENDS.from, LINK_ENDS.to]).toContain(view.end);
+      expect(view.other_name).not.toHaveLength(0);
+    }
+  });
+});
+
+describe('citation shapes (P3-7, P3-10)', () => {
+  test('a citation carries the anchor as it reads now, status and all', () => {
+    const body: Citation = load('citation');
+    expectKeys(body, KEYS.citation);
+    expectKeys(body.anchor, KEYS.anchor);
+    // The fixture cites the anchor a later save broke, so the client is drawn against the case
+    // that matters: the passage behind this entry has been rewritten.
+    expect(body.anchor.status).toBe('stale');
+    expect(body.role).toBe(CITATION_ROLES.mention);
+  });
+
+  test('an uncite answers with a count, and zero is an ordinary answer', () => {
+    const body: CitationRemoved = load('citation_removed');
+    expectKeys(body, ['removed']);
+    expect(body.removed).toBeGreaterThanOrEqual(0);
+  });
+
+  test('the reverse view says which entries speak for an anchor', () => {
+    const body: AnchorEntries = load('anchor_entries');
+    expectKeys(body, ['entries']);
+    for (const citing of body.entries) {
+      expectKeys(citing, KEYS.citingEntry);
+    }
+  });
+
+  test('Add to bible answers with all three, and the server derived the quote', () => {
+    const body: EntryFromRange = load('entry_from_range');
+    expectKeys(body, ['entry', 'anchor', 'role']);
+    expectKeys(body.entry, KEYS.entry);
+    expectKeys(body.anchor, KEYS.anchor);
+    expect(body.anchor.quote.length).toBeGreaterThan(0);
+    expect(body.role).toBe(CITATION_ROLES.source);
+  });
+});
+
+describe('story-time (P3-10, D28)', () => {
+  test('the order and the unplaced partition the events', () => {
+    const body: StoryTime = load('storytime');
+    expectKeys(body, ['order', 'unplaced', 'contradictions', 'eras']);
+    for (const event of [...body.order, ...body.unplaced]) {
+      expectKeys(event, KEYS.storyEvent);
+    }
+    const ids = [...body.order, ...body.unplaced].map((event) => event.entry_id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  test('an event with neither an edge nor a key is unplaced, not ordered arbitrarily (D9)', () => {
+    const body: StoryTime = load('storytime');
+    expect(body.unplaced.length).toBeGreaterThan(0);
+    for (const event of body.unplaced) {
+      expect(event.sort_key).toBeNull();
+    }
+  });
+
+  test('an era ranks by the least key among its members, and may have none', () => {
+    const body: StoryTime = load('storytime');
+    expect(body.eras.length).toBeGreaterThan(0);
+    for (const era of body.eras) {
+      expectKeys(era, KEYS.storyTimeEra);
+    }
+  });
+});
+
+describe('the bible envelope', () => {
+  test("an entry conflict carries what the form needs to offer a reload (D19, ruling 3)", () => {
+    const body: ErrorResponse = load('error_entry_version_conflict');
+    expectKeys(body.error, KEYS.errorBody);
+    expect(body.error.code).toBe(ERROR_CODES.entryVersionConflict);
+
+    const detail = body.error.detail as EntryVersionConflictDetail;
+    expectKeys(detail, KEYS.entryVersionConflictDetail);
+    expect(detail.current_revision).toBeGreaterThan(detail.presented_revision);
+  });
+
+  test('a refused attribute names the input rather than rejecting the form (D26)', () => {
+    const body: ErrorResponse = load('error_invalid_attributes');
+    expectKeys(body.error, KEYS.errorBody);
+    expect(body.error.code).toBe(ERROR_CODES.invalidAttributes);
+
+    const detail = body.error.detail as InvalidAttributesDetail;
+    expectKeys(detail, KEYS.invalidAttributesDetail);
+    expect(detail.field).toBe('eye_colour');
   });
 });

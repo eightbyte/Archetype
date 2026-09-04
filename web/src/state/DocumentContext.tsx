@@ -36,7 +36,14 @@ import {
   useRef,
 } from 'react';
 import type { ReactNode } from 'react';
-import type { Anchor, ApiClient, Snapshot, SnapshotMeta } from '../api';
+import type {
+  Anchor,
+  ApiClient,
+  EntryFromRange,
+  EntryInput,
+  Snapshot,
+  SnapshotMeta,
+} from '../api';
 import { ApiError } from '../api';
 import type { SaveOutcome, SaveSchedulerOptions } from '../editor/autosave';
 import { SaveScheduler } from '../editor/autosave';
@@ -95,6 +102,20 @@ interface DocumentContextValue {
    * is a range against text nobody looked at (D19).
    */
   createAnchor: (fromPos: number, toPos: number, label?: string) => Promise<Anchor>;
+  /**
+   * *Add to bible*: make an entry out of the selection, in one act (P3-14, P3-7).
+   *
+   * The same promise `createAnchor` makes, over three tables instead of one. It flushes, sends a
+   * **range and a version and never a quote**, and the server mints the anchor, creates the
+   * entry, and cites it inside a single transaction — so a stale version leaves no anchor, no
+   * entry, and no citation (ruling 8, deviation `B1`).
+   *
+   * It lives here rather than on `BibleContext` because only this layer can answer *which*
+   * chapter and *which* version, synchronously, after a flush. What it does **not** do is tell
+   * the bible: the caller does that, so that the document layer keeps its one upward dependency
+   * (the project's dispatch) rather than acquiring a second.
+   */
+  addToBible: (fromPos: number, toPos: number, input: EntryInput) => Promise<EntryFromRange>;
   /** Mark this version of the open chapter, with a label (D23). */
   markVersion: (label: string) => Promise<SnapshotMeta | null>;
   /** The open chapter's history, newest first. Metadata only — never content. */
@@ -410,6 +431,30 @@ export function DocumentProvider({
     [saver],
   );
 
+  const addToBible = useCallback(
+    async (fromPos: number, toPos: number, input: EntryInput): Promise<EntryFromRange> => {
+      // Flush for the reason `createAnchor` flushes: the server derives the quote from the text
+      // it holds, and a range against text it has not been told about is a range over the wrong
+      // words — or a `409` (D19).
+      await saver.flush();
+      const current = stateRef.current;
+      if (current.documentId === null || current.status !== 'ready') {
+        throw new Error('no chapter is open to add to the bible');
+      }
+      const created = await clientRef.current.createEntryFromRange(current.documentId, {
+        ...input,
+        from_pos: fromPos,
+        to_pos: toPos,
+        version: current.version,
+      });
+      // The anchor is the manuscript's, so it goes into the project's list like any other — which
+      // is what puts the highlight in the editor and the mark in the *Marks* tab.
+      projectDispatchRef.current({ type: 'anchor-changed', anchor: created.anchor });
+      return created;
+    },
+    [saver],
+  );
+
   const markVersion = useCallback(
     async (label: string): Promise<SnapshotMeta | null> => {
       // A mark records what is on screen, so what is on screen has to be what is stored.
@@ -505,6 +550,7 @@ export function DocumentProvider({
       goToAnchor,
       anchorReached,
       createAnchor,
+      addToBible,
       markVersion,
       listSnapshots,
       readSnapshot,
@@ -525,6 +571,7 @@ export function DocumentProvider({
       goToAnchor,
       anchorReached,
       createAnchor,
+      addToBible,
       markVersion,
       listSnapshots,
       readSnapshot,

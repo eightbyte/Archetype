@@ -1,0 +1,34 @@
+{
+  "order": [
+    {
+      "entry_id": "ent_000000000004",
+      "name": "The departure",
+      "label": "the first grey morning",
+      "sort_key": 1.0,
+      "era": "Before"
+    },
+    {
+      "entry_id": "ent_000000000005",
+      "name": "The river",
+      "label": "high summer",
+      "sort_key": 2.0,
+      "era": "Before"
+    }
+  ],
+  "unplaced": [
+    {
+      "entry_id": "ent_000000000006",
+      "name": "A rumour",
+      "label": "nobody agrees when",
+      "sort_key": null,
+      "era": null
+    }
+  ],
+  "contradictions": [],
+  "eras": [
+    {
+      "era": "Before",
+      "rank": 1.0
+    }
+  ]
+}

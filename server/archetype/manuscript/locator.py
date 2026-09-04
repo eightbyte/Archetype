@@ -3,7 +3,9 @@
 ``GET /api/documents/{did}`` and its siblings address a document without naming its project, but
 storage is one SQLite file per project (D3) - so something has to answer "which file". That is
 this module. ``/api/anchors/{aid}`` is addressed the same way, over the same cache (P2-7), and
-so is ``/api/snapshots/{sid}`` (P2-12).
+so is ``/api/snapshots/{sid}`` (P2-12) - and, from Phase 3, ``/api/entries/{eid}`` and
+``/api/links/{lid}`` (P3-9, P3-10). Each is one more prefix over one mechanism, never a second
+mechanism.
 
 The answer is cached, because the alternative is opening every project file on every keystroke's
 autosave. The cache is a hint, never an authority: every resolution re-confirms that the file
@@ -26,6 +28,10 @@ from ..projects.store import ProjectHandle, ProjectStore
 from .anchors.store import AnchorNotFoundError
 from .documents import DocumentNotFoundError
 from .snapshots import SnapshotNotFoundError
+
+# Deferred to the function bodies that raise them: the bible sits *above* the manuscript
+# (phase-3 plan section 7, `B2`), so importing its errors at module scope would put a
+# manuscript module below a bible one and re-create the cycle `anchors/__init__` avoids.
 
 __all__ = ["DocumentLocator"]
 
@@ -80,6 +86,36 @@ class DocumentLocator:
             raise SnapshotNotFoundError(f"no snapshot {snapshot_id!r} in {self.store.projects_dir}")
         return handle
 
+    def resolve_entry(self, entry_id: str) -> ProjectHandle:
+        """The handle for the project holding ``entry_id`` (P3-9).
+
+        A bare ``{eid}`` is one more prefix over the mechanism documents, anchors, and snapshots
+        already use - not a second one. It is what lets the Bible tab hold entries from a project
+        it is not otherwise naming, exactly as the *Marks* tab holds anchors.
+
+        Raises:
+            EntryNotFoundError: If no project file in the directory holds that entry.
+        """
+        from ..bible.entries import EntryNotFoundError
+
+        handle = self._locate("entry", entry_id)
+        if handle is None:
+            raise EntryNotFoundError(f"no entry {entry_id!r} in {self.store.projects_dir}")
+        return handle
+
+    def resolve_link(self, link_id: str) -> ProjectHandle:
+        """The handle for the project holding ``link_id`` (P3-10).
+
+        Raises:
+            LinkNotFoundError: If no project file in the directory holds that link.
+        """
+        from ..bible.links import LinkNotFoundError
+
+        handle = self._locate("entry_link", link_id)
+        if handle is None:
+            raise LinkNotFoundError(f"no link {link_id!r} in {self.store.projects_dir}")
+        return handle
+
     def forget(self, row_id: str) -> None:
         """Drop a cached location. Called when a row is known to have gone."""
         self._forget(row_id)
@@ -118,7 +154,7 @@ class DocumentLocator:
 
 #: The tables a bare id may address. A closed list, because the table name is spliced into the
 #: query rather than bound to it - ids are, and only these names ever reach it.
-_ADDRESSABLE = frozenset({"anchor", "document", "snapshot"})
+_ADDRESSABLE = frozenset({"anchor", "document", "entry", "entry_link", "snapshot"})
 
 
 def _holds_row(path: Path, table: str, row_id: str) -> bool:

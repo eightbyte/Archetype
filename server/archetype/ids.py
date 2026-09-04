@@ -1,7 +1,7 @@
 """Prefixed short-token IDs (P1-3, outline section 7).
 
 Every entity carries a greppable, prefixed identifier: ``prj_``, ``doc_``, ``anc_``, ``snp_``,
-``ent_``, ``run_``. The body is drawn from a Crockford-style base32 alphabet with the
+``ent_``, ``lnk_``, ``run_``. The body is drawn from a Crockford-style base32 alphabet with the
 ambiguous glyphs (``i``, ``l``, ``o``, ``u``) removed, so an ID read aloud or copied out of a
 log survives the trip.
 
@@ -42,10 +42,14 @@ class IdPrefix:
     ANCHOR: Final[str] = "anc"
     SNAPSHOT: Final[str] = "snp"
     ENTRY: Final[str] = "ent"
+    #: A bible link (P3-2). A *revision* has no prefix of its own: it is identified by
+    #: ``(entry_id, revision)`` and is always reached through its entry, so minting an id for one
+    #: would be an identity nobody dereferences.
+    LINK: Final[str] = "lnk"
     RUN: Final[str] = "run"
 
     #: Every prefix known to the current schema, for validation and log greps.
-    ALL: Final[frozenset[str]] = frozenset({"prj", "doc", "anc", "snp", "ent", "run"})
+    ALL: Final[frozenset[str]] = frozenset({"prj", "doc", "anc", "snp", "ent", "lnk", "run"})
 
 
 def random_token(length: int) -> str:

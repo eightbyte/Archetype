@@ -25,6 +25,7 @@ from pathlib import Path
 __all__ = [
     "BUSY_TIMEOUT_MS",
     "connect",
+    "touch_project",
     "transaction",
     "utc_now",
 ]
@@ -78,3 +79,17 @@ def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
         conn.execute("ROLLBACK")
         raise
     conn.execute("COMMIT")
+
+
+def touch_project(conn: sqlite3.Connection, project_id: str, now: str) -> None:
+    """Stamp the project's ``updated_at``, inside the transaction of the write that earned it.
+
+    The picker sorts on this (P1-12), so every store that changes anything belonging to a project
+    calls it: writing a chapter, an entry, a link, or a citation is all working on the project,
+    and one whose bible changed a minute ago must not claim it was last touched when it was
+    created.
+
+    It lives here rather than in one of the stores because three of them need it and a helper
+    copied into each is three places for the column name to be wrong.
+    """
+    conn.execute("UPDATE project SET updated_at = ? WHERE id = ?", (now, project_id))

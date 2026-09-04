@@ -42,17 +42,21 @@ describe('the three regions', () => {
     expect(within(agent).getByText(/arrives in Phase 4/)).toBeDefined();
   });
 
-  test('the outline panel offers its five tabs, three of which say when they arrive', async () => {
+  test('the outline panel offers its five tabs, two of which say when they arrive', async () => {
     const user = userEvent.setup();
     await readyWorkspace();
 
-    // Marks was added in Phase 2 by a deliberate ruling (phase-2-plan section 2, ruling 6); the
-    // remaining three are still placeholders that name the phase they arrive in.
+    // The tab strip was fixed at five in P1-9 so that it would never be re-measured. Marks
+    // filled one in Phase 2 (phase-2-plan section 2, ruling 6) and Bible fills another in
+    // Phase 3 (P3-12); Timeline and Characters are still placeholders naming Phase 8.
     const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent);
     expect(tabs).toEqual(['Contents', 'Marks', 'Timeline', 'Characters', 'Bible']);
 
+    await user.click(screen.getByRole('tab', { name: 'Timeline' }));
+    expect(screen.getByRole('tabpanel').textContent).toContain('Phase 8');
+
     await user.click(screen.getByRole('tab', { name: 'Bible' }));
-    expect(screen.getByRole('tabpanel').textContent).toContain('Phase 3');
+    expect(screen.getByRole('tabpanel').textContent).not.toContain('is built in Phase');
   });
 });
 

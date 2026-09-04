@@ -14,16 +14,23 @@
  *   is the writer's own — the server derives the quote.
  * * **The chapter's history.** Snapshots are per chapter (P2-12), so the history opens beside
  *   the chapter it belongs to rather than in the outline panel, which spans all of them.
+ *
+ * Group D's *Add to bible* attaches here for the first reason (P3-14). This is the one place the
+ * three contexts meet: the document layer knows which chapter and which version, the project
+ * layer takes the anchor, and the bible layer is told an entry now exists. Doing that join here
+ * rather than inside `DocumentContext` keeps the document layer's single upward dependency
+ * single — it tells the project a save landed, and nothing else.
  */
 
 import { useCallback, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import { toEditorAnchors } from '../editor/anchors';
 import { ManuscriptEditor } from '../editor/ManuscriptEditor';
-import type { SelectionRange } from '../editor/SelectionActions';
+import type { BibleDraft, SelectionRange } from '../editor/SelectionActions';
 import { SaveIndicator } from '../editor/SaveIndicator';
 import { SnapshotHistory } from '../panels/SnapshotHistory';
 import { plural } from '../format';
+import { useBible } from '../state/BibleContext';
 import { useDocument } from '../state/DocumentContext';
 import { useProject } from '../state/ProjectContext';
 import { anchorsOf } from '../state/projectReducer';
@@ -41,8 +48,10 @@ export function EditorRegion() {
     headingReached,
     anchorReached,
     createAnchor,
+    addToBible,
   } = useDocument();
   const { state: projectState, relinkAnchor, cancelRelink } = useProject();
+  const { state: bibleState, entryCreated } = useBible();
   const { push } = useToasts();
   const [anchorBusy, setAnchorBusy] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -66,6 +75,26 @@ export function EditorRegion() {
       })();
     },
     [createAnchor, push],
+  );
+
+  const onAddToBible = useCallback(
+    (range: SelectionRange, draft: BibleDraft) => {
+      setAnchorBusy(true);
+      void (async () => {
+        try {
+          const created = await addToBible(range.from, range.to, draft);
+          // One transaction on the server made all three; the client tells the two panels that
+          // hold the halves. The anchor reached the project through `addToBible` itself.
+          entryCreated(created.entry);
+          push(`Added ${created.entry.name} to the bible, citing this passage.`);
+        } catch (error: unknown) {
+          push(`Could not add that to the bible — ${message(error)}`, 'error');
+        } finally {
+          setAnchorBusy(false);
+        }
+      })();
+    },
+    [addToBible, entryCreated, push],
   );
 
   const onRelink = useCallback(
@@ -162,6 +191,8 @@ export function EditorRegion() {
         onRelink={onRelink}
         onCancelRelink={cancelRelink}
         anchorBusy={anchorBusy}
+        bibleKinds={bibleState.schema?.kinds ?? []}
+        onAddToBible={onAddToBible}
       />
     </div>
   );

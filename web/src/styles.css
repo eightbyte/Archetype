@@ -663,9 +663,20 @@ h2 {
   text-underline-offset: 3px;
 }
 
+/* A `stale` mark is the one place the subtlety above is deliberately dropped, and the phase-3
+   acceptance run is why (plan section 8, step 12). A stale anchor's stored range is "true at no
+   version" (`anchors/rewrite.py`): the server leaves the positions where they were, so after a
+   wholesale rewrite the range sits over words the anchor never referred to. It is kept as a
+   range on the writer's ruling - the alternative was to draw a collapsed marker instead - which
+   makes how it *reads* the whole of the guard. Wavy is the browser's own spellcheck idiom and
+   was taken for one during the run; a tinted wash under a solid rule is not something prose
+   does to itself, and it survives the line wrap an inline decoration has to cross. */
 .anchor-stale {
+  background: rgb(140 47 29 / 10%);
+  border-radius: 2px;
   text-decoration-color: var(--alarm);
-  text-decoration-style: wavy;
+  text-decoration-style: solid;
+  text-decoration-thickness: 2px;
 }
 
 .anchor-collapsed {
@@ -1122,4 +1133,608 @@ h2 {
 }
 .md-dropped li {
   margin-bottom: 0.2rem;
+}
+
+/* -- the Bible tab (P3-12 - P3-14) --------------------------------------------------------- */
+
+/* Still legibility only, as Phase 1 set out: the bible is the largest surface in the panel and
+   the one most tempted towards decoration, and Phase 9 is where that is decided. What it does
+   get is structure - a form has to be readable at 280px and usable at 560px, which is the range
+   the divider allows. */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.bible-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.bible-views button {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: none;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.75rem;
+}
+
+.bible-views button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--panel);
+  color: var(--accent);
+}
+
+.bible-error {
+  margin: 0 0 0.5rem;
+  color: var(--alarm);
+  font-size: 0.8rem;
+}
+
+.bible-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.bible-filters input,
+.bible-filters select {
+  flex: 1 1 8rem;
+  min-width: 0;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--page);
+  padding: 0.15rem 0.3rem;
+  font-size: 0.8rem;
+}
+
+.bible-truncated {
+  margin: 0 0 0.5rem;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+}
+
+.bible-group h4 {
+  margin: 0.75rem 0 0.25rem;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.bible-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bible-row {
+  border-left: 2px solid var(--rule);
+  padding: 0.25rem 0 0.35rem 0.5rem;
+}
+
+.bible-row-review {
+  border-left-color: var(--alarm);
+}
+
+.bible-row-name {
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.bible-row-name:hover {
+  color: var(--accent);
+}
+
+.bible-row-kind,
+.bible-row-when {
+  margin-left: 0.4rem;
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+}
+
+.bible-row-flag {
+  margin-left: 0.4rem;
+  color: var(--alarm);
+  font-size: 0.7rem;
+}
+
+.bible-row-summary,
+.bible-row-reason {
+  margin: 0.1rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+}
+
+.bible-total {
+  margin: 0.75rem 0 0.25rem;
+  color: var(--ink-faint);
+  font-size: 0.75rem;
+}
+
+.bible-new-entry {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.5rem;
+}
+
+.bible-new-entry h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* -- the entry form (P3-13, D26) ----------------------------------------------------------- */
+
+.entry-field {
+  margin-bottom: 0.6rem;
+}
+
+.entry-field label {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+}
+
+.entry-field input[type='text'],
+.entry-field input[type='number'],
+.entry-field input[type='search'],
+.entry-field select,
+.entry-field textarea {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--page);
+  padding: 0.2rem 0.35rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.entry-field textarea {
+  resize: vertical;
+}
+
+.entry-field-bad input,
+.entry-field-bad select,
+.entry-field-bad textarea {
+  border-color: var(--alarm);
+}
+
+.entry-field-help {
+  margin: 0.15rem 0 0;
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+}
+
+.entry-field-error {
+  margin: 0.15rem 0 0;
+  color: var(--alarm);
+  font-size: 0.75rem;
+}
+
+.entry-required {
+  color: var(--ink-faint);
+}
+
+.entry-list-field {
+  margin: 0 0 0.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+.entry-list-field li {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.2rem;
+}
+
+.entry-storytime {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.entry-storytime input {
+  flex: 1 1 6rem;
+  min-width: 0;
+}
+
+/* The retcon control sits on the save, so the writer sees what the save is about to do before
+   they press it - D12's posture, one table over (D27). */
+.entry-retcon {
+  margin: 0.5rem 0;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.35rem 0.5rem;
+  background: var(--panel);
+}
+
+.entry-retcon label {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.entry-retcon input {
+  width: auto;
+}
+
+.entry-form-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+/* -- one entry (P3-13, P3-14) -------------------------------------------------------------- */
+
+.entry-back {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+}
+
+.entry-detail-header {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.entry-kind {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.entry-detail-header h3 {
+  margin: 0.1rem 0;
+  font-size: 1.05rem;
+}
+
+.entry-meta {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+}
+
+.entry-review-banner,
+.entry-deleted-banner,
+.entry-conflict {
+  margin-bottom: 0.6rem;
+  border-left: 2px solid var(--alarm);
+  padding: 0.25rem 0 0.35rem 0.5rem;
+}
+
+.entry-review-banner p,
+.entry-deleted-banner p,
+.entry-conflict p {
+  margin: 0 0 0.25rem;
+  font-size: 0.78rem;
+}
+
+.entry-deleted-banner {
+  border-left-color: var(--ink-faint);
+}
+
+.entry-citations h4,
+.entry-links h4,
+.storytime h4 {
+  margin: 0.9rem 0 0.35rem;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.entry-citation-list,
+.entry-link-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry-citation,
+.entry-link {
+  border-left: 2px solid var(--rule);
+  padding: 0.25rem 0 0.35rem 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.entry-citation-stale {
+  border-left-color: var(--alarm);
+}
+
+.entry-citation-orphaned {
+  border-left-color: var(--ink-faint);
+}
+
+.entry-citation-quote,
+.entry-link-other {
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.entry-citation-quote:hover,
+.entry-link-other:hover {
+  color: var(--accent);
+}
+
+.entry-citation-role,
+.entry-citation-where,
+.entry-citation-meaning,
+.entry-link-kind,
+.entry-link-bounds {
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+}
+
+.entry-citation-where,
+.entry-citation-meaning,
+.entry-link-bounds {
+  margin: 0.1rem 0 0;
+}
+
+.entry-link-bounds span + span {
+  margin-left: 0.4rem;
+}
+
+.entry-link-sentence {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.entry-link-relation {
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+}
+
+.entry-citation-actions,
+.entry-link-actions,
+.entry-revision-actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.2rem;
+}
+
+.entry-citation-actions button,
+.entry-link-actions button,
+.entry-revision-actions button {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: none;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.7rem;
+}
+
+.entry-link-add {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.5rem;
+}
+
+.entry-link-add label {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+}
+
+.entry-link-add select,
+.entry-link-bounds-inputs input {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--page);
+  padding: 0.15rem 0.3rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.8rem;
+}
+
+.entry-link-bounds-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.entry-link-bounds-inputs input {
+  flex: 1 1 6rem;
+  min-width: 0;
+}
+
+.entry-link-none {
+  margin: 0.25rem 0;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+}
+
+/* -- an entry's history (P3-13, D27) ------------------------------------------------------- */
+
+.entry-history-section {
+  margin-top: 0.9rem;
+}
+
+.entry-history-status {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.entry-history-list {
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry-revision {
+  border-left: 2px solid var(--rule);
+  padding: 0.25rem 0 0.35rem 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.entry-revision.retcon {
+  border-left-color: var(--accent);
+}
+
+.entry-revision-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: baseline;
+  font-size: 0.75rem;
+}
+
+.entry-revision-number {
+  color: var(--ink-soft);
+}
+
+.entry-revision-when,
+.entry-revision-why {
+  color: var(--ink-faint);
+}
+
+.entry-revision-why {
+  margin: 0.1rem 0 0;
+  font-size: 0.72rem;
+}
+
+.entry-revision-retcon,
+.entry-revision-current {
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0 0.25rem;
+  color: var(--ink-soft);
+  font-size: 0.65rem;
+}
+
+.entry-revision-retcon {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.entry-revision-preview {
+  margin-top: 0.3rem;
+  border-top: 1px dotted var(--rule);
+  padding-top: 0.3rem;
+}
+
+.entry-revision-preview dl {
+  margin: 0;
+}
+
+.preview-row {
+  margin-bottom: 0.25rem;
+}
+
+.preview-row dt {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+}
+
+.preview-row dd {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.preview-row.changed dt {
+  color: var(--accent);
+}
+
+.preview-changed {
+  font-style: italic;
+}
+
+.entry-danger {
+  margin-top: 1rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.5rem;
+}
+
+/* -- story-time (P3-8, D28) ---------------------------------------------------------------- */
+
+/* A readout, not a timeline. Phase 8 draws one; this exists so that D28's three answers have a
+   consumer a person can look at - which is what section 8's steps 6 and 7 check. */
+
+.storytime ol,
+.storytime ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+}
+
+.storytime button {
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-size: 0.82rem;
+}
+
+.storytime button:hover {
+  color: var(--accent);
+}
+
+.storytime-era,
+.storytime-era-unranked {
+  margin-left: 0.4rem;
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+}
+
+.storytime-contradiction {
+  color: var(--alarm);
+}
+
+.storytime-contradiction p {
+  margin: 0 0 0.3rem;
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+
+.storytime-contradiction-kind {
+  font-size: 0.75rem;
+}
+
+/* -- Add to bible, over the selection (P3-14) ---------------------------------------------- */
+
+.selection-actions-form {
+  flex-direction: column;
+  align-items: stretch;
+  max-width: 16rem;
+}
+
+.add-to-bible {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.add-to-bible label {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+}
+
+.add-to-bible input,
+.add-to-bible select {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--page);
+  padding: 0.15rem 0.3rem;
+  font-size: 0.8rem;
 }

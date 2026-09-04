@@ -1,4 +1,8 @@
-"""The ``/api`` router (P1-5, P1-6).
+"""The manuscript half of the ``/api`` router (P1-5, P1-6).
+
+The bible's routes are in :mod:`archetype.api.bible_routes`, under the same prefix and included by
+``create_app`` alongside this one (P3-9). Two modules, one router surface: the prefix, the error
+envelope, and the guarantee that the static mount is registered last all belong to the API.
 
 Two resource families. Projects are addressed by id and resolved by scanning the projects
 directory (D17). Documents are addressed by their own id, without naming a project, so the

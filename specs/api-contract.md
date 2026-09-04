@@ -1,11 +1,12 @@
 # Archetype — API Contract
 
-**Status:** The Phase 2 surface as built — every route that exists · **Version:** 1.4 ·
-**Date:** 2026-09-01
+**Status:** The Phase 3 surface as built — every route that exists · **Version:** 1.5 ·
+**Date:** 2026-09-03
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
-(D7, D8, **D15**, D18, D19, **D21**, **D22**, **D23**)
-**Companion:** [`specs/data-model.md`](data-model.md) — the same vocabulary in storage
+(D7, D8, **D15**, D18, D19, **D21**, **D22**, **D23**, **D25**, **D26**, **D27**, **D28**)
+**Companions:** [`specs/data-model.md`](data-model.md) — the same vocabulary in storage ·
+[`specs/bible.md`](bible.md) — what an entry *means*
 
 This document covers **every route that exists**. Chat and streaming arrive in Phase 4, search
 in Phase 5, agent runs in Phase 6; each extends this document as it lands.
@@ -89,13 +90,39 @@ cleanly. A wire-shape change fails a suite rather than the browser.
 | `GET` | `/api/documents/{document_id}/markdown` | `200` | `404` |
 | `GET` | `/api/projects/{project_id}/markdown` | `200` | `404` |
 | `POST` | `/api/projects/{project_id}/import` | `201` | `404`, `413`, `422` |
+| `GET` | `/api/bible/schema` | `200` | — |
+| `GET` | `/api/projects/{project_id}/entries` | `200` | `404`, `422` |
+| `POST` | `/api/projects/{project_id}/entries` | `201` | `404`, `422` |
+| `GET` | `/api/projects/{project_id}/entries/deleted` | `200` | `404` |
+| `GET` | `/api/entries/{entry_id}` | `200` | `404` |
+| `PUT` | `/api/entries/{entry_id}` | `200` | `404`, `409`, `422` |
+| `DELETE` | `/api/entries/{entry_id}` | `200` | `404` |
+| `POST` | `/api/entries/{entry_id}/restore` | `200` | `404` |
+| `POST` | `/api/entries/{entry_id}/review/clear` | `200` | `404`, `409`, `422` |
+| `GET` | `/api/entries/{entry_id}/revisions` | `200` | `404` |
+| `GET` | `/api/entries/{entry_id}/revisions/{number}` | `200` | `404` |
+| `POST` | `/api/entries/{entry_id}/revisions/{number}/restore` | `200` | `404`, `409`, `422` |
+| `GET` | `/api/projects/{project_id}/links` | `200` | `404`, `422` |
+| `POST` | `/api/projects/{project_id}/links` | `201` | `404`, `409`, `422` |
+| `GET` | `/api/entries/{entry_id}/links` | `200` | `404` |
+| `PATCH` | `/api/links/{link_id}` | `200` | `404`, `422` |
+| `DELETE` | `/api/links/{link_id}` | `200` | `404` |
+| `POST` | `/api/links/{link_id}/restore` | `200` | `404`, `409` |
+| `POST` | `/api/entries/{entry_id}/citations` | `201` | `404`, `422` |
+| `DELETE` | `/api/entries/{entry_id}/citations/{anchor_id}` | `200` | `404`, `422` |
+| `GET` | `/api/anchors/{anchor_id}/entries` | `200` | `404` |
+| `POST` | `/api/documents/{document_id}/entries` | `201` | `404`, `409`, `422` |
+| `GET` | `/api/projects/{project_id}/storytime` | `200` | `404` |
 
 Any route can also answer `500` (§ 6).
 
-**Documents, anchors, and snapshots are addressed without naming a project.** Storage is one file per project
-(D3), so `manuscript/locator.py` resolves the bare id to a file, for any of the three tables; see data-model § 4.
-The alternative — `/api/projects/{pid}/documents/{did}` — would have put a redundant, spoofable scope in every
-autosave URL.
+**Documents, anchors, snapshots, entries, and links are addressed without naming a project.** Storage is one
+file per project (D3), so `manuscript/locator.py` resolves the bare id to a file, for any of the five tables;
+see data-model § 4. The alternative — `/api/projects/{pid}/documents/{did}` — would have put a redundant,
+spoofable scope in every autosave URL. Phase 3 added two prefixes to that one mechanism and no second mechanism.
+
+**`GET /api/bible/schema` is the one route with no project scope at all**, because D26's vocabulary is the
+product's and not a manuscript's (§ 10).
 
 ---
 
@@ -463,7 +490,13 @@ uses one envelope:
 | `not_found` | 404 | No such route |
 | `method_not_allowed` | 405 | Wrong method for an existing route |
 | `internal_error` | 500 | An unhandled exception (below) |
-| `web_not_built` | 404 | `GET /` with no frontend mounted (§ 9) — a diagnostic, not part of the API |
+| `entry_not_found` | 404 | No project file holds that entry (§ 10) |
+| `link_not_found` | 404 | No project file holds that link (§ 10) |
+| `revision_not_found` | 404 | That entry has no such revision (§ 10) |
+| `entry_version_conflict` | 409 | Stale entry write (D19, ruling 3). Its **own** code, because the editor and the entry form recover differently. Nothing was written |
+| `duplicate_link` | 409 | A live link already says the same thing; `detail.link_id` names it (§ 10) |
+| `invalid_attributes` | 422 | An unknown kind, relation, or attribute, or a value the definition refuses; `detail.field` names the input (§ 10) |
+| `web_not_built` | 404 | `GET /` with no frontend mounted (§ 11) — a diagnostic, not part of the API |
 
 **A `404` names only what was asked for.** The store's own message carries the projects directory;
 that goes to the log, and the client is told `no document 'doc_…' in this workspace`.
@@ -787,7 +820,304 @@ Replacing a chapter is import-then-delete, and both are already recoverable.
 
 ---
 
-## 10. Serving the app itself (P1-14)
+## 10. The story bible (P3-9 … P3-11, D25 – D28)
+
+Twenty-three routes under the same `/api` prefix, written in `api/bible_routes.py` and
+`api/bible_schemas.py` — a second pair of modules, not a second router: the prefix, the envelope,
+and the ordering guarantees are the API's, not the bible's. `specs/bible.md` is the authority on
+what an entry *means*; this section is what the wire promises.
+
+**The two closed vocabularies are not restated on the wire.** `kind` and `relation` cross as plain
+strings and are refused by `archetype/bible/schema.py`, which is the one place their members are
+written down (D26). A `Literal` of the seven kinds in the request models would be the second copy
+that decision exists to prevent — and it would be the copy that drifts, because the client fetches
+the other one. The rule has an exact boundary: a vocabulary a **module constant** owns *is*
+restated and held to it by a test (`EntryStatusFilter`, `CitationRoleIn`), exactly as
+`AnchorStatusFilter` is; one the **served definition** owns never is.
+
+**A status with no writer gets no route that writes it.** `proposed`, `rejected`, `superseded`,
+and `agent` are absent from every request model, not merely defaulted away — the rule the `pre-*`
+snapshot reasons already follow. They stay readable as filters, because a filter that cannot ask
+for a value the column can hold is one that needs changing the moment a writer exists.
+
+### `GET /api/bible/schema` — the served definition (P3-11, D26)
+
+**The one route in the API with no project scope**, because the vocabulary is the product's and
+not a manuscript's. It answers the same bytes for every caller.
+
+```json
+{
+  "field_types": ["entry_ref", "enum", "list_of_text", "long_text", "story_time", "text"],
+  "kinds": [
+    { "kind": "character", "label": "Character", "plural": "Characters",
+      "fields": [
+        { "name": "role", "type": "enum", "label": "Role", "required": false, "help": "",
+          "members": ["protagonist", "antagonist", "supporting", "minor", "chorus"],
+          "kinds": [] }
+      ] }
+  ],
+  "relations": [
+    { "relation": "member_of", "label": "is a member of", "inverse_label": "has as a member",
+      "from_kinds": ["character"], "to_kinds": ["faction"], "symmetric": false }
+  ]
+}
+```
+
+**A field carries every key, whatever its type.** `help`, `members`, and `kinds` are always
+present, empty where the type does not use them, because the client renders **one** generic form
+over this and a shape whose key set depends on the value of another key is one every consumer has
+to branch on. The contract fixture compares key sets exactly.
+
+`fields` is **in the order a form renders them**. Adding a field to a kind is a change to
+`archetype/bible/schema.py` and this route's fixture, and to nothing else — which is the whole of
+what D26 bought.
+
+No `ETag`. A conditional `304` would cost the `response_model`, and with it the generated schema
+for the most load-bearing shape in the phase; the definition is a few kilobytes and the client
+reads it once per project open.
+
+### `Entry` — the shape every kind shares
+
+| Field | Notes |
+|---|---|
+| `id`, `project_id` | `ent_…` |
+| `kind` | One of the seven. **Immutable** — absent from `PUT` for that reason |
+| `name`, `summary`, `body_md` | Present on every kind |
+| `attributes` | The per-kind map, already validated against the kind's definition |
+| `status`, `origin` | `accepted` and `user` in Phase 3; the rest have no writer |
+| `revision` | Monotonic. The D19 guard, applied to entries |
+| `needs_review`, `review_reason` | The retcon flag and what set it. **Orthogonal to `status`** |
+| `created_at`, `updated_at`, `deleted_at` | `deleted_at` is `null` in every read but the deleted list |
+
+### `GET /api/projects/{project_id}/entries` — the list, filtered
+
+Query: `kind`, `status`, `needs_review`, `q`, `include_deleted`. They compose, and every one is
+optional. `q` is a `LIKE` filter over names, aliases, and summaries — **a filter, not search**, and
+deliberately not `/search`: Phase 5 owns search and owns that route name.
+
+```json
+{ "entries": [ … ], "counts": { "character": 4, "place": 2, "item": 0 }, "truncated": false }
+```
+
+`counts` is the number of **live** entries of each kind, **unfiltered**, so a client showing only
+the places can still say how many characters there are. Every kind appears, including the ones with
+none.
+
+`truncated` is exact rather than inferred: the route asks the store for `SEARCH_LIMIT + 1` and
+trims, so a project with exactly two hundred matches does not send the writer looking for a row
+that is already on screen.
+
+### `POST /api/projects/{project_id}/entries` — create → `201`
+
+Body: `kind`, `name`, and optionally `summary`, `body_md`, `attributes`. **`status` and `origin`
+are not accepted**, by create or by update.
+
+An unknown kind, an attribute the kind does not declare, one of the wrong type, a value outside a
+declared `enum` set, an `entry_ref` to a kind the field does not allow, and a missing required
+field are each a `422 invalid_attributes` **naming the field**, with nothing written.
+
+### `GET /api/projects/{project_id}/entries/deleted` — the restore surface (D25)
+
+Most recently deleted first. Every other read path filters these out; this is the one that asks for
+them. A soft delete is only recoverable if there is somewhere to recover it from.
+
+### `GET /api/entries/{entry_id}` — one entry, with what points at it
+
+```json
+{ "entry": { … }, "citations": [ … ], "link_count": 3,
+  "narrative_position": { "entry_id": "ent_…", "document_id": "doc_…",
+                          "order_index": 0, "from_pos": 24 } }
+```
+
+The citations carry each anchor's **current** status — `ok`, `stale`, or `orphaned` — derived in
+the one place D22 put it, so a citation can never disagree with the *Marks* tab about the same
+anchor.
+
+`narrative_position` is derived from the `source` anchor and never stored, so it follows a chapter
+reorder for free; an entry with no source anchor simply has none, and one whose source sits in a
+soft-deleted chapter has none either.
+
+`link_count` is the live links in **either** direction — what a detail header shows. The links
+themselves are their own route, because a list of them is a panel of its own.
+
+A deleted entry is readable here: somebody deciding whether to restore it needs to see it.
+
+### `PUT /api/entries/{entry_id}` — edit, presenting the revision (D19, ruling 3)
+
+Body: `revision`, and any of `name`, `summary`, `body_md`, `attributes`, plus `retcon` and
+`reason`. `kind` and `status` are absent, for the two different reasons above.
+
+**An absent field and a field sent as empty are different requests.** A `PUT` that does not mention
+`summary` keeps it; one that sends `attributes: {}` clears them. The distinction is read from
+pydantic's `model_fields_set`, not from a sentinel value.
+
+`retcon` is `null` by default and takes the store's **computed** answer — true when `name`,
+`attributes_json`, or `status` moved, false for a `summary`- or `body_md`-only edit. `true` or
+`false` overrides it in that direction.
+
+```json
+{ "entry": { … }, "revision": 3, "retcon": true,
+  "flagged": ["ent_…", "ent_…"], "changed_fields": ["name"] }
+```
+
+`flagged` is the point: the writer is told which entries this retcon put into the review queue **at
+the moment it happens**, rather than discovering it by opening the queue. `changed_fields` reports
+the computed answer even when the request overrode it, so an override is legible as one.
+
+A stale `revision` is refused with `409 entry_version_conflict` — **its own code**, not
+`version_conflict`, because the two surfaces recover differently: the editor offers to reload a
+chapter, the entry form offers to reload a record, and one code for both would make that a branch
+on which request was in flight.
+
+```json
+{ "error": { "code": "entry_version_conflict",
+             "message": "entry ent_… is at revision 2, not 1; reload before saving",
+             "detail": { "entry_id": "ent_…", "presented_revision": 1,
+                         "current_revision": 2, "updated_at": "…" } } }
+```
+
+### `DELETE /api/entries/{entry_id}` — soft delete (D25) → `200` with the entry
+
+Nothing cascades. The row, its revisions, its links, and its citations all stay; the entry leaves
+every list, count, link view, and the review queue, because all of those filter on one predicate.
+Deleting is **not** a retcon — the entry has not changed its claims, it has left the bible.
+
+`200` rather than `204`, for the reason a chapter delete answers with its metadata: the client has
+just been told the entry is gone and needs to say what went and when.
+
+### `POST /api/entries/{entry_id}/restore` → `200`
+
+Its links come back because nothing ever removed them: an endpoint's deletion *hides* a link
+through the three-way predicate rather than writing to it. A link deleted in its own right stays
+deleted. Restoring a live entry is a no-op, not an error.
+
+### `POST /api/entries/{entry_id}/review/clear` — the writer has looked
+
+Body: `revision`. Answers the same shape a `PUT` does. **Never a retcon** — not by default and not
+by override: a queue that re-flags every neighbour as it is worked through is a queue that never
+empties and stops meaning anything.
+
+### Revisions — `GET …/revisions`, `GET …/revisions/{n}`, `POST …/revisions/{n}/restore`
+
+The list carries **metadata only** — `entry_id`, `revision`, `revised_at`, `reason`, `retcon`,
+`origin` — newest first, complete from creation, and deliberately **not** filtered by `deleted_at`.
+Reading one adds `state`: the entry as it was **after** that write, so revision *n* is what the
+entry was at revision *n* and reading a past state is one row rather than a replay. `state` carries
+no `needs_review`.
+
+A restore presents the entry's **current** revision, not the one being restored, because it goes
+through the ordinary update path: it bumps `revision`, appends a new revision at the top of the
+history rather than rewriting it, is guarded by D19, and computes its own retcon answer. It answers
+the same shape a `PUT` does. An unknown number is `404 revision_not_found`.
+
+### Links (P3-10, ruling 7)
+
+| Route | Notes |
+|---|---|
+| `GET /api/projects/{pid}/links` | Every **live** link, optionally of one `relation`. An unknown relation is a `422`, not an empty list |
+| `POST /api/projects/{pid}/links` | `from_entry`, `relation`, `to_entry`, and optional `since`, `until`, `attributes` → `201` |
+| `GET /api/entries/{eid}/links` | Both directions in one answer |
+| `PATCH /api/links/{lid}` | Bounds and attributes, **and nothing else** |
+| `DELETE /api/links/{lid}` | Soft delete → `200` with the link |
+| `POST /api/links/{lid}/restore` | `409 duplicate_link` when a live link now says the same thing |
+
+**Live means the link is not deleted *and neither endpoint is*** — the three-way predicate.
+
+**A relation is refused on the side it is offered from.** `member_of` runs character → faction;
+faction → character is a different statement and is refused, never silently reversed. The only
+exception is a relation whose *definition* says it is symmetric, and that answer comes from the
+vocabulary rather than from a list any consumer keeps.
+
+An entry's links come back as **views**, each marked with which end this entry is on and labelled
+the way that end reads it:
+
+```json
+{ "links": [ { "link": { … }, "end": "from", "other_id": "ent_…", "other_name": "The Company",
+               "other_kind": "faction", "label": "is a member of" } ] }
+```
+
+A symmetric relation is one row and appears **once from each side**, never twice from either.
+
+`PATCH` takes bounds and attributes only. The endpoints and the relation are absent on purpose:
+changing either is a delete and a create, and both are recoverable; editing them in place would let
+a link's own history describe a relationship it never had. A bound is genuinely nullable, so
+`since: null` clears it — unlike an entry's content fields, where `null` is a client sending the
+wrong thing. No revision is presented, because a link has none: the D19 guard lives on the entry.
+
+An entry linked to itself is a `422`, and so is a duplicate of a live link — including a restore
+that would produce one, because two identical rows would double-count in Phase 8's chart with
+neither being the wrong one to remove.
+
+### Citations (P3-10, P3-7)
+
+| Route | Notes |
+|---|---|
+| `POST /api/entries/{eid}/citations` | `anchor_id` and a `role` → `201`. Citing what is already cited in that role is a no-op |
+| `DELETE /api/entries/{eid}/citations/{aid}` | Optional `?role=`; without one, every role. Answers `{ "removed": n }` |
+| `GET /api/anchors/{aid}/entries` | The reverse view — which live entries cite this anchor |
+
+A `stale` or `orphaned` anchor **may** be cited: that is exactly the anchor an entry wants, so it
+can say the passage behind it has moved.
+
+**Uncite removes the join, never the anchor.** An anchor is a fact about the manuscript, and *Marks*
+is where one is removed; the entry keeps what a person typed and loses one reason to believe it.
+Removing a citation that is not there returns zero rather than a `404`.
+
+### `POST /api/documents/{document_id}/entries` — *Add to bible* → `201`
+
+The interaction the whole product is arranged around, in its manual form.
+
+Body: `from_pos`, `to_pos`, `version`, `kind`, `name`, and optionally `summary`, `body_md`,
+`attributes`, `label`, `role`. **A range and a version, never a quote** — the server derives the
+words, exactly as marking a passage does, so an entry created from a selection cannot cite a
+passage the manuscript does not contain (ruling 8).
+
+One transaction over three tables: a stale `version` is refused with the same `409` a save gets and
+**leaves no anchor, no entry, and no citation**.
+
+```json
+{ "entry": { … }, "anchor": { … }, "role": "source" }
+```
+
+### `GET /api/projects/{project_id}/storytime` — D28's three answers
+
+```json
+{ "order": [ { "entry_id": "ent_…", "name": "The departure",
+               "label": "the first grey morning", "sort_key": 1.0, "era": "Before" } ],
+  "unplaced": [ … ],
+  "contradictions": [ { "kind": "cycle", "events": ["ent_…", "ent_…"], "detail": "…" } ],
+  "eras": [ { "era": "Before", "rank": 1.0 } ] }
+```
+
+`order` and `unplaced` **partition** the events: every event appears in exactly one of them,
+always. An event with neither an edge nor a `sort_key` is unplaced — not appended, not dropped, and
+never guessed at (D9).
+
+There are exactly **two** contradiction kinds — `cycle` and `sort_key_inversion` — and they are
+independent: an edge inside a cycle whose keys also disagree is reported as both, because a writer
+fixes them differently.
+
+**A contradiction never costs the rest of the graph.** A cycle is reported *and* everything outside
+it is still ordered, because a timeline that refuses to draw anything until two events agree is a
+timeline nobody can use to find the disagreement.
+
+`label` is what a person reads as "when" and it **never sorts**; `sort_key` is the only number in
+story-time, and it is a float so an event can be inserted between two others without renumbering.
+An era is a name on an event, not a stored entity, and ranks by the least `sort_key` among its
+members — `null` when none of them has one, which is an era nobody has placed yet rather than a
+contradiction.
+
+Phase 3 renders no timeline; Phase 8 owns that. This route exists because a stored shape with no
+consumer is a shape nobody has proved sufficient.
+
+**Composition that is not HTTP does not live in the route.** It is
+`StoryTimeOut.of(project_timeline(handle))`; the two reads and the pure call are
+`archetype/bible/timeline.py`, so Phase 6's agent and Phase 8's timeline get the same answer
+without going through a request.
+
+---
+
+## 11. Serving the app itself (P1-14)
 
 Not an API route, but part of the contract for how the server is reached.
 
@@ -812,7 +1142,7 @@ the README tells you to open is a bad way to learn you skipped a build step.
 
 ---
 
-## 11. What is deliberately absent
+## 12. What is deliberately absent
 
 Named, because each is a plausible thing to reach for and find missing:
 
@@ -822,7 +1152,7 @@ Named, because each is a plausible thing to reach for and find missing:
 | ~~Snapshot capture, history, and restore~~ | **Arrived** — § 8 above (P2-3, P2-12) |
 | ~~Markdown import and export~~ | **Arrived** — § 9 above (P2-13, P2-14) |
 | ~~Anchors~~ | **Arrived** — § 7 above (P2-7) |
-| Bible entries, links, revisions | Phase 3 |
+| ~~Bible entries, links, revisions~~ | **Arrived** — § 10 above (P3-9 … P3-11) |
 | Chat, streaming, provider settings | Phase 4 |
 | Search — keyword, semantic, or hybrid | Phase 5 |
 | Agent runs, proposals, findings | Phase 6 |

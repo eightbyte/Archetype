@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "entry_id": "ent_000000000001",
+    "revision": 1,
+    "revised_at": "2026-01-01T00:00:00Z",
+    "reason": "created from a selection",
+    "retcon": false,
+    "origin": "user"
+  },
+  "state": {
+    "kind": "character",
+    "name": "Marlow",
+    "summary": "the pilot who tells it",
+    "body_md": "",
+    "attributes": {},
+    "status": "accepted",
+    "origin": "user",
+    "revision": 1,
+    "updated_at": "2026-01-01T00:00:00Z",
+    "deleted_at": null
+  }
+}

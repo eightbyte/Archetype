@@ -225,6 +225,132 @@ def test_contract_fixtures_round_trip(client: TestClient) -> None:
         ),
     )
 
+    # Phase 3's bible (P3-9 to P3-11). The schema fixture is the load-bearing one: everything in
+    # the Bible tab renders from it, so it is what fails when a kind gains a field and the client
+    # was not told. The rest are drawn from a bible built the way a writer builds one - a
+    # character made from a selection, entries typed by hand, a link between two of them, and a
+    # retcon that flags a neighbour.
+    capture("bible_schema", client.get("/api/bible/schema"))
+
+    from_pos, to_pos = _range_over(BROKEN_PROSE, "harbour was calm")
+    made = capture(
+        "entry_from_range",
+        client.post(
+            f"/api/documents/{first_document}/entries",
+            json={
+                "from_pos": from_pos,
+                "to_pos": to_pos,
+                "version": 3,
+                "kind": "character",
+                "name": "Marlow",
+                "summary": "the pilot who tells it",
+                "label": "the harbour",
+            },
+        ),
+    )
+    marlow = made["entry"]["id"]
+
+    kurtz = capture(
+        "entry",
+        client.post(
+            f"/api/projects/{project_id}/entries",
+            json={
+                "kind": "character",
+                "name": "Kurtz",
+                "summary": "the man at the end of the river",
+                "attributes": {"aliases": ["the agent"]},
+            },
+        ),
+    )
+    client.post(
+        f"/api/projects/{project_id}/entries",
+        json={"kind": "place", "name": "The Quay"},
+    )
+    capture("entry_list", client.get(f"/api/projects/{project_id}/entries"))
+
+    capture(
+        "link",
+        client.post(
+            f"/api/projects/{project_id}/links",
+            json={
+                "from_entry": marlow,
+                "relation": "knows",
+                "to_entry": kurtz["id"],
+                "since": "the first voyage",
+            },
+        ),
+    )
+    capture("link_list", client.get(f"/api/projects/{project_id}/links"))
+    capture("entry_links", client.get(f"/api/entries/{marlow}/links"))
+
+    # A retcon, so `flagged` and `changed_fields` are drawn with something in them.
+    capture(
+        "entry_write_result",
+        client.put(
+            f"/api/entries/{marlow}",
+            json={
+                "revision": 1,
+                "name": "Charlie Marlow",
+                "reason": "he was never only Marlow",
+            },
+        ),
+    )
+    capture(
+        "error_entry_version_conflict",
+        client.put(f"/api/entries/{marlow}", json={"revision": 1, "name": "Marlowe"}),
+    )
+    capture(
+        "error_invalid_attributes",
+        client.post(
+            f"/api/projects/{project_id}/entries",
+            json={"kind": "character", "name": "Smaug", "attributes": {"eye_colour": "gold"}},
+        ),
+    )
+    capture("entry_revision_list", client.get(f"/api/entries/{marlow}/revisions"))
+    capture("entry_revision", client.get(f"/api/entries/{marlow}/revisions/1"))
+
+    # The stale anchor from the Phase 2 section, cited by an entry: a citation carries the
+    # anchor's *current* status, which is the whole reason it carries the anchor at all.
+    capture(
+        "citation",
+        client.post(
+            f"/api/entries/{kurtz['id']}/citations",
+            json={"anchor_id": anchor["id"], "role": "mention"},
+        ),
+    )
+    capture("anchor_entries", client.get(f"/api/anchors/{anchor['id']}/entries"))
+    capture("entry_detail", client.get(f"/api/entries/{marlow}"))
+    capture(
+        "citation_removed",
+        client.delete(f"/api/entries/{kurtz['id']}/citations/{anchor['id']}"),
+    )
+
+    # Story-time: two events an edge orders, and one nothing places (D9's tray).
+    events = [
+        client.post(
+            f"/api/projects/{project_id}/entries",
+            json={
+                "kind": "event",
+                "name": name,
+                "attributes": {"story_time": story_time},
+            },
+        ).json()["id"]
+        for name, story_time in (
+            ("The departure", {"label": "the first grey morning", "sort_key": 1, "era": "Before"}),
+            ("The river", {"label": "high summer", "sort_key": 2, "era": "Before"}),
+            ("A rumour", {"label": "nobody agrees when"}),
+        )
+    ]
+    client.post(
+        f"/api/projects/{project_id}/links",
+        json={"from_entry": events[0], "relation": "precedes", "to_entry": events[1]},
+    )
+    capture("storytime", client.get(f"/api/projects/{project_id}/storytime"))
+
+    client.delete(f"/api/entries/{kurtz['id']}")
+    capture("entry_list_deleted", client.get(f"/api/projects/{project_id}/entries/deleted"))
+    client.post(f"/api/entries/{kurtz['id']}/restore")
+
     # The round trip: everything written parses back to what was written.
     for name, body in written.items():
         path = CONTRACT_FIXTURES_DIR / f"{name}.json"
@@ -254,6 +380,25 @@ def test_every_fixture_is_one_the_test_writes() -> None:
         "snapshot",
         "snapshot_capture",
         "snapshot_list",
+        # Phase 3 (P3-9 to P3-11).
+        "anchor_entries",
+        "bible_schema",
+        "citation",
+        "citation_removed",
+        "entry",
+        "entry_detail",
+        "entry_from_range",
+        "entry_links",
+        "entry_list",
+        "entry_list_deleted",
+        "entry_revision",
+        "entry_revision_list",
+        "entry_write_result",
+        "error_entry_version_conflict",
+        "error_invalid_attributes",
+        "link",
+        "link_list",
+        "storytime",
     }
     found = {path.stem for path in CONTRACT_FIXTURES_DIR.glob("*.json")}
     assert found == expected

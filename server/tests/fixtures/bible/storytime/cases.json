@@ -1,0 +1,285 @@
+{
+  "_readme": "The story-time corpus (P3-8). Written from specs/bible.md section 7 as the specification, not recorded from archetype/bible/storytime.py: every answer here is what that document says must happen, and a disagreement is a bug in one of them rather than a fixture to re-record. Read by tests/test_storytime.py. Each case is (events, precedes edges, the three answers), which is the whole input and the whole output of a pure function - there is no database here and no clock. An event is {id, name?, sort_key?, era?, label?}; 'sort_key' absent means the event carries none, which is not the same as zero. 'edges' are [from, to] pairs meaning 'from comes before to'. 'order' is the exact list, in order; 'unplaced' is a set stated as a list in the events' own order; 'contradictions' each state a kind ('cycle' or 'sort_key_inversion' - there are no others) and the events involved, compared as a set for a cycle because the member a cycle is listed from is an implementation detail while its membership is not. 'eras' is the era ranking of section 7's last paragraph, where null means an era nobody has placed - which is not a contradiction. Absent 'eras' means the case says nothing about eras.",
+  "cases": [
+    {
+      "name": "nothing at all",
+      "why": "A bible with no events is the state every project starts in, and the answer is three empty lists rather than an error.",
+      "events": [],
+      "edges": [],
+      "order": [],
+      "unplaced": [],
+      "contradictions": []
+    },
+    {
+      "name": "a label alone does not place an event",
+      "why": "Section 7: a label is for reading, not for sorting. It is the tray, not the timeline.",
+      "events": [{ "id": "e1", "name": "The flood", "label": "the third night of the flood" }],
+      "edges": [],
+      "order": [],
+      "unplaced": ["e1"],
+      "contradictions": []
+    },
+    {
+      "name": "sort keys alone order two events",
+      "why": "A key places an event without any edge; the smaller comes first.",
+      "events": [
+        { "id": "later", "name": "The verdict", "sort_key": 20 },
+        { "id": "earlier", "name": "The arrest", "sort_key": 10 }
+      ],
+      "edges": [],
+      "order": ["earlier", "later"],
+      "unplaced": [],
+      "contradictions": []
+    },
+    {
+      "name": "an edge alone orders two events with no keys at all",
+      "why": "This is the case D9 exists for: a writer who will never give a number can still say what came first.",
+      "events": [
+        { "id": "b", "name": "The burial" },
+        { "id": "a", "name": "The death" }
+      ],
+      "edges": [["a", "b"]],
+      "order": ["a", "b"],
+      "unplaced": [],
+      "contradictions": []
+    },
+    {
+      "name": "an edge and keys that agree",
+      "why": "The ordinary case, and the one that must report nothing.",
+      "events": [
+        { "id": "a", "name": "The fire", "sort_key": 1 },
+        { "id": "b", "name": "The inquest", "sort_key": 2 }
+      ],
+      "edges": [["a", "b"]],
+      "order": ["a", "b"],
+      "unplaced": [],
+      "contradictions": []
+    },
+    {
+      "name": "an edge wins over the keys, and the inversion is reported",
+      "why": "Tiebreak rule 1: a constraint a person typed outranks a number they typed. The pair is still ordered by the edge - this is step 6 of the acceptance run.",
+      "events": [
+        { "id": "a", "name": "The fire", "sort_key": 9 },
+        { "id": "b", "name": "The inquest", "sort_key": 2 }
+      ],
+      "edges": [["a", "b"]],
+      "order": ["a", "b"],
+      "unplaced": [],
+      "contradictions": [{ "kind": "sort_key_inversion", "events": ["a", "b"] }]
+    },
+    {
+      "name": "an inversion does not stop the rest of the events being ordered",
+      "why": "A contradiction never costs the graph. The unrelated event keeps its place by its key.",
+      "events": [
+        { "id": "a", "name": "The fire", "sort_key": 9 },
+        { "id": "b", "name": "The inquest", "sort_key": 2 },
+        { "id": "c", "name": "The reckoning", "sort_key": 30 }
+      ],
+      "edges": [["a", "b"]],
+      "order": ["a", "b", "c"],
+      "unplaced": [],
+      "contradictions": [{ "kind": "sort_key_inversion", "events": ["a", "b"] }]
+    },
+    {
+      "name": "an unkeyed event placed by an edge comes after every keyed one it is not ordered against",
+      "why": "Tiebreak rule 3, stated as data. 'c' has a key and no edge; 'b' has an edge and no key, so nobody said when it happens.",
+      "events": [
+        { "id": "a", "name": "The letter", "sort_key": 1 },
+        { "id": "b", "name": "The reply" },
+        { "id": "c", "name": "The crossing", "sort_key": 5 }
+      ],
+      "edges": [["a", "b"]],
+      "order": ["a", "c", "b"],
+      "unplaced": [],
+      "contradictions": []
+    },
+    {
+      "name": "keyed, edge-placed, and unplaced together",
+      "why": "The three forms of section 7's table in one case. 'd' has neither a key nor an edge and is the tray - step 7 of the acceptance run.",
+      "events": [
+        { "id": "a", "name": "The muster", "sort_key": 1 },
+        { "id": "b", "name": "The march" },
+        { "id": "c", "name": "The siege", "sort_key": 4 },
+        { "id": "d", "name": "A rumour someone heard", "label": "some winter" }
+      ],
+      "edges": [["a", "b"]],
+      "order": ["a", "c", "b"],
+      "unplaced": ["d"],
+      "contradictions": []
+    },
+    {
+      "name": "a two-event cycle is reported and both events stay in the order",
+      "why": "Section 7: a cycle is reported as a cycle and everything outside it is still ordered. Nothing is dropped - every event is in exactly one of order and unplaced.",
+      "events": [
+        { "id": "a", "name": "The oath" },
+        { "id": "b", "name": "The betrayal" }
+      ],
+      "edges": [
+        ["a", "b"],
+        ["b", "a"]
+      ],
+      "order": ["a", "b"],
+      "unplaced": [],
+      "contradictions": [{ "kind": "cycle", "events": ["a", "b"] }]
+    },
+    {
+      "name": "a three-event cycle costs only itself, and the edge that closes it also inverts",
+      "why": "The events on either side of the loop are still ordered around it, which is what makes the loop findable. The closing edge runs from key 12 back to key 10, so it is an inversion as well: the two kinds are independent and one must not mask the other.",
+      "events": [
+        { "id": "before", "name": "The harbour", "sort_key": 1 },
+        { "id": "a", "name": "The oath", "sort_key": 10 },
+        { "id": "b", "name": "The betrayal", "sort_key": 11 },
+        { "id": "c", "name": "The trial", "sort_key": 12 },
+        { "id": "after", "name": "The exile", "sort_key": 90 }
+      ],
+      "edges": [
+        ["before", "a"],
+        ["a", "b"],
+        ["b", "c"],
+        ["c", "a"],
+        ["c", "after"]
+      ],
+      "order": ["before", "a", "b", "c", "after"],
+      "unplaced": [],
+      "contradictions": [
+        { "kind": "cycle", "events": ["a", "b", "c"] },
+        { "kind": "sort_key_inversion", "events": ["c", "a"] }
+      ]
+    },
+    {
+      "name": "an event said to precede itself is a cycle of one",
+      "why": "It is the same mistake at its smallest, and reporting it as anything else would need a third contradiction kind.",
+      "events": [{ "id": "a", "name": "The vigil" }],
+      "edges": [["a", "a"]],
+      "order": ["a"],
+      "unplaced": [],
+      "contradictions": [{ "kind": "cycle", "events": ["a"] }]
+    },
+    {
+      "name": "a diamond orders its two middles by their keys",
+      "why": "The edges leave 'b' and 'c' unordered against each other, so tiebreak rule 2 decides - and rule 1 still holds both against 'a' and 'd'.",
+      "events": [
+        { "id": "a", "name": "The parting" },
+        { "id": "b", "name": "The north road", "sort_key": 7 },
+        { "id": "c", "name": "The south road", "sort_key": 3 },
+        { "id": "d", "name": "The meeting" }
+      ],
+      "edges": [
+        ["a", "b"],
+        ["a", "c"],
+        ["b", "d"],
+        ["c", "d"]
+      ],
+      "order": ["a", "c", "b", "d"],
+      "unplaced": [],
+      "contradictions": []
+    },
+    {
+      "name": "two unkeyed chains fall back on the order the events were given in",
+      "why": "Tiebreak rule 4. Nothing here is sorted by name or by anything a person did not say - the fallback is stable and nothing more.",
+      "events": [
+        { "id": "x1", "name": "Zeno wakes" },
+        { "id": "x2", "name": "Zeno walks" },
+        { "id": "y1", "name": "Ada wakes" },
+        { "id": "y2", "name": "Ada walks" }
+      ],
+      "edges": [
+        ["x1", "x2"],
+        ["y1", "y2"]
+      ],
+      "order": ["x1", "x2", "y1", "y2"],
+      "unplaced": [],
+      "contradictions": []
+    },
+    {
+      "name": "the same link twice is one constraint",
+      "why": "Two identical rows can exist across a delete and a re-create; they say the same thing once.",
+      "events": [
+        { "id": "a", "name": "The knock" },
+        { "id": "b", "name": "The answer" }
+      ],
+      "edges": [
+        ["a", "b"],
+        ["a", "b"]
+      ],
+      "order": ["a", "b"],
+      "unplaced": [],
+      "contradictions": []
+    },
+    {
+      "name": "an edge naming an event that is not here is ignored",
+      "why": "The caller's live predicate decides which events exist; an edge to a deleted one is not a constraint against this graph, and it must not place the event at the near end either.",
+      "events": [
+        { "id": "a", "name": "The wake" },
+        { "id": "b", "name": "The reading", "sort_key": 2 }
+      ],
+      "edges": [["a", "gone"]],
+      "order": ["b"],
+      "unplaced": ["a"],
+      "contradictions": []
+    },
+    {
+      "name": "eras rank by the least sort key among their members",
+      "why": "Section 7's last paragraph. 'Before' holds the smaller key even though its other member is larger, and an era whose members carry no key has no rank - which is not a contradiction.",
+      "events": [
+        { "id": "a", "name": "The founding", "sort_key": 5, "era": "Before" },
+        { "id": "b", "name": "The famine", "sort_key": 40, "era": "Before" },
+        { "id": "c", "name": "The war", "sort_key": 60, "era": "After" },
+        { "id": "d", "name": "A story they tell", "era": "Myth" }
+      ],
+      "edges": [],
+      "order": ["a", "b", "c"],
+      "unplaced": ["d"],
+      "contradictions": [],
+      "eras": { "Before": 5, "After": 60, "Myth": null }
+    },
+    {
+      "name": "an era is a grouping and carries no ordering power",
+      "why": "Two events in the same era are ordered by the same rules as any other two - the era name never enters the comparison.",
+      "events": [
+        { "id": "late_first_era", "name": "The last winter", "sort_key": 30, "era": "First" },
+        { "id": "early_second_era", "name": "The new year", "sort_key": 31, "era": "Second" },
+        { "id": "early_first_era", "name": "The first spring", "sort_key": 1, "era": "First" }
+      ],
+      "edges": [],
+      "order": ["early_first_era", "late_first_era", "early_second_era"],
+      "unplaced": [],
+      "contradictions": [],
+      "eras": { "First": 1, "Second": 31 }
+    },
+    {
+      "name": "a negative and a fractional key order like any other",
+      "why": "sort_key is a float on purpose, so an event can be inserted between two others without renumbering (section 11).",
+      "events": [
+        { "id": "middle", "name": "The crossing", "sort_key": 0.5 },
+        { "id": "first", "name": "Long before", "sort_key": -12 },
+        { "id": "last", "name": "The arrival", "sort_key": 1 }
+      ],
+      "edges": [],
+      "order": ["first", "middle", "last"],
+      "unplaced": [],
+      "contradictions": []
+    },
+    {
+      "name": "a cycle and an inversion in the same graph are both reported",
+      "why": "The two kinds are independent, and one must not mask the other.",
+      "events": [
+        { "id": "a", "name": "The pact", "sort_key": 8 },
+        { "id": "b", "name": "The breaking", "sort_key": 2 },
+        { "id": "c", "name": "The trial" },
+        { "id": "d", "name": "The sentence" }
+      ],
+      "edges": [
+        ["a", "b"],
+        ["c", "d"],
+        ["d", "c"]
+      ],
+      "order": ["a", "b", "c", "d"],
+      "unplaced": [],
+      "contradictions": [
+        { "kind": "sort_key_inversion", "events": ["a", "b"] },
+        { "kind": "cycle", "events": ["c", "d"] }
+      ]
+    }
+  ]
+}

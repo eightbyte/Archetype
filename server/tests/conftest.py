@@ -26,6 +26,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from archetype.app import create_app
+from archetype.bible.citations import CitationStore
+from archetype.bible.entries import Entry, EntryStore
+from archetype.bible.links import LinkStore
+from archetype.bible.schema import EntryKind, FieldDefinition, FieldType
 from archetype.config import CONFIG_FILE_ENV_VAR, Settings, reset_settings_cache
 from archetype.ids import IdPrefix, new_id
 from archetype.manuscript.anchors import EFFECTIVE_STATUS_SQL
@@ -41,6 +45,7 @@ CONTRACT_FIXTURES_DIR = FIXTURES_DIR / "contract"
 ANCHOR_FIXTURES_DIR = FIXTURES_DIR / "anchors"
 MARKDOWN_FIXTURES_DIR = FIXTURES_DIR / "markdown"
 SCHEMA_FIXTURES_DIR = FIXTURES_DIR / "schema"
+STORYTIME_FIXTURES_DIR = FIXTURES_DIR / "bible" / "storytime"
 
 
 @pytest.fixture(autouse=True)
@@ -217,6 +222,106 @@ def make_anchor(project: ProjectHandle):
     return factory
 
 
+# -- the bible (Phase 3) --------------------------------------------------------------------
+
+
+@pytest.fixture
+def entries(project: ProjectHandle) -> EntryStore:
+    """The entry store for :func:`project` (P3-3)."""
+    return EntryStore(project)
+
+
+@pytest.fixture
+def make_entry(entries: EntryStore):
+    """Create an entry, defaulting to a character. ``make_entry("Mira", kind="place")``."""
+
+    def factory(name: str = "Mira", *, kind: str = EntryKind.CHARACTER, **fields) -> Entry:
+        return entries.create(kind, name, **fields)
+
+    return factory
+
+
+def sample_value(field: FieldDefinition) -> Any:
+    """A legal value for any field type, so a test can satisfy a required field generically.
+
+    Written over :class:`FieldType` rather than over the field names, so that a kind gaining a
+    required field does not need a test edited - which is the D26 property under test. Shared
+    because both the store's suite and the route suite round every one of the seven kinds
+    through one call and each needs the required fields filled.
+    """
+    match field.type:
+        case FieldType.TEXT | FieldType.LONG_TEXT:
+            return "something a person typed"
+        case FieldType.LIST_OF_TEXT:
+            return ["one", "two"]
+        case FieldType.ENUM:
+            return field.members[0]
+        case FieldType.STORY_TIME:
+            return {"label": "the third grey morning"}
+    raise AssertionError(f"no sample value for field type {field.type!r}; add one")
+
+
+def required_attributes(kind: str) -> dict[str, Any]:
+    """The smallest attribute map a kind will accept."""
+    from archetype.bible.schema import definition_for
+
+    return {
+        field.name: sample_value(field) for field in definition_for(kind).fields if field.required
+    }
+
+
+@pytest.fixture
+def links(project: ProjectHandle) -> LinkStore:
+    """The link store for :func:`project` (P3-6)."""
+    return LinkStore(project)
+
+
+@pytest.fixture
+def citations(project: ProjectHandle) -> CitationStore:
+    """The citation store for :func:`project` (P3-7)."""
+    return CitationStore(project)
+
+
+@pytest.fixture
+def make_link(project: ProjectHandle):
+    """Insert a link row directly, and return its id.
+
+    Deliberately SQL: ``LinkStore`` is P3-6 and Group A must be able to prove D27's dependent
+    rule without it. When the store arrives, this fixture stays - the same argument
+    :func:`make_anchor` makes, one table over: what these tests are about is the predicate over
+    a row, not the store's refusals, which have their own tests.
+    """
+
+    def factory(
+        from_entry: str,
+        to_entry: str,
+        *,
+        relation: str = "knows",
+        deleted: bool = False,
+    ) -> str:
+        link_id = new_id(IdPrefix.LINK)
+        now = utc_now()
+        with project.connect() as conn, transaction(conn):
+            conn.execute(
+                "INSERT INTO entry_link (id, project_id, from_entry, to_entry, relation, "
+                "attributes_json, created_at, updated_at, deleted_at) "
+                "VALUES (?, ?, ?, ?, ?, '{}', ?, ?, ?)",
+                (
+                    link_id,
+                    project.id,
+                    from_entry,
+                    to_entry,
+                    relation,
+                    now,
+                    now,
+                    now if deleted else None,
+                ),
+            )
+        return link_id
+
+    return factory
+
+
 @pytest.fixture
 def read_anchor_status(project: ProjectHandle):
     """The status a reader sees for one anchor, derived exactly as the code derives it (D22)."""
@@ -317,3 +422,13 @@ def load_closed_schema() -> dict[str, Any]:
     """
     raw = (SCHEMA_FIXTURES_DIR / "closed_schema.json").read_text(encoding="utf-8")
     return json.loads(raw)
+
+
+def load_storytime_cases() -> list[dict[str, Any]]:
+    """The story-time corpus (P3-8), written from ``specs/bible.md`` section 7.
+
+    Not recorded from the ordering module: every answer in it is what that document says must
+    happen, so a disagreement is a bug in one of the two rather than a fixture to re-record.
+    """
+    raw = (STORYTIME_FIXTURES_DIR / "cases.json").read_text(encoding="utf-8")
+    return json.loads(raw)["cases"]

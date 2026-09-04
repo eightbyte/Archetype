@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "invalid_attributes",
+    "message": "character does not declare 'eye_colour'; its fields are ['age', 'aliases', 'appearance', 'home', 'pronouns', 'role', 'voice', 'wants']",
+    "detail": {
+      "field": "eye_colour"
+    }
+  }
+}
