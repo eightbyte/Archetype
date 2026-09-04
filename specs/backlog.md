@@ -1,6 +1,6 @@
 # Archetype — Backlog
 
-**Status:** Active · **Version:** 1.0 · **Date:** 2026-08-29
+**Status:** Active · **Version:** 1.7 · **Date:** 2026-09-04
 **Parent:** [`specs/project-outline.md`](project-outline.md)
 
 Where ideas go so they do not become scope creep (outline § 9). Two kinds live here: **open
@@ -16,12 +16,15 @@ Promoting anything from here into a phase means editing the outline first, then 
 
 | ID | Question | Leaning | Settle by |
 |---|---|---|---|
-| **Q1** | Are snapshots automatic on a timer, on chapter close, or only manual? | Automatic on close, plus a manual "mark version" | Phase 2 |
-| **Q2** | Do bible entries need soft-delete/trash, or is revision history enough? | Revision history is enough; `superseded` covers retcons | Phase 3 |
 | **Q3** | Should findings expire when the text they cite changes, or be re-checked? | Mark `outdated` when the cited anchor changes, offer a re-run | Phase 7 |
 | **Q4** | Does the agent get an external web-search tool? | No for 1.0 — offline story consistency is the product | Phase 6 |
-| **Q5** | Multi-tab safety: soft lock, last-write-wins with a warning, or ignore? | **Partly settled by D19** — a version guard returns `409` and the UI warns. Whether a soft lock is also wanted is open | Phase 2 |
 | **Q6** | Does the interaction chart get a node-link view alongside the matrix? | Matrix ships first (D14); the writer asked to revisit the design when the phase starts | Phase 8 |
+
+**`Q2` and `Q7` were due in Phase 3 and are settled** — both against their recorded leanings, both
+ruled by the writer on 2026-09-01, and both now in § 3. Three questions remain, and **none is due in
+Phase 4**: `Q4` is due by Phase 6, `Q3` by Phase 7, `Q6` by Phase 8. Phase 4 settles nothing from
+this list; what it opens instead is five *decisions* (D30–D34) in its own plan's § 2, which is where
+a decision belongs — a backlog question is one nobody has had to answer yet.
 
 ---
 
@@ -40,6 +43,16 @@ needed to prove the system works end to end.
 - Node-link interaction graph (D14 stretch).
 - Map view for places; relationship strength or sentiment on links.
 - Bible entry templates per genre.
+- A **word-level diff**, in two places that want the same thing. Between two revisions of an
+  entry: `P3-13` pre-marked it as the correct thing to cut, and it was cut (phase-3 plan § 7,
+  `D4`); what shipped is a field-level marker saying which of an entry's four parts a revision
+  holds differently from the record as it stands now. And between the before and after of a
+  proofread or rewrite: `P4-14` makes the identical call, "desirable, not required", and may cut it
+  the same way. The remaining want in both is seeing *what changed inside a paragraph*, which is a
+  real diff algorithm and a real dependency decision (D10) — and it is now wanted twice, which is
+  the argument for doing it properly once rather than twice badly.
+- **Merging or de-duplicating two entries.** Phase 7 needs it, because extraction produces
+  near-duplicates; a person typing does not, and Phase 3's non-goals say so.
 
 **AI**
 - Automatic background extraction as you write (D13 — plumbing stays scheduler-ready).
@@ -52,7 +65,13 @@ needed to prove the system works end to end.
 - Multi-user, collaboration, presence, accounts (outline § 2).
 - Home-server or internet-facing deployment, HTTPS, auth (D7).
 - Mobile and tablet layouts.
-- DOCX / EPUB / PDF export (D15).
+- DOCX / EPUB / PDF export, and the full project bundle (D15; Markdown per chapter and
+  combined shipped in Phase 2, P2-13).
+- A round-trip promise for the **combined** Markdown export ([phase-2-plan](phase-2-plan.md)
+  § 2, ruling 4) — it needs a chapter boundary the schema has no node for, and inventing one
+  would be a private format wearing Markdown's clothes.
+- Import **replacing** a chapter's text rather than appending one (ruling 5). The `pre-import`
+  snapshot reason exists for the phase that adds it; import-then-delete does the job today.
 - Local model hosting inside the app — the app talks to an endpoint; what serves it is the
   writer's business.
 
@@ -60,8 +79,11 @@ needed to prove the system works end to end.
 
 ## 3. Promoted
 
-*Items that left this list for a phase plan. Empty so far.*
+*Items that left this list for a phase plan.*
 
-| ID | Promoted to | Date |
-|---|---|---|
-| — | — | — |
+| ID | Promoted to | Date | Ruling |
+|---|---|---|---|
+| **Q1** | Phase 2 — [D23](development-phases.md) | 2026-08-30 | **Settled as its leaning, and further.** Snapshots are taken on handover, on demand with a label, and before anything destructive (`pre-restore`, `pre-delete`, `pre-import`). A timer was rejected: it duplicates autosave's job while producing snapshots at moments that mean nothing. Only the automatic `handover` snapshots are deduplicated and pruned; deliberate ones are always written and kept. `pre-import` is registered but has no writer yet: import **creates** chapters and never replaces one, so nothing an import does can destroy text ([phase-2-plan](phase-2-plan.md) § 7, `D1`). |
+| **Q5** | Phase 2 — [D24](development-phases.md) | 2026-08-30 | **Settled as no lock.** D19's version guard plus the P1-10 conflict surface are the whole answer, and snapshots make even a clobber recoverable. A soft lock was rejected as introducing a failure mode strictly worse than the one it prevents: a crashed tab holding a lock on a single-user machine, with no second party to release it. |
+| **Q2** | Phase 3 — [D25](development-phases.md) | 2026-09-01 | **Settled against its leaning: a soft delete, exactly as D22.** `entry` and `entry_link` each carry a nullable `deleted_at`; the row, its revisions, its links, and its citations all stay, and restoring brings the links back. The recorded leaning — revision history is enough — was overturned on a structural argument rather than a preference: an entry is the *target* of links, so a hard delete either cascades those links away or leaves them dangling, which is the identical argument D22 made about snapshots pointing at a removed document. Revision history is also the wrong tool, being a record of what an entry *said*; making it double as recovery means a route that lists the revisions of a row that no longer exists. One nullable column and one predicate, twice, leaves the app with **one** deletion idiom rather than two. |
+| **Q7** | Phase 3 — [D29](development-phases.md) | 2026-09-01 | **Settled as resolved, not adopted: H1 is not reserved, and `D15` stands.** The editor keeps three heading levels; the combined export goes on writing body headings one level down, and the per-chapter export stays untouched. The recorded leaning — probably yes — was overturned on evidence it did not have: the manuscript that exposed the collision had an H1 in a chapter body *because that is how this writer writes*, so reserving H1 removes a level in active use to save a notice on a body H3 in the one file that never promised a round trip. It would also cost a closed-schema change (D1), a migration rewriting every H1 already typed, and a heading control offering two levels where three are expected — all in a phase that otherwise does not touch the editor. The reasoning stays on the record so a future reversal is a deliberate act. |

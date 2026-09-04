@@ -1,0 +1,419 @@
+{
+  "_readme": "The Markdown round-trip corpus (P2-13, P2-14, D15). Read by tests/test_markdown.py. Each case states a chapter twice: `doc` is the ProseMirror JSON the editor produces for it, and `markdown` is exactly what exporting it must write. Both are hand-written - they are the specification, not a recording of what the code happens to do - and the suite asserts both directions against them: `to_markdown(doc) == markdown` and `import(markdown) == doc`. Asserting the Markdown itself rather than only `import(export(doc)) == doc` is what keeps the pair honest: two halves that agreed with each other on a syntax nobody chose would round-trip perfectly and still write files no other reader could open. `doc` carries the attributes ProseMirror actually emits, defaults included - a heading always has `level`, an ordered list always has `start` and `type` - because that is what the editor hands the server, and an importer that omitted them would produce a document that renders correctly and compares unequal. What Markdown cannot hold is not in this corpus; those cases are asserted one by one in test_markdown.py, and the module docstrings say what they are.",
+  "cases": [
+    {
+      "name": "an empty chapter is an empty file, and comes back empty",
+      "doc": { "type": "doc", "content": [{ "type": "paragraph" }] },
+      "markdown": ""
+    },
+    {
+      "name": "one paragraph is one line",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [{ "type": "text", "text": "The harbour was grey." }]
+          }
+        ]
+      },
+      "markdown": "The harbour was grey."
+    },
+    {
+      "name": "paragraphs are separated by exactly one blank line",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "paragraph", "content": [{ "type": "text", "text": "One." }] },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "Two." }] }
+        ]
+      },
+      "markdown": "One.\n\nTwo."
+    },
+    {
+      "name": "the three heading levels the editor offers",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": "One" }] },
+          { "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "Two" }] },
+          { "type": "heading", "attrs": { "level": 3 }, "content": [{ "type": "text", "text": "Three" }] }
+        ]
+      },
+      "markdown": "# One\n\n## Two\n\n### Three"
+    },
+    {
+      "name": "an empty heading is still a heading, because the projection numbers it",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "heading", "attrs": { "level": 2 } },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "under it" }] }
+        ]
+      },
+      "markdown": "##\n\nunder it"
+    },
+    {
+      "name": "a heading ending in a hash keeps it, rather than losing it to a closing sequence",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": "Chapter #" }] }
+        ]
+      },
+      "markdown": "# Chapter \\#"
+    },
+    {
+      "name": "bold, italic, and both at once",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              { "type": "text", "text": "plain " },
+              { "type": "text", "marks": [{ "type": "bold" }], "text": "bold" },
+              { "type": "text", "text": " and " },
+              { "type": "text", "marks": [{ "type": "italic" }], "text": "italic" },
+              { "type": "text", "text": " and " },
+              { "type": "text", "marks": [{ "type": "bold" }, { "type": "italic" }], "text": "both" },
+              { "type": "text", "text": "." }
+            ]
+          }
+        ]
+      },
+      "markdown": "plain **bold** and *italic* and ***both***."
+    },
+    {
+      "name": "a hard break is a backslash at the end of the line",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              { "type": "text", "text": "Nothing in the harbour moved," },
+              { "type": "hardBreak" },
+              { "type": "text", "text": "and nothing on the quay." }
+            ]
+          }
+        ]
+      },
+      "markdown": "Nothing in the harbour moved,\\\nand nothing on the quay."
+    },
+    {
+      "name": "a scene break reads the same in Markdown as it does in text_plain",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "paragraph", "content": [{ "type": "text", "text": "Before." }] },
+          { "type": "horizontalRule" },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "After." }] }
+        ]
+      },
+      "markdown": "Before.\n\n* * *\n\nAfter."
+    },
+    {
+      "name": "a paragraph the writer typed as three asterisks is not a scene break",
+      "doc": {
+        "type": "doc",
+        "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "* * *" }] }]
+      },
+      "markdown": "\\* \\* \\*"
+    },
+    {
+      "name": "a paragraph that begins with a block marker comes back as itself",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "paragraph", "content": [{ "type": "text", "text": "# not a heading" }] },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "- not a bullet" }] },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "+ not a bullet either" }] },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "> not a quotation" }] },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "1. not a list" }] },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "2) nor this" }] },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "---" }] },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "===" }] },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "~~~" }] }
+        ]
+      },
+      "markdown": "\\# not a heading\n\n\\- not a bullet\n\n\\+ not a bullet either\n\n\\> not a quotation\n\n1\\. not a list\n\n2\\) nor this\n\n\\---\n\n\\===\n\n\\~~~"
+    },
+    {
+      "name": "a marker on the second line of a paragraph is escaped too, because it would interrupt it",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              { "type": "text", "text": "She counted them off:" },
+              { "type": "hardBreak" },
+              { "type": "text", "text": "1. the tide" }
+            ]
+          }
+        ]
+      },
+      "markdown": "She counted them off:\\\n1\\. the tide"
+    },
+    {
+      "name": "a date is left alone, because a number needs a space after its dot to start a list",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "paragraph", "content": [{ "type": "text", "text": "3.14 and 2026-08-30." }] }
+        ]
+      },
+      "markdown": "3.14 and 2026-08-30."
+    },
+    {
+      "name": "the inline punctuation that would otherwise be syntax",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "a_b, [x], `t`, a \\ b, and &amp; typed out."
+              }
+            ]
+          }
+        ]
+      },
+      "markdown": "a\\_b, \\[x\\], \\`t\\`, a \\\\ b, and \\&amp; typed out."
+    },
+    {
+      "name": "an angle bracket is left alone unless it could open a tag",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "paragraph", "content": [{ "type": "text", "text": "5 < 6, and <b> is not bold." }] }
+        ]
+      },
+      "markdown": "5 < 6, and \\<b> is not bold."
+    },
+    {
+      "name": "a blockquote of two paragraphs",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "blockquote",
+            "content": [
+              { "type": "paragraph", "content": [{ "type": "text", "text": "I have seen the sea." }] },
+              { "type": "paragraph", "content": [{ "type": "text", "text": "It was not like this." }] }
+            ]
+          }
+        ]
+      },
+      "markdown": "> I have seen the sea.\n>\n> It was not like this."
+    },
+    {
+      "name": "a bullet list",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "bulletList",
+            "content": [
+              { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "rope" }] }] },
+              { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "tar" }] }] }
+            ]
+          }
+        ]
+      },
+      "markdown": "- rope\n- tar"
+    },
+    {
+      "name": "an ordered list beginning at one",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "orderedList",
+            "attrs": { "start": 1, "type": null },
+            "content": [
+              { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "first" }] }] },
+              { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "second" }] }] }
+            ]
+          }
+        ]
+      },
+      "markdown": "1. first\n2. second"
+    },
+    {
+      "name": "an ordered list that does not begin at one keeps where it begins",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "orderedList",
+            "attrs": { "start": 3, "type": null },
+            "content": [
+              { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "third" }] }] },
+              { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "fourth" }] }] }
+            ]
+          }
+        ]
+      },
+      "markdown": "3. third\n4. fourth"
+    },
+    {
+      "name": "a list item holding two paragraphs",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "bulletList",
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  { "type": "paragraph", "content": [{ "type": "text", "text": "the first thing" }] },
+                  { "type": "paragraph", "content": [{ "type": "text", "text": "and more about it" }] }
+                ]
+              },
+              { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "the second thing" }] }] }
+            ]
+          }
+        ]
+      },
+      "markdown": "- the first thing\n\n  and more about it\n- the second thing"
+    },
+    {
+      "name": "a list inside a list",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "bulletList",
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  { "type": "paragraph", "content": [{ "type": "text", "text": "cargo" }] },
+                  {
+                    "type": "bulletList",
+                    "content": [
+                      { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "rope" }] }] },
+                      { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "tar" }] }] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "markdown": "- cargo\n\n  - rope\n  - tar"
+    },
+    {
+      "name": "a list inside a blockquote",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "blockquote",
+            "content": [
+              { "type": "paragraph", "content": [{ "type": "text", "text": "The manifest read:" }] },
+              {
+                "type": "bulletList",
+                "content": [
+                  { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "salt" }] }] }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "markdown": "> The manifest read:\n>\n> - salt"
+    },
+    {
+      "name": "emphasis inside a heading, a quotation, and a list item",
+      "doc": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": { "level": 2 },
+            "content": [
+              { "type": "text", "text": "The " },
+              { "type": "text", "marks": [{ "type": "italic" }], "text": "Kestrel" }
+            ]
+          },
+          {
+            "type": "blockquote",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Sold" },
+                  { "type": "text", "text": ", it said." }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "bulletList",
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      { "type": "text", "text": "one " },
+                      { "type": "text", "marks": [{ "type": "italic" }], "text": "cask" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "markdown": "## The *Kestrel*\n\n> **Sold**, it said.\n\n- one *cask*"
+    },
+    {
+      "name": "the whole formatting set in one chapter",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": "Departure" }] },
+          {
+            "type": "paragraph",
+            "content": [
+              { "type": "text", "text": "The harbour was " },
+              { "type": "text", "marks": [{ "type": "italic" }], "text": "grey" },
+              { "type": "text", "text": ", and the " },
+              { "type": "text", "marks": [{ "type": "bold" }], "text": "Kestrel" },
+              { "type": "text", "text": " rode low in it." },
+              { "type": "hardBreak" },
+              { "type": "text", "text": "Marlow watched from the quay." }
+            ]
+          },
+          { "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "The manifest" }] },
+          {
+            "type": "orderedList",
+            "attrs": { "start": 1, "type": null },
+            "content": [
+              { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "salt" }] }] },
+              { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "rope" }] }] }
+            ]
+          },
+          {
+            "type": "blockquote",
+            "content": [
+              { "type": "paragraph", "content": [{ "type": "text", "text": "Nothing else was written down." }] }
+            ]
+          },
+          { "type": "horizontalRule" },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "He did not look back." }] }
+        ]
+      },
+      "markdown": "# Departure\n\nThe harbour was *grey*, and the **Kestrel** rode low in it.\\\nMarlow watched from the quay.\n\n## The manifest\n\n1. salt\n2. rope\n\n> Nothing else was written down.\n\n* * *\n\nHe did not look back."
+    }
+  ]
+}

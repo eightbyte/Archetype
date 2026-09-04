@@ -1,0 +1,17 @@
+{
+  "links": [
+    {
+      "id": "lnk_000000000001",
+      "project_id": "prj_000000000001",
+      "from_entry": "ent_000000000001",
+      "to_entry": "ent_000000000002",
+      "relation": "knows",
+      "attributes": {},
+      "since": "the first voyage",
+      "until": null,
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "deleted_at": null
+    }
+  ]
+}

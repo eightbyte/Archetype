@@ -31,12 +31,23 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from ..bible.entries import (
+    EntryNotFoundError,
+    RevisionNotFoundError,
+    StaleEntryVersionError,
+)
+from ..bible.links import DuplicateLinkError, LinkNotFoundError
+from ..bible.schema import InvalidAttributesError
+from ..manuscript.anchors.resolve import AnchorRangeError
+from ..manuscript.anchors.store import AnchorNotFoundError
 from ..manuscript.documents import (
     ContentTooLargeError,
     DocumentNotFoundError,
+    ReorderMismatchError,
     StaleVersionError,
 )
 from ..manuscript.projection import InvalidDocumentError
+from ..manuscript.snapshots import SnapshotNotFoundError
 from ..projects.store import ProjectNotFoundError
 from .logging import request_id_of
 
@@ -118,6 +129,84 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DocumentNotFoundError)
     def _document_not_found(request: Request, exc: DocumentNotFoundError) -> JSONResponse:
         return _not_found(request, exc, "document_not_found", "document", "document_id")
+
+    @app.exception_handler(AnchorNotFoundError)
+    def _anchor_not_found(request: Request, exc: AnchorNotFoundError) -> JSONResponse:
+        return _not_found(request, exc, "anchor_not_found", "anchor", "anchor_id")
+
+    @app.exception_handler(SnapshotNotFoundError)
+    def _snapshot_not_found(request: Request, exc: SnapshotNotFoundError) -> JSONResponse:
+        return _not_found(request, exc, "snapshot_not_found", "snapshot", "snapshot_id")
+
+    @app.exception_handler(EntryNotFoundError)
+    def _entry_not_found(request: Request, exc: EntryNotFoundError) -> JSONResponse:
+        return _not_found(request, exc, "entry_not_found", "entry", "entry_id")
+
+    @app.exception_handler(LinkNotFoundError)
+    def _link_not_found(request: Request, exc: LinkNotFoundError) -> JSONResponse:
+        return _not_found(request, exc, "link_not_found", "link", "link_id")
+
+    @app.exception_handler(RevisionNotFoundError)
+    def _revision_not_found(_: Request, exc: RevisionNotFoundError) -> JSONResponse:
+        # A 404 that says which revision, because the client asked for a number and the number is
+        # the useful half of the answer - the entry it asked about does exist.
+        return error_response(404, "revision_not_found", str(exc))
+
+    @app.exception_handler(StaleEntryVersionError)
+    def _stale_entry(_: Request, exc: StaleEntryVersionError) -> JSONResponse:
+        # D19, applied to entries (plan section 2, ruling 3). A different `code` from a
+        # document's on purpose: the client's two surfaces recover differently - the editor
+        # offers to reload a chapter, the entry form offers to reload a record - and one code
+        # for both would make that a branch on which request was in flight.
+        return error_response(
+            409,
+            "entry_version_conflict",
+            str(exc),
+            {
+                "entry_id": exc.entry_id,
+                "presented_revision": exc.presented,
+                "current_revision": exc.current_revision,
+                "updated_at": exc.updated_at,
+            },
+        )
+
+    @app.exception_handler(DuplicateLinkError)
+    def _duplicate_link(_: Request, exc: DuplicateLinkError) -> JSONResponse:
+        # A 409 rather than a 422: the request is well-formed and says something true, and what
+        # is wrong is the state it arrived into. It carries the id of the link that already says
+        # it, so the client can show that one instead of asking the writer to go and find it.
+        return error_response(409, "duplicate_link", str(exc), {"link_id": exc.link_id})
+
+    @app.exception_handler(InvalidAttributesError)
+    def _invalid_attributes(_: Request, exc: InvalidAttributesError) -> JSONResponse:
+        # Every refusal the kind and relation definition makes (D26): an unknown kind, an
+        # undeclared attribute, a wrong type, a value outside an `enum`, an `entry_ref` to the
+        # wrong kind, an unknown relation or citation role. `field` is what lets the form say
+        # which input is wrong rather than rejecting itself as a whole.
+        return error_response(422, "invalid_attributes", str(exc), {"field": exc.field})
+
+    @app.exception_handler(ReorderMismatchError)
+    def _reorder_mismatch(_: Request, exc: ReorderMismatchError) -> JSONResponse:
+        # A 409, not a 422: the body is well-formed and every id in it is a string. What is
+        # wrong is that it does not describe this project as it is *now* - which is the same
+        # kind of failure a stale save is, and the client answers it the same way, by re-reading
+        # the chapter list rather than by correcting a field (P2-2).
+        return error_response(
+            409,
+            "reorder_mismatch",
+            str(exc),
+            {
+                "missing": list(exc.missing),
+                "unexpected": list(exc.unexpected),
+                "duplicated": list(exc.duplicated),
+            },
+        )
+
+    @app.exception_handler(AnchorRangeError)
+    def _anchor_range(_: Request, exc: AnchorRangeError) -> JSONResponse:
+        # Every refusal in specs/anchors.md section 8. The message is written to be shown: the
+        # writer selected something, and "invalid range" would not tell them what to do next.
+        return error_response(422, "invalid_anchor_range", str(exc))
 
     @app.exception_handler(StaleVersionError)
     def _stale_version(_: Request, exc: StaleVersionError) -> JSONResponse:

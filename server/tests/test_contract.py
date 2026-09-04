@@ -20,9 +20,15 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from archetype.ids import IdPrefix
+from archetype.manuscript.projection import project, text_offset_to_pm_position
+
 from .conftest import CONTRACT_FIXTURES_DIR, build_document
 
-_ID_PATTERN = re.compile(r"\b(prj|doc|anc|ent|run)_[0-9a-z]{8,}\b")
+# Built from the registered prefixes rather than spelled out, because a prefix the pattern has
+# never heard of is not a failure - it is a fixture that is rewritten on every run and a diff
+# that stops meaning anything. `snp_` was exactly that, for one commit.
+_ID_PATTERN = re.compile(rf"\b({'|'.join(sorted(IdPrefix.ALL))})_[0-9a-z]{{8,}}\b")
 _TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 FIXED_TIMESTAMP = "2026-01-01T00:00:00Z"
@@ -31,6 +37,27 @@ PROSE = build_document(
     headings=[(1, "Arrival"), (2, "The Quay")],
     paragraphs=["The harbour was grey.", "He did not look back."],
 )
+
+#: A small Markdown file carrying one thing the closed schema cannot hold, so the import fixture
+#: is drawn with an entry in ``dropped`` rather than an empty list - the client renders both.
+MARKDOWN_TO_IMPORT = "# Ashore\n\nThe tide turned.\n\n```\nnot prose\n```\n"
+
+#: The same chapter with the anchored passage rewritten, so that one fixture carries a stale
+#: anchor and the suggestion that goes with it.
+BROKEN_PROSE = build_document(
+    headings=[(1, "Arrival"), (2, "The Quay")],
+    paragraphs=["The harbour was calm.", "He did not look back."],
+)
+
+
+def _range_over(document: Any, passage: str) -> tuple[int, int]:
+    """The ProseMirror range a client selecting ``passage`` would send."""
+    projection = project(document)
+    text_from = projection.text_plain.index(passage)
+    from_pos = text_offset_to_pm_position(projection, text_from)
+    to_pos = text_offset_to_pm_position(projection, text_from + len(passage))
+    assert from_pos is not None and to_pos is not None
+    return from_pos, to_pos
 
 
 class Normaliser:
@@ -133,6 +160,197 @@ def test_contract_fixtures_round_trip(client: TestClient) -> None:
         client.put(f"/api/documents/{first_document}/content", json={"content_json": PROSE}),
     )
 
+    # Anchors last, so that adding them changed no fixture that already existed (P2-7). The
+    # three between them cover both shapes the client has to read: an anchor the resolver is
+    # happy with, and one a save broke, carrying the suggestion for repairing it.
+    from_pos, to_pos = _range_over(PROSE, "harbour was grey")
+    anchor = capture(
+        "anchor",
+        client.post(
+            f"/api/documents/{first_document}/anchors",
+            json={
+                "from_pos": from_pos,
+                "to_pos": to_pos,
+                "version": 2,
+                "label": "the harbour",
+            },
+        ),
+    )
+    capture(
+        "save_result_anchors",
+        client.put(
+            f"/api/documents/{first_document}/content",
+            json={"content_json": BROKEN_PROSE, "version": 2},
+        ),
+    )
+    capture("anchor_list", client.get(f"/api/projects/{project_id}/anchors"))
+    assert anchor["status"] == "ok"
+
+    # Group C's routes, in the order the app uses them: mark a version, read the history, read
+    # one back, then the two refusals the chapter surfaces have to draw.
+    capture(
+        "snapshot_capture",
+        client.post(
+            f"/api/documents/{first_document}/snapshots",
+            json={"reason": "manual", "label": "before the rewrite"},
+        ),
+    )
+    snapshots = capture("snapshot_list", client.get(f"/api/documents/{first_document}/snapshots"))
+    capture("snapshot", client.get(f"/api/snapshots/{snapshots['snapshots'][0]['id']}"))
+
+    capture(
+        "error_reorder_mismatch",
+        client.put(
+            f"/api/projects/{project_id}/documents/order",
+            json={"document_ids": [first_document]},
+        ),
+    )
+    client.delete(f"/api/documents/{second['id']}")
+    capture("document_list_deleted", client.get(f"/api/projects/{project_id}/documents/deleted"))
+    client.post(f"/api/documents/{second['id']}/restore")
+
+    # Group D. Only the import has a fixture: the two exports are `text/markdown` (section 2,
+    # ruling 9), so there is no JSON shape for a client to type-check and their body is asserted
+    # directly in `test_markdown_routes.py`. The file imported here carries something the closed
+    # schema cannot hold, so `dropped` is drawn with an entry in it rather than empty - the
+    # client has to render both.
+    capture(
+        "markdown_import",
+        client.post(
+            f"/api/projects/{project_id}/import",
+            json={
+                "markdown": MARKDOWN_TO_IMPORT,
+                "mode": "split-on-h1",
+            },
+        ),
+    )
+
+    # Phase 3's bible (P3-9 to P3-11). The schema fixture is the load-bearing one: everything in
+    # the Bible tab renders from it, so it is what fails when a kind gains a field and the client
+    # was not told. The rest are drawn from a bible built the way a writer builds one - a
+    # character made from a selection, entries typed by hand, a link between two of them, and a
+    # retcon that flags a neighbour.
+    capture("bible_schema", client.get("/api/bible/schema"))
+
+    from_pos, to_pos = _range_over(BROKEN_PROSE, "harbour was calm")
+    made = capture(
+        "entry_from_range",
+        client.post(
+            f"/api/documents/{first_document}/entries",
+            json={
+                "from_pos": from_pos,
+                "to_pos": to_pos,
+                "version": 3,
+                "kind": "character",
+                "name": "Marlow",
+                "summary": "the pilot who tells it",
+                "label": "the harbour",
+            },
+        ),
+    )
+    marlow = made["entry"]["id"]
+
+    kurtz = capture(
+        "entry",
+        client.post(
+            f"/api/projects/{project_id}/entries",
+            json={
+                "kind": "character",
+                "name": "Kurtz",
+                "summary": "the man at the end of the river",
+                "attributes": {"aliases": ["the agent"]},
+            },
+        ),
+    )
+    client.post(
+        f"/api/projects/{project_id}/entries",
+        json={"kind": "place", "name": "The Quay"},
+    )
+    capture("entry_list", client.get(f"/api/projects/{project_id}/entries"))
+
+    capture(
+        "link",
+        client.post(
+            f"/api/projects/{project_id}/links",
+            json={
+                "from_entry": marlow,
+                "relation": "knows",
+                "to_entry": kurtz["id"],
+                "since": "the first voyage",
+            },
+        ),
+    )
+    capture("link_list", client.get(f"/api/projects/{project_id}/links"))
+    capture("entry_links", client.get(f"/api/entries/{marlow}/links"))
+
+    # A retcon, so `flagged` and `changed_fields` are drawn with something in them.
+    capture(
+        "entry_write_result",
+        client.put(
+            f"/api/entries/{marlow}",
+            json={
+                "revision": 1,
+                "name": "Charlie Marlow",
+                "reason": "he was never only Marlow",
+            },
+        ),
+    )
+    capture(
+        "error_entry_version_conflict",
+        client.put(f"/api/entries/{marlow}", json={"revision": 1, "name": "Marlowe"}),
+    )
+    capture(
+        "error_invalid_attributes",
+        client.post(
+            f"/api/projects/{project_id}/entries",
+            json={"kind": "character", "name": "Smaug", "attributes": {"eye_colour": "gold"}},
+        ),
+    )
+    capture("entry_revision_list", client.get(f"/api/entries/{marlow}/revisions"))
+    capture("entry_revision", client.get(f"/api/entries/{marlow}/revisions/1"))
+
+    # The stale anchor from the Phase 2 section, cited by an entry: a citation carries the
+    # anchor's *current* status, which is the whole reason it carries the anchor at all.
+    capture(
+        "citation",
+        client.post(
+            f"/api/entries/{kurtz['id']}/citations",
+            json={"anchor_id": anchor["id"], "role": "mention"},
+        ),
+    )
+    capture("anchor_entries", client.get(f"/api/anchors/{anchor['id']}/entries"))
+    capture("entry_detail", client.get(f"/api/entries/{marlow}"))
+    capture(
+        "citation_removed",
+        client.delete(f"/api/entries/{kurtz['id']}/citations/{anchor['id']}"),
+    )
+
+    # Story-time: two events an edge orders, and one nothing places (D9's tray).
+    events = [
+        client.post(
+            f"/api/projects/{project_id}/entries",
+            json={
+                "kind": "event",
+                "name": name,
+                "attributes": {"story_time": story_time},
+            },
+        ).json()["id"]
+        for name, story_time in (
+            ("The departure", {"label": "the first grey morning", "sort_key": 1, "era": "Before"}),
+            ("The river", {"label": "high summer", "sort_key": 2, "era": "Before"}),
+            ("A rumour", {"label": "nobody agrees when"}),
+        )
+    ]
+    client.post(
+        f"/api/projects/{project_id}/links",
+        json={"from_entry": events[0], "relation": "precedes", "to_entry": events[1]},
+    )
+    capture("storytime", client.get(f"/api/projects/{project_id}/storytime"))
+
+    client.delete(f"/api/entries/{kurtz['id']}")
+    capture("entry_list_deleted", client.get(f"/api/projects/{project_id}/entries/deleted"))
+    client.post(f"/api/entries/{kurtz['id']}/restore")
+
     # The round trip: everything written parses back to what was written.
     for name, body in written.items():
         path = CONTRACT_FIXTURES_DIR / f"{name}.json"
@@ -142,17 +360,45 @@ def test_contract_fixtures_round_trip(client: TestClient) -> None:
 def test_every_fixture_is_one_the_test_writes() -> None:
     """A fixture left behind by a deleted route would silently pass forever on the client."""
     expected = {
+        "anchor",
+        "anchor_list",
         "document",
         "document_list",
+        "document_list_deleted",
         "document_meta",
         "error_not_found",
+        "error_reorder_mismatch",
         "error_validation",
         "error_version_conflict",
         "health",
+        "markdown_import",
         "outline",
         "project_detail",
         "project_list",
         "save_result",
+        "save_result_anchors",
+        "snapshot",
+        "snapshot_capture",
+        "snapshot_list",
+        # Phase 3 (P3-9 to P3-11).
+        "anchor_entries",
+        "bible_schema",
+        "citation",
+        "citation_removed",
+        "entry",
+        "entry_detail",
+        "entry_from_range",
+        "entry_links",
+        "entry_list",
+        "entry_list_deleted",
+        "entry_revision",
+        "entry_revision_list",
+        "entry_write_result",
+        "error_entry_version_conflict",
+        "error_invalid_attributes",
+        "link",
+        "link_list",
+        "storytime",
     }
     found = {path.stem for path in CONTRACT_FIXTURES_DIR.glob("*.json")}
     assert found == expected
@@ -175,6 +421,13 @@ def test_normalisation_is_stable() -> None:
     assert once["documents"][0]["project_id"] == "prj_000000000001"
     assert once["created_at"] == FIXED_TIMESTAMP
     assert once["message"] == "no document 'doc_000000000001' in this workspace"
+
+
+def test_every_registered_prefix_is_normalised() -> None:
+    """A prefix the pattern misses rewrites its fixture on every run (P2-12 found `snp_`)."""
+    normaliser = Normaliser()
+    for prefix in sorted(IdPrefix.ALL):
+        assert normaliser.value(f"{prefix}_abcdefgh1234") == f"{prefix}_000000000001"
 
 
 def test_the_fixtures_directory_is_where_the_frontend_looks() -> None:

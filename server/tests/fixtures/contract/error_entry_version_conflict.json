@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": "entry_version_conflict",
+    "message": "entry ent_000000000001 is at revision 2, not 1; reload before saving",
+    "detail": {
+      "entry_id": "ent_000000000001",
+      "presented_revision": 1,
+      "current_revision": 2,
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  }
+}

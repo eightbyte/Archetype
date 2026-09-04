@@ -93,6 +93,14 @@ def test_random_token_rejects_a_zero_length() -> None:
 
 
 def test_registered_prefixes_are_distinct() -> None:
-    declared = {IdPrefix.PROJECT, IdPrefix.DOCUMENT, IdPrefix.ANCHOR, IdPrefix.ENTRY, IdPrefix.RUN}
+    declared = {
+        IdPrefix.PROJECT,
+        IdPrefix.DOCUMENT,
+        IdPrefix.ANCHOR,
+        IdPrefix.SNAPSHOT,
+        IdPrefix.ENTRY,
+        IdPrefix.LINK,
+        IdPrefix.RUN,
+    }
     assert declared == set(IdPrefix.ALL)
-    assert len(IdPrefix.ALL) == 5
+    assert len(IdPrefix.ALL) == 7

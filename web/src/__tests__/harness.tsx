@@ -11,6 +11,7 @@ import { render } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type { ApiClient, ProseMirrorDocument } from '../api';
 import type { SaveSchedulerOptions } from '../editor/autosave';
+import { BibleProvider } from '../state/BibleContext';
 import { DocumentProvider } from '../state/DocumentContext';
 import { ProjectProvider } from '../state/ProjectContext';
 import { ToastProvider } from '../state/ToastContext';
@@ -22,6 +23,9 @@ import { Toasts } from '../shell/Toasts';
 export const TEST_AUTOSAVE_DELAY_MS = 20;
 export const TEST_RETRY_DELAYS_MS = [20, 40] as const;
 
+/** The bible's search debounce, hurried. Zero would still be a tick, so it stays a real number. */
+export const TEST_BIBLE_DEBOUNCE_MS = 5;
+
 export interface HarnessOptions {
   client: ApiClient;
   projectId: string;
@@ -30,6 +34,8 @@ export interface HarnessOptions {
   autoOpenFirst?: boolean;
   /** Override the hurried defaults — a test that needs the retry loop *not* to fire. */
   scheduler?: SaveSchedulerOptions;
+  /** How long the bible's search box waits. Zero here; a debounce is not what these test. */
+  bibleDebounceMs?: number;
 }
 
 /** The real provider stack, with a fake client and a hurried autosave. */
@@ -40,22 +46,25 @@ export function Harness({
   ui,
   autoOpenFirst,
   scheduler,
+  bibleDebounceMs = TEST_BIBLE_DEBOUNCE_MS,
 }: HarnessOptions) {
   return (
     <ToastProvider>
       <UiProvider {...(ui ? { initialState: ui } : {})}>
         <ProjectProvider client={client} projectId={projectId}>
-          <DocumentProvider
-            client={client}
-            scheduler={{
-              delayMs: TEST_AUTOSAVE_DELAY_MS,
-              retryDelaysMs: TEST_RETRY_DELAYS_MS,
-              ...scheduler,
-            }}
-            {...(autoOpenFirst === undefined ? {} : { autoOpenFirst })}
-          >
-            {children}
-          </DocumentProvider>
+          <BibleProvider client={client} projectId={projectId} debounceMs={bibleDebounceMs}>
+            <DocumentProvider
+              client={client}
+              scheduler={{
+                delayMs: TEST_AUTOSAVE_DELAY_MS,
+                retryDelaysMs: TEST_RETRY_DELAYS_MS,
+                ...scheduler,
+              }}
+              {...(autoOpenFirst === undefined ? {} : { autoOpenFirst })}
+            >
+              {children}
+            </DocumentProvider>
+          </BibleProvider>
         </ProjectProvider>
         <Toasts />
       </UiProvider>

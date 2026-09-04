@@ -1,0 +1,21 @@
+{
+  "_readme": "The closed manuscript schema (P1-10, D1), stated once and read by both suites. web/src/__tests__/schema.test.ts asserts that the schema TipTap actually builds from EDITOR_EXTENSIONS is exactly this; server/tests/test_markdown.py asserts that archetype/manuscript/markdown/schema.py mirrors it and that the Markdown serializer has a case for every entry. So adding a node to the editor fails a test on both sides of the wire in the commit that adds it, which is what a closed list is for. This file is hand-written: it is the declaration, not a recording. `attr_defaults` names the node types that declare attributes and the values ProseMirror fills in - it emits an `attrs` object whenever the node type has any, defaults included, so an importer that omitted them would build documents that render correctly and compare unequal to what the editor produces. `heading_levels` is what the toolbar offers; the projection tolerates 1 to 6, and an imported heading below the last of these is taken down to it and reported (P2-14).",
+  "nodes": [
+    "blockquote",
+    "bulletList",
+    "doc",
+    "hardBreak",
+    "heading",
+    "horizontalRule",
+    "listItem",
+    "orderedList",
+    "paragraph",
+    "text"
+  ],
+  "marks": ["bold", "italic"],
+  "attr_defaults": {
+    "heading": { "level": 1 },
+    "orderedList": { "start": 1, "type": null }
+  },
+  "heading_levels": [1, 2, 3]
+}

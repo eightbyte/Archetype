@@ -1,0 +1,14 @@
+{
+  "captured": true,
+  "snapshot": {
+    "id": "snp_000000000001",
+    "project_id": "prj_000000000001",
+    "document_id": "doc_000000000001",
+    "taken_at": "2026-01-01T00:00:00Z",
+    "reason": "manual",
+    "label": "before the rewrite",
+    "word_count": 12,
+    "version": 3,
+    "size_bytes": 355
+  }
+}

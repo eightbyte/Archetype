@@ -6,7 +6,8 @@ construct their own :class:`~archetype.config.Settings` and pass them in, so not
 depends on the developer's data directory.
 
 The ``/api`` router and the uniform error envelope arrive with P1-5, request logging with P1-13,
-and the static mount that serves a built ``web/dist`` from this same process with P1-14.
+and the static mount that serves a built ``web/dist`` from this same process with P1-14. Phase 3
+adds a second module of routes under the same prefix (P3-9); both are included before the mount.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import logging
 from fastapi import FastAPI
 
 from . import __version__
+from .api.bible_routes import router as bible_router
 from .api.errors import install_error_handlers
 from .api.logging import RequestLogMiddleware
 from .api.routes import router as api_router
@@ -58,6 +60,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestLogMiddleware)
     install_error_handlers(app)
     app.include_router(api_router)
+    # The bible's half of the same `/api` prefix (P3-9 to P3-11). Two modules, one router
+    # surface: the prefix, the envelope, and the ordering guarantee below belong to the API.
+    app.include_router(bible_router)
 
     # Last, and deliberately so: Starlette matches routes in order, so a mount at / can only be
     # reached by a path no API route claimed (P1-14).

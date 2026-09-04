@@ -1,0 +1,320 @@
+{
+  "_readme": "The anchor corpus (P2-8). Written from specs/anchors.md as the specification, not recorded from the resolver: every expected outcome here is what the document says should happen, and a disagreement is a bug in one of them rather than a fixture to re-record. Read by tests/test_anchors.py. Each case is (document before, the words to anchor, document after, expected outcome), which is the shape section 10 of that document asks for. A document is written as a list of blocks: a plain string is a paragraph, '---' is a horizontalRule, and a newline inside a string is a hardBreak. The node vocabulary itself is the projection corpus's business (fixtures/projection/cases.json); these cases are about text. 'anchor' is the passage the writer selected - the harness finds it in the before document's text_plain, converts it to the ProseMirror range a client would send, and creates the anchor through the same code a route does. 'quote' is what the server must derive from that range, which differs from 'anchor' only where the selection ran into whitespace. In 'expect': 'step' is which rung of the matching ladder answered (1 fast path, 2 context-unique, 3 quote-unique, 4 context-scored, 5 no clear winner); 'moved' is whether the positions changed; 'preceded_by' must be the text immediately before the resolved range, which is what pins down *which* occurrence was chosen; 'suggestion' is the suggested passage for a stale anchor, or null for none. 'then' resolves a second document against the first resolution's result, as a second save would - that is how 'status is recomputed, never latched' is stated as data. One case in section 10's table is not here: the chapter deleted and restored. 'orphaned' is derived from the document's deleted_at and never enters the resolver at all (D22), so it is asserted in test_chapters.py and test_anchor_store.py where the rule actually lives.",
+  "cases": [
+    {
+      "name": "an edit far above the range keeps the anchor on its words",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "A week earlier, nothing had happened at all.",
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "expect": {
+        "status": "ok",
+        "step": 2,
+        "moved": true,
+        "preceded_by": "The harbour was grey and "
+      }
+    },
+    {
+      "name": "an edit far below the range does not move it",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back.",
+        "The tide turned before morning."
+      ],
+      "expect": { "status": "ok", "step": 1, "moved": false }
+    },
+    {
+      "name": "an edit immediately before the range costs it the context, not the passage",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "The harbour was grey and then the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "expect": { "status": "ok", "step": 3, "moved": true, "preceded_by": "and then " }
+    },
+    {
+      "name": "an edit immediately after the range does not disturb it",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "The harbour was grey and the Kestrel rode low in the tide.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "expect": { "status": "ok", "step": 1, "moved": false }
+    },
+    {
+      "name": "an edit inside the range is stale, and offers what stands there now",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "The harbour was grey and the Kestrel sat low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "expect": {
+        "status": "stale",
+        "step": 5,
+        "moved": false,
+        "suggestion": "the Kestrel sat low"
+      }
+    },
+    {
+      "name": "the quote deleted is stale with nothing to suggest",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "The harbour was grey and in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "expect": { "status": "stale", "step": 5, "moved": false, "suggestion": null }
+    },
+    {
+      "name": "the quote duplicated elsewhere afterwards, decided by context",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "A week earlier, nothing had happened at all.",
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Gulls stood along the rail and did not move.",
+        "He remembered the Kestrel rode low in the water."
+      ],
+      "expect": {
+        "status": "ok",
+        "step": 4,
+        "moved": true,
+        "preceded_by": "The harbour was grey and "
+      }
+    },
+    {
+      "name": "the quote already appears twice when the anchor is made",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He remembered the Kestrel rode low in the water."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "A week earlier, nothing had happened at all.",
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He remembered the Kestrel rode low in the water."
+      ],
+      "expect": {
+        "status": "ok",
+        "step": 2,
+        "moved": true,
+        "preceded_by": "The harbour was grey and "
+      }
+    },
+    {
+      "name": "a paragraph split through the range keeps it - the separator normalises",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "The harbour was grey and the Kestrel",
+        "rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "expect": {
+        "status": "ok",
+        "step": 2,
+        "moved": true,
+        "preceded_by": "The harbour was grey and "
+      }
+    },
+    {
+      "name": "a paragraph split with new words written into the gap is stale",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "The harbour was grey and the Kestrel",
+        "She looked away.",
+        "rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "expect": {
+        "status": "stale",
+        "step": 5,
+        "moved": false,
+        "suggestion": "the Kestrel\n\nShe looked away.\n\nrode low"
+      }
+    },
+    {
+      "name": "two paragraphs merged across the range keep it",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "in it.\n\nMarlow watched",
+      "quote": "in it.\n\nMarlow watched",
+      "after": [
+        "The harbour was grey and the Kestrel rode low in it. Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "expect": { "status": "ok", "step": 2, "moved": true, "preceded_by": "rode low " }
+    },
+    {
+      "name": "a reflow that changes only whitespace keeps the same characters",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "The harbour was grey and the\nKestrel rode  low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "expect": {
+        "status": "ok",
+        "step": 2,
+        "moved": true,
+        "preceded_by": "The harbour was grey and "
+      }
+    },
+    {
+      "name": "the document emptied is stale, and the undo brings the anchor back",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [""],
+      "expect": { "status": "stale", "step": 5, "moved": false, "suggestion": null },
+      "then": {
+        "after": [
+          "The harbour was grey and the Kestrel rode low in it.",
+          "Marlow watched from the quay, saying nothing at all.",
+          "He did not look back."
+        ],
+        "expect": { "status": "ok", "step": 1, "moved": false }
+      }
+    },
+    {
+      "name": "the quote is duplicated and there is no context to choose with",
+      "before": ["The door was locked."],
+      "anchor": "The door was locked.",
+      "quote": "The door was locked.",
+      "after": ["Later.", "The door was locked.", "The door was locked."],
+      "expect": { "status": "stale", "step": 5, "moved": false, "suggestion": null }
+    },
+    {
+      "name": "two candidates in near-identical surroundings both lose",
+      "before": ["He turned the key.", "The door was locked."],
+      "anchor": "The door was locked.",
+      "quote": "The door was locked.",
+      "after": [
+        "Later.",
+        "He turned the key.",
+        "The door was locked.",
+        "He turned the key.",
+        "The door was locked."
+      ],
+      "expect": { "status": "stale", "step": 5, "moved": false, "suggestion": null }
+    },
+    {
+      "name": "a selection that ran into the whitespace anchors the words, not the space",
+      "before": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low ",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "The harbour was grey and the Kestrel rode low in it.",
+        "Marlow watched from the quay, saying nothing at all.",
+        "He did not look back."
+      ],
+      "expect": { "status": "ok", "step": 1, "moved": false }
+    },
+    {
+      "name": "an anchor below a scene break survives an edit above the break",
+      "before": [
+        "Before the break.",
+        "---",
+        "The harbour was grey and the Kestrel rode low in it.",
+        "He did not look back."
+      ],
+      "anchor": "the Kestrel rode low",
+      "quote": "the Kestrel rode low",
+      "after": [
+        "A new first paragraph.",
+        "Before the break.",
+        "---",
+        "The harbour was grey and the Kestrel rode low in it.",
+        "He did not look back."
+      ],
+      "expect": {
+        "status": "ok",
+        "step": 2,
+        "moved": true,
+        "preceded_by": "The harbour was grey and "
+      }
+    }
+  ]
+}

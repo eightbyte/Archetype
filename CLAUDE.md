@@ -17,49 +17,253 @@ relational data plus keyword and vector indexes. Single user, localhost, Windows
 Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository directory is
 `WritingAssistant` — a path, not the product name.
 
-**Current state: Phase 1 complete (2026-08-30) — all fifteen items (P1-1 → P1-15) delivered and
-accepted.** All
-twenty decisions are resolved and binding. The app is a place you can write: create a project,
-add chapters, write formatted prose that saves itself and survives a reload, and move around the
-manuscript by its headings. What exists on the server: configuration and the secret guard, the
-project file schema with its migration runner, the ID generator, the project store, the whole
-Phase 1 REST surface with its uniform error envelope and structured request logging, the save
-protocol with the D19 version guard, the text projection, and the static mount that lets one
-process serve both the API and the built app. On the client: the three-region workspace with
-resizable keyboard-accessible dividers, the three contexts and their pure reducers, the TipTap
-editor over a closed schema with autosave, the live table of contents with jump-to-heading, the
-project picker, and error boundaries per region. There is no AI, no bible, no anchors, and no
-search — none of that is Phase 1.
+**Current state: Phase 1 complete (2026-08-30); Phase 2 complete (2026-09-01); Phase 3 complete
+(2026-09-04). Phase 4 is planned and not started — its § 2 is unruled.** Phase 3's § 2 was ruled on
+2026-09-01, all fifteen items (`P3-1` … `P3-15`) are delivered across four groups, **§ 8's
+fifteen-step acceptance run passed on 2026-09-04**, and all ten exit criteria are met. Both suites
+green — **1,147 backend, 526 frontend**. All twenty-nine decisions are resolved and binding: the
+writer ruled D21–D24 on 2026-08-30 and **D25–D29 on 2026-09-01**, each as recommended and including
+both reversals, which settles backlog `Q1`, `Q2`, `Q5`, and `Q7`. Three open questions remain, none
+due before Phase 6.
+
+**Next is [specs/phase-4-plan.md](specs/phase-4-plan.md) — the LLM provider layer and chat.** The
+plan is written; **none of its five proposed decisions (D30–D34) is binding until the writer rules
+on § 2**, and no work item may start before that. It proposes: where a conversation lives and that a
+Phase 4 turn is *not* a Phase 6 run (D30); whether the port carries tool declarations before any
+tool exists (D31 — the one place the phase deliberately builds ahead); one stream event vocabulary
+shared with Phase 6 (D32); that an accepted rewrite is an ordinary editor transaction rather than a
+durable proposal (D33); and that the API key stays environment-only with the settings UI read-only
+about it (D34).
+
+The app is a place you can write, a place you can **maintain** what you wrote, a place you can get
+words **in and out of**, and now a place that **knows what is in the story**: create a project, add
+chapters, reorder them by drag or by keyboard, rename them in place, delete one recoverably and
+restore it; mark a passage and watch the highlight follow it as you type around it; find every mark
+in the *Marks* tab, see which have gone stale, and repair one by hand; mark a version of a chapter,
+read it beside what is there now, and restore it; export a chapter or the whole manuscript to
+Markdown, and import a Markdown file back as chapters — with a list of anything it could not keep.
+And now: select a passage and **add it to the bible** as a character, a place, or any of the other
+five kinds; fill in that kind's own fields on one generic form; join two entries with a relation
+the vocabulary allows and no other; see which passages produced an entry and whether they have
+since been rewritten; change something established and watch every entry that depended on it land
+in a **review queue** that empties as you work through it; read any past version of an entry and
+restore it; and delete one recoverably, links and all.
+
+What exists on the server: configuration and the secret guard, the project file schema at
+**version 2** with its migration runner, the ID generator, the project store, the whole Phase 1
+REST surface with its uniform error envelope and structured request logging, the save protocol
+with the D19 version guard, the text projection, the static mount that lets one process serve both
+the API and the built app; Group A's **chapter reorder, soft delete, and restore; snapshots with
+capture, history, and restore-through-the-save-path; and the `anchor` and `snapshot` tables**;
+Group B's **block index over the projection, anchor resolver and corpus, anchor store with its
+five routes, and re-resolution inside every save's transaction**; Group C's **nine chapter and
+snapshot routes**; and — new in Group D — the **Markdown serializer and parser, their round-trip
+corpus, and the two export routes and one import route** over them.
+
+On the client: the three-region workspace with resizable keyboard-accessible dividers, the **four**
+contexts and their pure reducers, the TipTap editor over a closed schema with autosave, the live
+table of contents with jump-to-heading, the project picker, error boundaries per region; Phase 2's
+**anchor decorations mapped live through every transaction, the selection control that marks and
+re-links a passage, the fifth outline tab (*Marks*) with its filters and repair flow, chapter
+management in the Contents tab, the per-chapter history panel, Markdown export links, and the
+import form**; and — new in Phase 3's Group D — **the Bible tab and everything behind it**.
 
 Every Phase 1 exit criterion is met, including the acceptance script run by hand against the
 single-process build; the results are in [specs/phase-1-plan.md](specs/phase-1-plan.md) § 6.
-**Next: Phase 2 — the manuscript model and anchors.** It starts by writing `specs/phase-2-plan.md`
-and `specs/anchors.md`; no Phase 2 code exists yet.
 
-One thing that run surfaced, worth carrying forward: **the editor's visible failure states are
-hard to reach from the app.** Stopping the server mid-edit did not produce a failed save the
-writer could see — the retry loop absorbed the outage and the save landed when the server
-returned. *Save failed*, the backoff ladder, and the `409` reload prompt are therefore exercised
-only by `web/src/__tests__/editor.test.tsx` through the fake client. A regression in them will not
-show up by using the app, so those tests are the only thing standing under them.
+**Every Phase 2 exit criterion is met** — 1–8 by the suites, 9 by the documentation pass — and the
+manual acceptance run in [specs/phase-2-plan.md](specs/phase-2-plan.md) § 8 **passed all fifteen
+steps on 2026-09-01**, with the results in its table one line per step. It earned its keep twice.
+Step 13 found a bug no test could have: a manuscript with an H1 inside a chapter, exported whole
+and re-imported, came back as three chapters instead of two (`D15`, fixed and the step re-run the
+same day). Step 15 reached the failed save Phase 1 could not, closing that Phase 1 gap.
+
+**Phase 3 — the story bible — is built.** There is still no AI and no search. What exists on the
+server, from Group A: `specs/bible.md` (written before the code, as `anchors.md` was); **migration
+003** and its four tables (`entry`, `entry_revision`, `entry_link`, `entry_anchor`), proved against
+a captured version-2 project file; the `lnk_` prefix; **the kind and relation definition** — seven
+kinds, six closed field types, twelve relations, in one place and validated against; and
+**`EntryStore`**, carrying CRUD for all seven kinds, the `LIKE` filter, the D25 soft delete,
+complete revision history from creation, and D27's retcon flagging with its review queue.
+
+New in Group C — the API, and the first Phase 3 code the client can reach: **`api/bible_routes.py`
+and `api/bible_schemas.py`**, twenty-three routes under the existing `/api` prefix, carrying the
+entry with its history and review queue, links, citations, *Add to bible* from a selection,
+story-time, and **`GET /api/bible/schema`** — the one route in the API with no project scope,
+because D26's vocabulary is the product's and not a manuscript's; **`bible/timeline.py`**, the two
+reads and one pure call behind the story-time route; the locator extended to `entry` and
+`entry_link`; six new error codes in the envelope; and **eighteen new contract fixtures** the
+frontend type-checks against `web/src/api/types.ts`.
+
+New in Group B: **`LinkStore`** — the twelve relations enforced in both directions, symmetric ones
+stored once and read from both ends, bounds that are stored and never interpreted, and the
+three-way live predicate over every read; **`CitationStore`** — citing an anchor in one of four
+roles, an entry's citations carrying each anchor's *current* status, the reverse view for *Marks*,
+narrative position derived from the `source` anchor and never stored, and **`create_from_range`**,
+which mints an anchor, creates an entry, and cites it in **one transaction**; and
+**`storytime.py`** — D28's partial order as a pure module with a twenty-case corpus, returning the
+order, the unplaced, and the two kinds of contradiction, and nothing else.
+
+New in Group D — **the bible the writer can see**. The typed client gained twenty-three bible
+methods and the `409`/`422` readers that go with them; **`BibleContext` and `bibleReducer`** joined
+the three Phase 1 contexts, nested between the project and the document because an entry's lifetime
+is the project's; **`bibleSchema.ts`** is the one place the served definition is interpreted — kind
+labels, an entry_ref's candidates, and the relation options for a pair of kinds, which is what
+makes an illegal link *unbuildable* rather than refused; the **Bible tab** carries four views
+(entries with their filters and live counts, the review queue, a story-time readout, and the
+deleted tray); **`EntryFields.tsx`** is one renderer per field type, six, closed, failing loudly at
+a seventh — which closes `P3-5`; **`EntryForm.tsx`** renders any kind from its definition and puts
+the retcon control on the save; and `EntryDetailView`, `EntryHistory`, `EntryLinksPanel`, and
+`EntryCitations` are the record, its past, its relationships, and the passages behind it. In the
+editor, *Add to bible* joined *Mark passage* and *Re-link here* over the selection.
+
+**§ 8's fifteen-step acceptance run passed on 2026-09-04**, by hand against the single-process
+build, and it earned its keep the way Phase 2's did. **Step 12 found a real defect no test could
+have caught**, recorded as `E2`: rewriting a marked passage *wholesale* — new sentences rather than
+an edit — leaves the anchor `stale` with its positions deliberately unmoved, and the editor was
+still drawing that range as a **wavy red underline**, which is the browser's own spellcheck idiom.
+The writer read it as a spelling squiggle and reported no highlight at all; the range was in fact
+landing on words the anchor had never referred to, a mid-word fragment of the replacement. The whole
+Phase 2 anchor corpus edits a character or a word wherever it touches this path, so nothing on
+either side of the wire said so. **Ruled by the writer: keep the range and restyle it** — the
+positions stay the server's answer, unedited, and how the mark *reads* becomes the guard.
+`.anchor-stale` is now a tinted alarm wash under a solid rule, two tests in
+`web/src/__tests__/anchorPlugin.test.ts` pin the wholesale-rewrite case in both halves, and
+`specs/anchors.md` § 1 carries what a stale range does **not** promise. A second, smaller finding
+(`E1`): **step 3 cannot be performed by hand at all** — an `enum` is a `<select>` of its declared
+members and an `entry_ref` a `<select>` of the candidate kinds, so the UI offers no gesture that
+submits an illegal value and the server refusal the step asked for is unreachable. That is D26's
+*unbuildable, not refused* working exactly as designed; the refusal is still real, still
+load-bearing for Phase 7's proposals, and still covered by three backend suites.
+
+**Five rulings worth knowing, each a product decision rather than an implementation detail:**
+
+- Deviation `B4` in [specs/phase-2-plan.md](specs/phase-2-plan.md) § 7. `specs/anchors.md` § 10
+  said a paragraph split through an anchored range yields `stale`, while its own neighbouring row
+  said a *merge* across one stays `ok` "because the separator normalises". Those cannot both hold
+  — a split and a merge are the same operation seen from two sides. **Ruled by the writer on
+  2026-08-30 as built:** a bare split keeps the anchor, and only a split with new words written
+  into the gap breaks it. So an anchor can legitimately span a block boundary, which is why the
+  editor draws one as an *inline* decoration. `anchors.md` now carries the ruling.
+- Deviation `D1`: **no `pre-import` snapshot is ever taken, and none can be.** § 2's ruling 5 says
+  import *creates* chapters and never replaces one, so nothing an import does can destroy text and
+  a snapshot before it would record that nothing happened. The reason stays registered for the
+  phase that lets an import overwrite a chapter. (This corrects `C3`, which was written before
+  P2-14 met ruling 5 and said the import took one itself.) The snapshot *capture route* still
+  accepts only `handover` and `manual` — the `pre-*` reasons are the server's own.
+- Deviation `D12`: **Group D carries a client surface for Markdown that P2-13 and P2-14 did not
+  budget**, ruled by the writer on 2026-08-31. Without it the acceptance script's last step —
+  "compare the two on screen" — has nothing on screen to compare.
+- Deviation `D15`: **the combined export writes every heading inside a chapter one level down**,
+  ruled by the writer on 2026-09-01 after § 8's step 13 found the collision. Level 1 means
+  "chapter" in that file, and the closed schema lets a writer put an H1 in a chapter's body, so
+  without the shift the two are the same character and re-importing cuts a chapter in half at a
+  heading that was never a boundary. The cost is at the floor and it announces itself: a body H3
+  goes out as `####` and returns at level 3 with a notice. The per-chapter export, which is the
+  half that promises a round trip, is untouched. Reserving H1 for chapter titles in the editor is
+  the better long-term answer and is backlog `Q7`, to be settled by Phase 3.
+- Deviation `E2` in [specs/phase-3-plan.md](specs/phase-3-plan.md) § 7: **a `stale` anchor keeps
+  its range, and the styling is the guard.** The resolver leaves a stale anchor's positions exactly
+  where they were — they are true at no version — so after a wholesale rewrite the range covers
+  whatever now occupies those offsets. Two answers were put to the writer on 2026-09-04 and the
+  ruling was to **keep the range and restyle it** rather than collapse it to a marker: the positions
+  stay the server's answer, unedited, and how the mark reads carries the whole meaning. Hence a
+  tinted alarm wash under a solid rule, and not a wavy underline — which is the browser's own
+  spellcheck idiom and was read as one. **A stale anchor's range is not a claim about the text under
+  it, and no consumer may read it as one** (`specs/anchors.md` § 1).
+
+One thing the Phase 1 run surfaced, still true: **some of the app's surfaces are hard or impossible
+to reach from a test.** Phase 1 could not make a save fail where the writer could see it — the
+retry loop absorbed the outage — but § 8's step 15 reached it on 2026-09-01, so that one is
+**closed**. Two remain, both pointer gestures jsdom cannot make: there is no native editing, so a
+text selection cannot be made through the DOM, and the mark, re-link, **and now *Add to bible***
+gestures are each covered in two halves that meet at a typed boundary (phase-2 deviation `C7`, and
+`web/src/__tests__/entryLinks.test.tsx`'s docstring); and a file *drop* is a gesture too, so the
+import is tested by pasting rather than dropping. The backoff ladder, the `409` reload prompt, the
+selection control, and the drop target are exercised only by the frontend suite; a regression in
+them will not show up by using the app, so those tests and the § 8 runs are the only things
+standing under them.
+
+**And § 8 is not a formality — it has now found a real bug in each of the two phases that ran
+one.** Phase 2's step 13 found `D15`, in a case the whole Markdown corpus was blind to because no
+test manuscript had a heading where this writer puts one. Phase 3's step 12 found `E2`, in a case
+the whole anchor corpus was blind to because every test that touches that path edits a character or
+a word, and a writer rewriting a paragraph does neither. Both were found by a person doing the thing
+the corpus abstracts, and Phase 4's § 8 adds a third kind of blindness the suite cannot cover:
+**whether the answers are any good.**
 
 ## The specs are the contract
 
 - [specs/project-outline.md](specs/project-outline.md) — the root document: vision, architecture,
   phase list, testing strategy, risks. **Read this first.**
 - [specs/development-phases.md](specs/development-phases.md) — the **authoritative decision
-  register** (D1–D20) and the work breakdown across all phases. Cite these IDs.
+  register** (D1–D29) and the work breakdown across all phases. Cite these IDs.
 - [specs/phase-1-plan.md](specs/phase-1-plan.md) — Phase 1 work items (`P1-1` … `P1-15`), exit
   criteria, and the as-built deviations table.
-- [specs/backlog.md](specs/backlog.md) — deferred features and open questions (`Q1`–`Q6`), each
-  with the phase it must be settled by.
-- [specs/data-model.md](specs/data-model.md) — storage as built: the project file, the two
-  tables, the projection rules, and the migration discipline. Its § 7 sketches later phases and
-  is **not** binding; the rest is a bug if it disagrees with the code.
-- [specs/api-contract.md](specs/api-contract.md) — every route that exists, what it promises, and
-  what it refuses. The generated OpenAPI schema is authoritative for types; this is authoritative
-  for behaviour.
-- `specs/anchors.md`, `specs/agent-tools.md` — written as their phases begin (Phases 2 and 6).
+- [specs/phase-2-plan.md](specs/phase-2-plan.md) — Phase 2 work items (`P2-1` … `P2-15`). Its § 2
+  is **ruled** (D21–D24, 2026-08-30). Its § 7 holds fifty as-built deviations across all four
+  groups — `B4`, `D1`, `D12`, and `D15` are product decisions rather than implementation details,
+  and `C7` and `C8` say which surfaces no test reaches. **Its § 8 is the manual acceptance run**:
+  the script step by step, what each step must show, and the outcome of each — run on 2026-09-01,
+  all fifteen passed, step 13 having found `D15` and been re-run against the fix.
+- [specs/phase-3-plan.md](specs/phase-3-plan.md) — Phase 3 work items (`P3-1` … `P3-15`). **Its
+  § 2 is ruled** (D25–D29, 2026-09-01): D25 soft delete for entries (settling `Q2`), D26 the
+  uniform record with per-kind fields as data served by the API, D27 what a revision is and what a
+  retcon flags, D28 story-time as a partial order, D29 H1 stays in chapter bodies (settling `Q7`).
+  Its § 3 is the record's shape, § 5 ten exit criteria, § 6 the risks, § 7 the deviations table —
+  `A1`–`A4`, `B1`–`B7`, `C1`–`C7`, and `D1`–`D8`, of which `B2` is the only one that changes
+  behaviour outside the bible, `C3`/`C4`/`C7` are D26 taken literally, `D1`, `D3`, and `D5` are
+  the three worth reading, and **`E1` and `E2` are the acceptance run's two findings** — and **§ 8
+  the fifteen-step acceptance run, run on 2026-09-04, all fifteen passed**, step 12 having found
+  `E2` and been re-run against the fix.
+- [specs/phase-4-plan.md](specs/phase-4-plan.md) — Phase 4 work items (`P4-1` … `P4-15`), **not
+  started**. **Its § 2 is unruled**: five proposed register entries (D30–D34), none binding until
+  the writer rules on them, and no work item may start first. Its § 3 is the port's shape, § 5
+  twelve exit criteria, § 6 the risks — of which "money" and "the port is shaped by whichever
+  adapter is written first" are the two with no precedent in earlier phases — § 7 an empty
+  deviations table, and § 8 the fifteen-step acceptance run, which must additionally **record what
+  the model actually said**, because the suite cannot assess an answer.
+- [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
+  phase it must be settled by. `Q1`, `Q2`, `Q5`, and `Q7` are promoted and closed; `Q3`, `Q4`, and
+  `Q6` are open, none due before Phase 6. `Q2` and `Q7` were each settled **against** the leaning
+  recorded there, and § 3 keeps the reasoning so a future reversal is a deliberate act.
+- [specs/data-model.md](specs/data-model.md) — storage as built at schema version 3: the project
+  file, the **nine** tables, the projection rules, the write rules, all three soft-delete
+  predicates, and the migration discipline. Its § 7 sketches Phases 5 and 6 and is **not** binding;
+  the rest is a bug if it disagrees with the code. Phase 4's `conversation` and `message` tables
+  (`P4-4`) are proposed in that plan and are not in this document until they are built.
+- [specs/api-contract.md](specs/api-contract.md) — what each route promises and what it refuses:
+  § 5's chapter operations, § 7's five anchor routes and the extended save response, § 8's four
+  snapshot routes, § 9's two Markdown exports and one import — including the **one non-JSON
+  response in the API** and why it is one — and **§ 10's twenty-three bible routes**, the served
+  definition among them. The generated OpenAPI schema is authoritative for types; this is
+  authoritative for behaviour.
+- [specs/anchors.md](specs/anchors.md) — what an anchor stores, the two coordinate systems and
+  the block index, the matching ladder with its exact thresholds, the whitespace normal form, the
+  suggestion protocol, and **what an anchor does not promise**. Written in `P2-4` before the code
+  it governs; `P2-8`'s corpus is written from it, not from the implementation. Read it before
+  touching anything in `manuscript/anchors/`. Four places where the code corrected it are marked
+  and cross-referenced to the phase plan's `B1`–`B5`; its § 7 says why a Markdown import is
+  *not* one of the writes that re-resolves an anchor; and its § 1 carries what the Phase 3
+  acceptance run added (`E2`) — **a `stale` anchor's range is not a claim about the text under
+  it**, which is the fifth thing an anchor does not promise.
+- [specs/bible.md](specs/bible.md) — written at `P3-1`, **before** the code it governs, on the
+  `anchors.md` pattern. It fixes the entry record and why `kind` is immutable, the *vocabularies*
+  of field types and relations, the `entry_ref`-versus-link distinction, the constants, the
+  revision and retcon rules with the exact definition of a dependent, story-time and its two
+  contradiction kinds, citations, and both live predicates — and § 1 says in as many words what an
+  entry does **not** promise. It deliberately does **not** restate the per-kind field lists or a
+  relation's permitted kinds: those are D26's served definition, and a second copy in prose is
+  exactly the third place to disagree that `specs/markdown.md` was refused for being. Its § 12
+  carries the corrections the code makes to it — empty so far.
+- `specs/agent-tools.md` — written as its phase begins (Phase 6).
+
+`specs/providers.md` does not exist yet: it is written at `P4-1`, before the code it governs, on
+the `anchors.md` and `bible.md` pattern.
+
+There is no `specs/markdown.md`, deliberately. The syntax is a docstring
+(`manuscript/markdown/serialize.py`) and a corpus (`tests/fixtures/markdown/cases.json`); the
+routes are api-contract § 9. A third place to state it would be a third place to disagree.
 
 Work items carry stable IDs (`P3-4`) that commits and code comments reference. IDs are never
 renumbered — a dropped item is marked **withdrawn**, not deleted.
@@ -179,32 +383,325 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/projects/migrations.py` | The forward-only migration runner (D20) |
 | `server/archetype/projects/migrations/*.sql` | Numbered schema migrations |
 | `server/archetype/projects/store.py` | `ProjectStore`, `ProjectHandle`, the directory scan (D17) |
-| `server/archetype/manuscript/projection.py` | The pure text projection: rules, `text_plain`, headings, word count (`P1-7`, D18) |
-| `server/archetype/manuscript/documents.py` | `DocumentStore` — the only path by which manuscript text changes (`P1-6`, D19) |
-| `server/archetype/manuscript/locator.py` | Resolves a bare document id to the project file holding it |
-| `server/archetype/api/routes.py` | The `/api` router (`P1-5`) |
+| `server/archetype/manuscript/projection.py` | The pure text projection: rules, `text_plain`, headings, word count (`P1-7`, D18), plus the block index and the two coordinate conversions (`P2-5`) |
+| `server/archetype/manuscript/documents.py` | `DocumentStore` — the only path by which manuscript text changes (`P1-6`, D19), plus reorder, soft delete, and restore (`P2-2`, D22) |
+| `server/archetype/manuscript/snapshots.py` | `SnapshotStore` — capture, history, and restore-as-an-ordinary-save (`P2-3`, D23) |
+| `server/archetype/manuscript/anchors/status.py` | The anchor status vocabulary and the one rule that derives `orphaned` (`P2-1`, D22) |
+| `server/archetype/manuscript/anchors/resolve.py` | The matching ladder, the normal form, the suggestion protocol, and the constants — **pure**, no I/O (`P2-6`) |
+| `server/archetype/manuscript/anchors/records.py` | The stored anchor, and the one place a row becomes one |
+| `server/archetype/manuscript/anchors/rewrite.py` | Re-resolution inside the transaction of the save that caused it (`P2-7`, D21) |
+| `server/archetype/manuscript/anchors/store.py` | `AnchorStore` — create from a range, read, re-link, delete (`P2-7`) |
+| `server/archetype/manuscript/markdown/schema.py` | The server's mirror of the editor's closed node list, held to it by a shared fixture (`P2-13`, D1) |
+| `server/archetype/manuscript/markdown/serialize.py` | Closed schema in, Markdown out — total by construction, and where the escaping rules live (`P2-13`, D15) |
+| `server/archetype/manuscript/markdown/parse.py` | CommonMark in, closed schema out, over `markdown-it-py`; and the notice for everything it could not keep (`P2-14`) |
+| `server/archetype/manuscript/markdown/importer.py` | The part of an import that writes: measure every chapter, then create them (`P2-14`) |
+| `server/archetype/manuscript/locator.py` | Resolves a bare document, anchor, or snapshot id to the project file holding it |
+| `server/archetype/bible/schema.py` | The **one** place the seven kinds' fields and the twelve relations are written down; the six closed field types, `validate()`, and the JSON dump (`P3-5`, D26) |
+| `server/archetype/bible/predicates.py` | The live predicate for an entry, and the **three-way** one for a link — written once (`P3-3`, D25) |
+| `server/archetype/bible/entries.py` | `EntryStore` — CRUD for all seven kinds, the filters, the D25 soft delete, revisions, and D27's retcon flagging (`P3-3`, `P3-4`) |
+| `server/archetype/bible/links.py` | `LinkStore` — the relation vocabulary enforced in both directions, symmetry, bounds, and the three-way predicate on every read (`P3-6`) |
+| `server/archetype/bible/citations.py` | `CitationStore` — the four roles, an anchor's live status on an entry, narrative position, and *Add to bible*'s one transaction (`P3-7`) |
+| `server/archetype/bible/storytime.py` | D28's partial order — **pure**: the order, the unplaced, and the two contradiction kinds, plus the era ranking (`P3-8`) |
+| `server/archetype/bible/timeline.py` | The database half of story-time: two reads and one call into the pure module (`P3-10`) |
+| `server/archetype/api/routes.py` | The manuscript half of the `/api` router (`P1-5`), including Phase 2 Group C's chapter and snapshot routes (`P2-11`, `P2-12`) and Group D's Markdown routes (`P2-13`, `P2-14`) |
+| `server/archetype/api/bible_routes.py` | The bible half of the same router: entries, revisions, links, citations, *Add to bible*, story-time, and the served definition (`P3-9` … `P3-11`) |
+| `server/archetype/api/bible_schemas.py` | The bible's wire shapes, mirrored in `web/src/api/types.ts`; it restates neither closed vocabulary (`P3-9` … `P3-11`, D26) |
 | `server/archetype/api/logging.py` | Request logging: one line per request, with a request id (`P1-13`) |
 | `server/archetype/api/schemas.py` | Wire shapes, mirrored in `web/src/api/types.ts` |
 | `server/archetype/api/static.py` | The single-process static mount and the `web_not_built` notice (`P1-14`) |
 | `server/archetype/api/errors.py` | The uniform error envelope and its exception handlers |
 | `server/archetype/app.py` | `create_app()`; builds the store and locator onto `app.state` |
-| `server/tests/fixtures/db/` | Databases captured at a known schema version, with their README |
-| `server/tests/fixtures/projection/` | The shared projection cases — read by **both** suites (`P1-7`) |
+| `server/tests/fixtures/db/` | Databases captured at a known schema version, with their README and the scripts that captured `v001_phase1.sqlite` and `v002_phase2.sqlite` |
+| `server/tests/fixtures/projection/` | The shared projection cases, now with the block index — read by **both** suites (`P1-7`, `P2-5`) |
+| `server/tests/fixtures/anchors/` | The anchor corpus, hand-written from `specs/anchors.md` (`P2-8`) |
+| `server/tests/fixtures/markdown/` | The round-trip corpus: each chapter stated twice, as JSON and as the Markdown it must export to (`P2-13`, `P2-14`) |
+| `server/tests/fixtures/schema/` | The closed schema, stated once and read by **both** suites (`P2-13`) |
+| `server/tests/fixtures/bible/storytime/` | The story-time corpus, hand-written from `specs/bible.md` § 7 (`P3-8`) |
 | `server/tests/fixtures/contract/` | API responses written by pytest, type-checked by vitest (`P1-8`) |
 | `server/tests/fakes/` | `FakeProvider` and `FakeEmbedder` land here in Phases 4 and 5 |
 | `web/src/api/` | The typed client, its interface, and the mirrored wire types |
-| `web/src/state/` | The three contexts and their pure reducers, plus toasts and `localStorage` (`P1-9`, D10) |
+| `web/src/state/` | The **four** contexts and their pure reducers, plus toasts and `localStorage` (`P1-9`, `P3-12`, D10) |
+| `web/src/state/projectReducer.ts` | The project's chapters, outline, deleted list, **and every anchor in it** (`P2-10`) |
+| `web/src/state/bibleReducer.ts` | The served definition, the browse list with its filters and counts, the review queue, and the deleted tray — three lists, and why they are three (`P3-12`) |
+| `web/src/state/BibleContext.tsx` | The reads and writes over them: the debounced filter, the refresh after every write, and the detail reads it deliberately does **not** hold (`P3-12`) |
+| `web/src/bibleSchema.ts` | The one place the served definition is *read*: kind labels, an `entry_ref`'s candidates, the relation options for a pair of kinds, and the closed field-type guard (`P3-12` … `P3-14`, D26) |
 | `web/src/shell/` | The workspace frame, the split dividers, the editor region, error boundaries, toasts |
-| `web/src/panels/` | The outline panel and its tabs, the table of contents, the agent placeholder, the picker |
+| `web/src/panels/` | The outline panel and its five tabs, the contents, the *Marks* tab, the history, the picker |
+| `web/src/panels/MarkdownTransfer.tsx` | Export links and the import form, with the report of what an import left behind (`P2-13`, `P2-14`) |
+| `web/src/panels/BibleTab.tsx` | The fifth tab: the browse list, the review queue, the story-time readout, the deleted tray, and making an entry by hand (`P3-12`) |
+| `web/src/panels/EntryFields.tsx` | **One renderer per field type — six, closed.** A seventh fails loudly rather than rendering nothing (`P3-5`, `P3-13`, D26) |
+| `web/src/panels/EntryForm.tsx` | One form for seven kinds, rendered from the definition, with the retcon control on the save (`P3-13`, D27) |
+| `web/src/panels/EntryDetailView.tsx` | One entry whole: the form, its citations, its links, its history, and the `409` that stops rather than merges (`P3-13`, `P3-14`) |
+| `web/src/panels/EntryHistory.tsx` | Revisions, the preview, and restore-through-the-update-path (`P3-13`, D27) |
+| `web/src/panels/EntryLinksPanel.tsx` | Both directions in one list, and the picker that makes an illegal link unbuildable (`P3-14`) |
+| `web/src/panels/EntryCitations.tsx` | The passages behind an entry, with each anchor's current status — and the route to *Marks* for a repair (`P3-14`) |
+| `web/src/panels/StoryTimeCheck.tsx` | D28's three answers, as three lists. **Not a timeline** — Phase 8 owns that (`P3-12`, deviation `D1`) |
+| `web/src/anchorText.ts` | The one place an anchor is put into words, for the panel, the control, and the decoration |
 | `web/src/editor/extensions.ts` | The closed TipTap schema — a change here is a spec change (`P1-10`, D1) |
+| `web/src/editor/anchors.ts` | The decoration plugin: mapping, collapse, clamping — display-only (`P2-9`, D21) |
+| `web/src/editor/SelectionActions.tsx` | The control over a selection: *Mark passage*, *Re-link here*, and *Add to bible* (`P2-9`, `P2-10`, `P3-14`) |
 | `web/src/editor/autosave.ts` | `SaveScheduler` — *when* a save happens, with no React in it (`P1-10`) |
 | `web/src/editor/projection.ts` | The client mirror of the projection, held to the server by shared fixtures |
 | `web/src/format.ts` | The display edge: the only place a UTC timestamp becomes words |
 | `web/src/__tests__/fakes/` | The hand-written typed fake API client (`P1-8`) |
 | `web/src/__tests__/harness.tsx` | The real provider stack with a fake client and a hurried autosave |
 | `server/tests/test_static.py` | The run-mode tests; each builds its own miniature `dist` in `tmp_path` |
+| `server/tests/test_chapters.py` | Reorder, delete, restore, and the soft-delete predicate across all four read paths (`P2-2`) |
+| `server/tests/test_snapshots.py` | Capture, dedupe, retention, and restore (`P2-3`) |
+| `server/tests/test_block_index.py` | The index against the shared cases, and the conversions at their edges (`P2-5`) |
+| `server/tests/test_anchors.py` | The corpus, the properties, and the resolver's refusals (`P2-6`, `P2-8`) |
+| `server/tests/test_anchor_store.py` | The store, re-resolution on write, and the resolution budget (`P2-7`) |
+| `server/tests/test_anchor_routes.py` | The five anchor routes over the real application (`P2-7`) |
+| `server/tests/test_chapter_routes.py` | Reorder, delete, restore, and the deleted list over HTTP (`P2-11`) |
+| `server/tests/test_snapshot_routes.py` | Capture, history, preview, and restore over HTTP (`P2-12`) |
+| `server/tests/test_markdown.py` | The corpus both ways, totality over the closed schema, and every normalisation Markdown forces (`P2-13`, `P2-14`) |
+| `server/tests/test_markdown_routes.py` | The media type, the filename, the soft-delete predicate, and the refusals over HTTP (`P2-13`, `P2-14`) |
+| `web/src/__tests__/anchorPlugin.test.ts` | The decoration plugin against real ProseMirror and no React (`P2-9`) |
+| `web/src/__tests__/selectionActions.test.tsx` | The mark and re-link control against a real editor (`P2-9`, `P2-10`) |
+| `web/src/__tests__/anchorsInEditor.test.tsx` | Anchors through the real provider stack (`P2-9`) |
+| `web/src/__tests__/marks.test.tsx` | The *Marks* tab, its filters, and the repair path (`P2-10`) |
+| `web/src/__tests__/chapters.test.tsx` | Reorder, rename, delete, and restore in the Contents tab (`P2-11`) |
+| `web/src/__tests__/snapshots.test.tsx` | The history panel, marking a version, and restoring one (`P2-12`) |
+| `web/src/__tests__/markdown.test.tsx` | The export links, the import form, and the report (`P2-13`, `P2-14`) |
+| `server/tests/test_bible_schema.py` | The closed field-type list, the definition's own consistency, and validation's refusals (`P3-5`) |
+| `server/tests/test_entries.py` | All seven kinds through one store, every refusal writing nothing, and the deleted entry absent from every read path together (`P3-3`) |
+| `server/tests/test_entry_revisions.py` | Revisions, restore-through-update, the retcon computation, and the review queue that empties (`P3-4`) |
+| `server/tests/test_links.py` | Every refusal writing nothing, symmetry from both ends, and a deleted entry absent from every link read path together (`P3-6`) |
+| `server/tests/test_citations.py` | The one transaction, the two deletions that do not reach each other, and narrative position following a reorder (`P3-7`) |
+| `server/tests/test_storytime.py` | The corpus, and the invariant asserted once over all of it (`P3-8`) |
+| `server/tests/test_entry_routes.py` | Every entry route over the real application: the filters, the `409`, the retcon, and the queue that empties (`P3-9`) |
+| `server/tests/test_link_routes.py` | The link routes, and the story-time route held to the pure module's answer (`P3-10`) |
+| `server/tests/test_citation_routes.py` | *Add to bible* end to end, and the status a citation reports as the passage moves (`P3-10`) |
+| `server/tests/test_bible_routes.py` | The served definition, and that a field added to a kind reaches the wire with no other change (`P3-11`) |
+| `web/src/__tests__/bibleReducer.test.ts` | The reducer, and the readers over the real served definition — including that a seventh field type fails (`P3-12`, `P3-13`) |
+| `web/src/__tests__/bible.test.tsx` | The tab: filters, live counts, the review queue that empties, the deleted tray, and the story-time readout (`P3-12`) |
+| `web/src/__tests__/entryForm.test.tsx` | Every field type round-tripping, the retcon default and its override, the `409`, and the history (`P3-13`) |
+| `web/src/__tests__/entryLinks.test.tsx` | Links both ways, the picker's refusals, citations and their status, and *Add to bible* below the gesture (`P3-14`) |
 
-**Invariants established in Groups A, B, and C**, beyond those already listed above:
+**Invariants established in Phase 1's Groups A, B, and C, in Phase 2's Groups A, B, C, and D, and
+in Phase 3's Groups A, B, C, and D**, beyond those already listed above.
+
+Phase 3's Group D added these:
+
+- **One form for seven kinds, and the difference is still data.** `EntryForm` is handed a
+  `KindDefinition` and renders it; nothing in it knows which kinds exist. The six field renderers
+  are a closed list and `assertFieldType` **throws** for a seventh — taking the Bible tab into its
+  own error boundary with a sentence saying the definition and the renderer have parted company.
+  Rendering nothing would be a form that silently drops a field somebody typed into, which is the
+  failure D26's closure exists to prevent.
+- **The Bible tab has its own error boundary, inside the outline panel's.** It is the largest
+  surface in the panel and the one with the most to go wrong in it; a bible that cannot draw must
+  not take the table of contents down with it, let alone the editor. That is the P1-12 rule one
+  level in.
+- **An illegal link is unbuildable, not refused.** The writer picks the *other entry* first and the
+  relation picker is then built from `relationOptions`, which reads the served vocabulary — so a
+  `place` that `knows` an `item` is never on offer. The server refuses it anyway, because that is
+  where the rule lives; a form that offers a choice and then rejects it has taught the writer
+  something untrue about their own bible. A symmetric relation yields exactly **one** option, never
+  two, because it is one row read from both ends.
+- **The retcon default is computed by the store and predicted by the client, and the prediction
+  never decides.** The box has to be right *before* the save, which is only possible on this side —
+  so `retconFields()` drives the checkbox and its sentence, and the form sends `retcon` **only when
+  the writer moves the box**. An ordinary save carries no override, the store's own answer stands,
+  and `changed_fields` is what the writer is then told. It is the one place Phase 3 states a rule
+  twice, it is marked as such in `specs/bible.md` § 12, and this clause is what keeps it honest.
+- **Every bible write refreshes the list.** A rename can move a row out of a `q` filter, a retcon
+  can put three entries into the queue, a delete removes one from a count. Deciding on the client
+  which of those happened means re-implementing the route's filters here, and the second
+  implementation is the one that drifts. One request after a write is cheaper than that, and it is
+  always right. Only the **search box** is debounced, because that is what "without a refetch per
+  keystroke" is about; a kind or a status is one deliberate click and goes out at once.
+- **The review queue is its own read, not a mode of the browse list.** It has to be right whatever
+  the writer is filtering by — a queue you can only see by clearing your filters is a queue nobody
+  works through, and a retcon's whole point is that the writer walks the consequences.
+- **`BibleContext` holds the lists and not the open entry.** Its citations, its links, and its
+  revisions belong to the one record being looked at and are re-read when it is opened; a second
+  copy of that entry beside the one in the list would exist only for the two to disagree. `openId`
+  is the whole of what the reducer knows about the detail view.
+- **An entry's `409` stops the form and keeps the typing.** It never merges (D19). The writer is
+  offered the server's copy and nothing else, and taking it is their act — the same posture the
+  editor has for a chapter, reached through the entry's own error code.
+- **The bible never repairs an anchor, and never deletes one.** A `stale` citation says so and
+  sends the writer to *Marks*, which is where the suggestion protocol already lives (ruling 5).
+  Removing a citation removes the **join**: the entry keeps what a person typed and loses one
+  reason to believe it, and the anchor stays.
+- **The story-time surface is a readout, not a timeline.** Three lists — the order, the unplaced,
+  the contradictions — with no axis, no scale, and nothing positioned by a number. It exists
+  because § 8's steps 6 and 7 are not demonstrable against a route nothing calls, and Phase 8 will
+  replace it rather than extend it (deviation `D1`).
+- **The fake computes the retcon answer and nothing else in the bible.** The resolver was refused a
+  place there because it is a ladder with tuned thresholds and a corpus; D27's rule is two
+  sentences that *are* written down, and the review queue is the phase's headline surface. The fake
+  still does **not** validate attributes, kinds, or relations — one validator, `bible/schema.py`,
+  and a test that needs a refusal stages one — and does **not** order events. And it does not
+  hand-write the served definition: `getBibleSchema` returns the **contract fixture**, so client
+  tests render the real seven kinds and a kind that gains a field reaches them in the same commit.
+- **The document layer keeps one upward dependency.** `addToBible` flushes, reads the open chapter
+  and its version, calls the one route, and hands the anchor to the project — exactly as
+  `createAnchor` does. It does **not** tell the bible; `EditorRegion` does, because it is the one
+  component that already holds the project, the document, and the bible at once.
+
+Phase 3's Group C added these:
+
+- **The wire does not restate a closed vocabulary the API already serves.** `kind` and `relation`
+  cross as plain strings and are refused by `bible/schema.py` with a `422` naming the field. A
+  `Literal` of the seven kinds in `bible_schemas.py` would be the second copy D26 exists to prevent
+  — and the copy that drifts, because the client fetches the other one. The rule has an exact
+  boundary: a vocabulary a **module constant** owns *is* restated on the wire and held to it by a
+  test (`EntryStatusFilter`, `CitationRoleIn`), exactly as `AnchorStatusFilter` is; one the
+  **served definition** owns never is.
+- **A status with no writer gets no route that writes it.** `proposed`, `rejected`, `superseded`,
+  and `agent` are absent from every request model, not merely defaulted away — the rule the `pre-*`
+  snapshot reasons already follow. They stay readable as filters, because a filter that cannot ask
+  for a value the column can hold is one that needs changing the moment a writer exists.
+- **An absent field and a field sent as empty are different requests.** `EntryUpdateIn.changes()`
+  reads pydantic's `model_fields_set`, so a `PUT` that does not mention `summary` keeps it and one
+  that sends `attributes: {}` clears them. A link's bounds go one step further: `since: null`
+  clears it and is passed through, because a bound is genuinely nullable and an entry's content
+  fields are not.
+- **A cap is reported, and the report is exact.** The entry list asks the store for
+  `SEARCH_LIMIT + 1` and trims, so `truncated` is true only when a row was actually withheld — a
+  project with exactly two hundred matches does not send the writer looking for a row that is
+  already on screen.
+- **Composition that is not HTTP does not live in a route.** The story-time route is
+  `StoryTimeOut.of(project_timeline(handle))`; the two reads and the pure call are
+  `bible/timeline.py`, so Phase 6's agent and Phase 8's timeline get the same answer without a
+  request. The pure module stays pure, and `Ordering` is passed through unwidened.
+- **A served shape's key set never depends on the value of another key.** `FieldDefinition.as_dict`
+  emits `help`, `members`, and `kinds` always, empty where the type does not use them, because one
+  generic renderer over a shape with conditional keys is a renderer full of branches — and the
+  contract test compares key sets exactly.
+- **An entry's `409` has its own code.** `entry_version_conflict`, not `version_conflict`: the two
+  surfaces recover differently — the editor offers to reload a chapter, the entry form offers to
+  reload a record — and one code for both would make that a branch on which request was in flight.
+- **A bare id is one more prefix over one mechanism.** `entry` and `entry_link` joined `document`,
+  `anchor`, and `snapshot` in the locator's closed `_ADDRESSABLE` set. The bible's errors reach it
+  through a **deferred import**, for `B2`'s reason: bible → manuscript is the static edge, and the
+  incidental direction gives way.
+
+Phase 3's Group B added these:
+
+- **A link is directed in storage and may be symmetric in meaning** (D26, plan § 2 ruling 7). One
+  row, always. A relation the definition marks `symmetric` is stored once and read from both ends,
+  and `for_entry` returns **both directions in one answer**, each marked with which end the entry
+  is on and labelled the way that end reads it. Storing a symmetric relation twice means two rows
+  that can disagree — one deleted and one not, one bounded and one not — and a Phase 8 adjacency
+  matrix that double-counts.
+- **A relation is refused on the side it is offered from.** `member_of` runs character → faction;
+  faction → character is a different statement and is refused, never silently reversed. The only
+  exception is a relation whose *definition* says it is symmetric, and that answer comes from the
+  vocabulary rather than from a list any consumer keeps.
+- **A link's endpoints and its relation are not editable — only its bounds and its attributes.**
+  Changing either is a delete and a create, and both are recoverable; editing them in place would
+  let a link's own history describe a relationship it never had, which is `kind`'s immutability one
+  table over. A link carries no revision and so presents none: the D19 guard lives on the entry.
+- **`since` and `until` are stored, displayed, and never interpreted** (D9). Nothing in Phase 3 or
+  Phase 8 sorts by them. The relation that carries ordering power is `precedes`, and it does so
+  through the ordering module, which reads *edges* and never bounds.
+- **Uniqueness is judged on the link's own row, and visibility on all three.** A duplicate is
+  refused against live links by `entry_link.deleted_at` alone — including a restore that would
+  produce one — because two rows for the same pair are duplicates whether or not an endpoint is
+  currently away, and letting one in would double-count the moment that entry came back.
+- **`create_from_range` is one transaction over three tables, and that is why the two stores have
+  connection-scoped twins.** `AnchorStore.create_within` and `EntryStore.create_within` exist so
+  *Add to bible* can mint an anchor, create an entry, and cite it atomically; each `create` is now
+  its `create_within` plus a transaction, so there is still exactly **one** place an anchor row is
+  written and one place an entry and its revision 1 are (ruling 8). A stale document version leaves
+  no anchor, no entry, and no citation.
+- **Deleting an anchor removes its citations and leaves the entries; soft-deleting an entry leaves
+  its citations and its anchors.** The first is not a courtesy — `entry_anchor.anchor_id` is a real
+  foreign key with `PRAGMA foreign_keys` on, so without it deleting a cited anchor *fails*. It runs
+  inside `AnchorStore.delete`'s own transaction through a deferred import of
+  `bible.citations.uncite_anchor_within`: a citation is *of* an anchor, so bible → manuscript is
+  the static edge and the incidental direction gives way — the rule `documents.py` already follows
+  for the snapshot a delete records.
+- **An entry's narrative position is derived from its `source` anchor and never stored.** Chapter
+  `order_index`, then `from_pos`, computed on read — so it moves when the writer reorders chapters,
+  for free, and an entry with no `source` anchor simply has none, which is D9's unplaced tray
+  arriving from the data rather than from a flag somebody maintains. A source in a soft-deleted
+  chapter places nothing: the passage is away, and a position in a chapter no reader can reach
+  would sort the entry into a book it is not in.
+- **A citation reports the anchor's status, and the bible never derives one.** The anchor rows come
+  back in the citation query and are built by the anchors package's own row mapper, so `orphaned`
+  is derived in the one place D22 put it. A second derivation is how a citation would come to
+  disagree with the *Marks* tab about the same anchor.
+- **The ordering module is pure and returns three things: the order, the unplaced, and the
+  contradictions** (D28). There are exactly two contradiction kinds — a cycle in `precedes`, and a
+  `sort_key` inversion across an edge — and they are **independent**: an edge inside a cycle whose
+  keys also disagree is reported as both, because a writer fixes them differently. The era rule is
+  a separate function rather than a fourth answer, so "three things and never more" stays literal.
+- **An edge always wins, and nothing is ever ordered by a name or a creation date.** The tiebreak
+  is exact and written down (`specs/bible.md` § 7): the edge first, then the smaller `sort_key`
+  among events the edges leave unordered, then keyed before unkeyed, then the order the events
+  arrived in. An event with neither an edge nor a key is **unplaced** — not appended, not dropped,
+  and never guessed at.
+- **A contradiction never costs the rest of the graph.** A cycle is condensed, reported, and
+  everything outside it is still ordered, because a timeline that refuses to draw anything until
+  two events agree is a timeline nobody can use to find the disagreement. The invariant is asserted
+  **once over the whole corpus** — every returned order respects every edge outside a reported
+  cycle — so a case added later is covered without anyone remembering.
+- **`EntryStore.list` may be asked for everything, and the timeline is the one caller that does.**
+  `SEARCH_LIMIT` is the `q` filter's cap; the ordering reads with `limit=None`, because a timeline
+  that silently stopped at two hundred events would report a wrong order rather than a slow one.
+
+Phase 3's Group A added these:
+
+- **Seven kinds, one record, and the difference is data** (D26). One `entry` table with a `kind`
+  discriminator and an `attributes_json` blob; the per-kind field list and the relation vocabulary
+  live in `bible/schema.py` and nowhere else, and `specs/bible.md` names the vocabularies but not
+  their members on purpose. Adding a field to a kind is a change to one file. This is not the
+  shared-fixture pattern and must not become it: `closed_schema.json` is a test artifact holding
+  two implementations to a list, whereas this is runtime data with one implementation that the
+  client *fetches* — copying it into `web/src` would create the second copy D26 exists to prevent.
+- **The field-type list is closed at six, and `attributes_json` is not a free-form bag.** An
+  attribute the definition does not declare is a refusal, not a silent drop, because the moment it
+  is dropped the served definition stops describing what is actually in the file. A field that does
+  not fit one of the six becomes a `long_text` and a backlog entry, never a seventh type.
+- **`kind` is immutable after creation** — refused, not discouraged. Every attribute an entry holds
+  was validated against that kind's field list, so changing it would either destroy typed work
+  silently or leave data the served definition does not describe. The wrong kind is fixed by
+  creating the right entry and deleting the wrong one, which is recoverable both ways.
+- **Every entry write records a revision holding the full state *after* the change**, numbered from
+  1, so revision *n* is what the entry was at revision *n* and reading a past state is one row
+  rather than a replay. Nothing is deduplicated and nothing is pruned — the deliberate opposite of
+  D23's `handover` snapshot on both counts, because that is 300 KB nobody asked for and this is two
+  kilobytes somebody typed. `revisions()` returns metadata only.
+- **Restoring a revision goes through `update`**, so it bumps `revision`, appends to history rather
+  than rewriting it, is guarded by D19, and computes its own retcon answer. One write path, no
+  exceptions — `SnapshotStore.restore`'s rule, one table over.
+- **Only a write marked as a retcon flags anything, and a dependent is an entry joined by a live
+  link in either direction** (D27) — the only relationship the data actually knows. The store
+  computes the answer from `RETCON_FIELDS` (`name`, `attributes_json`, `status`) and the request
+  may override it either way; the result reports *which* field moved, so the client's checkbox can
+  say why it came up checked. The honest limit ships with it: **a dependency the data does not know
+  about is not flagged**, and a prose mention is not a link.
+- **Clearing a review is never a retcon**, not by default and not by override. Without that rule,
+  clearing a flag on a densely linked character re-flags every neighbour and the queue regenerates
+  itself as it is worked through — which teaches the writer that the queue does not mean anything.
+- **Flagging a dependent writes no revision on the dependent.** `needs_review` is a note about the
+  entry's surroundings, not a claim it makes; a revision for it would fill a densely linked
+  character's history with rows recording that a neighbour changed.
+- **`needs_review` and `status` are orthogonal.** One is "something this depended on moved", the
+  other is the proposal lifecycle. `superseded` is not the answer to "this entry is out of date".
+- **A link is live only when the link is not deleted *and neither endpoint is deleted***, and that
+  three-way predicate lives in `bible/predicates.py` — one place, spliced in, never retyped. It is
+  the Phase 2 lesson one table wider: forgetting a leg puts a deleted character back into a
+  relationship view and surfaces in Phase 8 as a wrong chart. One test asserts a deleted entry is
+  absent from the list, the counts, the filters, the review queue, and the dependent computation
+  **together**.
+- **Nothing cascades, which is what makes restore exact.** An endpoint's deletion *hides* a link
+  through the predicate rather than writing to it, so restoring an entry brings back exactly the
+  links it had — and a link deleted in its own right stays deleted, because its own `deleted_at`
+  was never touched.
+- **`proposed`, `rejected`, `superseded`, and `agent` are registered with no writer**, exactly as
+  `pre-import` was in Phase 2. Everything a person types is `accepted` and `user`. They exist so
+  Phase 7's proposal queue lands in a shape storage already understands rather than as a migration.
+- **A fixture database is captured before the migration it tests exists, and re-running the capture
+  must produce the same bytes.** The runner stamps its own `schema_version.applied_at` from the
+  wall clock, so a capture script that pins only its own rows is not deterministic — `v002_phase2`
+  normalises that too, and the fixture README now says so and gives the hash check.
+
+Established earlier, and still true:
 
 - **Transaction control is explicit.** Connections open with `isolation_level=None`; `BEGIN` and
   `COMMIT` are written, never implied. A migration carries its transaction *inside* the script
@@ -218,12 +715,84 @@ suite keeps a developer's real config out of its way.
 - **Secrets are unwritable, not just untested.** A `SecretStr` settings field that is not declared
   `Field(exclude=True)` raises at class-definition time, and the YAML layer refuses to supply one.
 - **`DocumentStore.save_content` is the only path by which manuscript text changes.** Routes,
-  tests, and the agent's accepted proposals (D12) all go through it, which is what makes "the
-  writer owns the words" structural rather than aspirational.
+  tests, restoring a snapshot, and the agent's accepted proposals (D12) all go through it, which
+  is what makes "the writer owns the words" structural rather than aspirational. Its `before_write`
+  hook runs inside the save's transaction, after the version guard and before the row is
+  overwritten; it exists so a `pre-restore` snapshot and the write it protects are one atomic act,
+  and it is **not** a second way to write text.
 - **A rejected save has written nothing.** Validation, the size check, and the projection all run
   before the transaction opens; the version guard is re-read under the write lock inside it.
-- **A rename does not bump `version`.** A rename is not a text edit, and invalidating an in-flight
-  autosave over one would cost the writer a keystroke.
+- **A rename does not bump `version`, and neither does a reorder, a delete, or a restore.** None
+  of them is a text edit, and invalidating an in-flight autosave over one would cost the writer a
+  keystroke. A reorder does not move any document's `updated_at` either — the order belongs to the
+  project, not to a chapter.
+- **Deleting a chapter is a soft delete, and `deleted_at IS NULL` is the whole of it.** The row,
+  its text, its snapshots, and its anchors all stay. Every read filters on that one predicate —
+  `list_meta`, `get`, `outline`, and the project summary's counts — and one test asserts absence
+  from all four together, because a query that forgets it surfaces as a wrong word count and gets
+  reported as a different bug. The summary's copy is version-gated: the scan reads unmigrated
+  files, and a version-1 file has no such column.
+- **`orphaned` is derived from `deleted_at`, never stored.** `anchor.status` holds the resolver's
+  text answer only (`ok` or `stale`), and `effective_status` refuses a stored `orphaned` rather
+  than passing it through. A soft delete changes no text, so delete and restore write nothing at
+  all to anchor rows and a restored chapter's anchors are exactly as they were.
+- **A reorder must present the complete live set.** That comparison *is* the concurrency guard,
+  which is why no project-level version column exists: a client on a stale chapter list cannot
+  produce a complete set, so it cannot reorder a chapter out of existence.
+- **Automatic snapshots are deduplicated and pruned; deliberate ones are not.** `handover` is the
+  only one nobody asked for. A `manual` mark carries a label, and a `pre-*` snapshot is a recovery
+  guarantee rather than a history entry — deduplicating one against a `handover` would leave the
+  only copy of destroyed text in the prunable pool.
+- **A `pre-*` snapshot is written inside the transaction of the thing it protects against**, so a
+  refused delete or a restore refused as stale leaves nothing behind — not even the snapshot that
+  was about to protect it.
+- **An anchor that reports `ok` points at text equal to its quote — there is no case in which the
+  resolver returns `ok` and is wrong.** Every step of the ladder that would answer `ok` goes
+  through one gate, `_confirmed`, which re-reads the text at the span it is about to return and
+  compares it to the quote. The property is asserted **once over the whole corpus** rather than
+  per case, so a case added later is covered without anyone remembering, and again over seeded
+  random edits that deliberately reach into the anchored text. Everything else in Phase 2 can be
+  fixed later; a wrong anchor does not fail, so it cannot be detected later.
+- **A fuzzy match is a suggestion, never an outcome.** Steps 2 to 4 are exact string searches;
+  step 4's scoring decides *between* exact occurrences, never whether an inexact one is close
+  enough. A `stale` anchor's suggestion is computed from its **unedited surroundings** — two
+  exact substring searches, no threshold to tune — precisely because a quote matcher is the
+  machinery that turns into automatic repointing under pressure.
+- **The block index is produced by the walk that produces `text_plain`**, not alongside it. Two
+  walks over one tree are two chances to disagree about what a block is, and an index that
+  disagrees with the text it indexes makes every anchor in the project subtly wrong at once. The
+  shared fixture states both, so the two cannot drift apart in one suite and not the other.
+- **A conversion between the two coordinate spaces is a walk, not arithmetic** — the projection
+  trims each line and drops empty ones, so a paragraph carrying a stray trailing space is shorter
+  in `text_plain` than in the document. Arithmetic is a legal fast path exactly when the block's
+  projected length equals its raw length, which is nearly always, and the check is one comparison.
+- **`text_plain` and ProseMirror positions have no honest correspondence inside a scene break.**
+  An offset in one has no position, and a range that spans one is refused rather than quoted with
+  five characters nobody typed. An empty paragraph is also non-mappable but *is* spannable,
+  because it contributes no text at all.
+- **The server derives an anchor's quote; the client sends only a range and a version.** A client
+  cannot create an anchor that disagrees with the manuscript, because it is never asked what the
+  manuscript says — and a range against a stale version is refused with the same `409` a save is.
+- **`save_content` re-resolves the document's anchors inside its own transaction, and its answer
+  is authoritative** (D21). Whoever wrote — the editor, an import, a restore, a Phase 6 accepted
+  proposal — the rows are correct when it commits or nothing happened at all. The client's
+  ProseMirror mapping is display-only: it is never sent and never overrides a text match.
+- **Status is recomputed, never latched.** Nothing in the resolver reads an anchor's stored
+  status. An undo that restores a deleted passage returns its anchor to `ok` on the next save,
+  and a `stale` anchor keeps the positions it had rather than moving somewhere approximately
+  right.
+- **Every anchor of a document is checked on every save, not just the ones that moved** — a
+  status is a statement about the text as it is now, and a row nobody looked at cannot make one.
+  Only the movers are reported back, and only an `ok` anchor's `document_version` advances,
+  because a `stale` anchor's positions are true at no version.
+- **Re-resolution is budgeted, not assumed.** 200 anchors over 100,000 characters, median of five
+  runs, under `RESOLUTION_BUDGET_MS` — currently 27.5 ms against 250. It exists to catch a change
+  of algorithmic class, so a resolver that gets cleverer and slower fails the suite rather than a
+  writer whose typing has started to stutter.
+- **The anchor package's import direction is one-way and load-bearing.** `resolve.py` and
+  `status.py` are pure; `rewrite.py` is what `DocumentStore` calls and must not import it back;
+  `store.py` sits above both and raises the document store's own `StaleVersionError`. The package
+  `__init__` exports only the pure halves — importing the store from it re-creates the cycle.
 - **Routes carry no domain logic and stores carry no HTTP.** Domain exceptions are translated to
   the envelope by handlers in `api/errors.py`, so the same store serves a request and an agent run.
 - **The projection is one specification, two implementations.** The rules live in the docstring of
@@ -249,10 +818,67 @@ suite keeps a developer's real config out of its way.
 - **Every value read back from `localStorage` is validated field by field.** A layout, an open
   project, or a recent-projects list that cannot be read is forgotten, never repaired — none of
   it is manuscript data, and none of it is worth failing over.
-- **Jump-to-heading resolves by ordinal, and only by ordinal.** The anchor record does not exist
-  until Phase 2; this is the seam it replaces.
+- **Jump-to-heading resolves by ordinal, and only by ordinal — permanently.** Phase 2 added
+  anchors *alongside* it and did not replace it; both jumps exist in the client, and they resolve
+  by different means on purpose. A heading is a structural position the projection already numbers
+  exactly and re-derives on every save; anchors are for cited passages that no derived structure
+  names. Minting an anchor row per heading on every save, to reproduce an answer that is already
+  free, is what the earlier "seam Phase 2 replaces" reading would have cost (phase-2-plan § 2,
+  ruling 1).
+- **An anchor is a decoration, never a mark in the schema.** A mark would be part of the
+  manuscript: stored in `content_json`, subject to the writer's undo, and split by every edit
+  crossing it. An anchor is a reference *to* a passage, not a property *of* one, and it lives in
+  its own table. So `AnchorDecorations` contributes no node and no mark, and the closed schema is
+  exactly what it was (D1).
+- **The client's anchor positions are display-only, and the server's answer replaces them.**
+  ProseMirror's mapping runs on every transaction so a highlight follows the words as they are
+  typed around; it is never sent, and a save's response overwrites it whole (D21). It exists
+  because it is exact and free *when it exists* — and it does not exist for an import, a restore,
+  a file changed behind the app's back, or a Phase 6 proposal.
+- **A collapsed anchor is drawn, not decided.** Deleting all of an anchored passage maps its two
+  positions onto one; an inline decoration over nothing draws nothing, so it becomes a visible
+  marker instead. The plugin does not call it `stale` — a status is the server's to give, and
+  nothing on the client may become a second resolver (phase-2-plan § 2, ruling 2).
+- **A `stale` anchor keeps its range, and the styling carries the whole meaning** (phase-3 `E2`,
+  ruled 2026-09-04). The resolver leaves a stale anchor's positions exactly where they were, so
+  after a wholesale rewrite the range covers whatever now occupies those offsets — a mid-word
+  fragment of the replacement, in the case § 8's step 12 actually made. The range is still drawn,
+  because the positions are the server's answer and the client may not become a second resolver;
+  what changed is that `.anchor-stale` is a tinted alarm wash under a solid rule rather than a wavy
+  underline, which is the browser's spellcheck idiom and was read as one. **A stale anchor's range
+  is not a claim about the text under it, and nothing may read it as one** (`specs/anchors.md`
+  § 1). The two tests that pin the wholesale-rewrite case are what keep this from regressing —
+  every other test on this path edits a character or a word.
+- **A decoration is clamped into the document before it is built.** The server leaves a `stale`
+  anchor's positions where they were, deliberately, and that document may since have got shorter;
+  a decoration built out of bounds throws and takes the writing surface with it.
+- **Anchors live in `ProjectContext`, one list, and the open document's are the slice of it.**
+  Their lifetime is the project's — the *Marks* tab holds every chapter's at once and a re-link
+  may cross chapters — so a second list beside the open document would exist only to be
+  reconciled with the first, and the reconciliation would be the bug.
+- **Nothing repairs an anchor by itself.** A suggestion is data on a finding with a button on it;
+  accepting one and choosing a passage by hand send the identical request, so the server cannot
+  tell them apart and does not try. An `orphaned` anchor is not repaired at all — its chapter is
+  restored.
+- **A reorder always sends the complete order.** That completeness is the server's concurrency
+  guard, so a refusal is answered by re-reading the chapter list, never by correcting a field.
+- **Every reorder gesture has a keyboard equivalent that does the same thing**, and focus follows
+  the chapter that moved — without that, the second press goes nowhere and the interaction is
+  usable only with a mouse (P1-9).
+- **Deleting the open chapter moves the editor to a neighbour.** A recoverable delete that leaves
+  the editor holding a ghost is not recoverable in the way that matters.
+- **A client may only ask for the two snapshot reasons it owns.** `pre-restore`, `pre-delete`, and
+  `pre-import` are written inside the transaction of the operation each protects against; a client
+  that could ask for one could write a `pre-delete` with nothing deleted, which is a lie in the
+  one list a writer consults when something has gone wrong.
+- **The fake API client has no resolver and must never grow one.** A save reports no moved anchors
+  unless a test has staged what the server answers. A fake that decided for itself whether an edit
+  broke an anchor would be a second resolver with neither a specification nor a corpus behind it,
+  and every client test would be asserting against a rule nobody wrote down.
 - **Each region has its own error boundary.** A panel that cannot draw takes itself down and
-  leaves the editor — which may be holding the only copy of a sentence — working.
+  leaves the editor — which may be holding the only copy of a sentence — working. Reading a
+  document's anchors follows the same rule at the request level: a failure leaves the cached list
+  in place rather than blanking a panel or, worse, the chapter.
 - **Every request is logged once, with a request id**, and that id is the only thing a `500`
   tells the browser. The traceback stays in the log.
 - **The static mount is registered last, and the API can never be shadowed.** Starlette matches
@@ -263,3 +889,48 @@ suite keeps a developer's real config out of its way.
 - **No test's behaviour depends on whether the frontend has been built.** The shared `settings`
   fixture pins `web_dist=None`, and `test_static.py` builds its own miniature bundle in `tmp_path`.
   A stale real `web/dist` must not be able to make a passing test lie.
+- **The closed schema is stated once and both suites are held to it.**
+  `server/tests/fixtures/schema/closed_schema.json` is the vocabulary; `schema.test.ts` holds the
+  schema TipTap really built to it, and `test_markdown.py` holds the server's mirror and the
+  serializer's case list to the same file. Adding a node to the editor now fails a test on each
+  side of the wire in the commit that adds it — which is what a closed list was always for, and
+  before this a new node would have reached a serializer with no case for it and nobody would have
+  found out until somebody exported a chapter.
+- **The Markdown serializer is total, and refuses rather than guesses.** Every node in
+  `ALLOWED_NODES` and every mark in `ALLOWED_MARKS` has a case; anything else raises. Inventing
+  syntax for an unknown node would put text into a file that could never be read back, which is
+  the failure import exists to make impossible.
+- **The parser is not ours, and the syntax is.** Serializing ten nodes and two marks is small,
+  total, and ours to define; parsing CommonMark is none of those, so `markdown-it-py` does it
+  (§ 2, ruling 3). It runs the strict `commonmark` preset with HTML off, so a table, a footnote,
+  and a `<div>` are not syntax at all — they arrive as the characters the writer typed, and
+  produce no notice because nothing was dropped.
+- **The round-trip corpus states the Markdown, not just the round trip.** Two halves that agreed
+  with each other on a syntax nobody chose would round-trip perfectly and still write files no
+  other reader could open. So each case carries the exact Markdown, hand-written, and one test
+  renders it with the parser's own renderer and compares what a reader would see to `text_plain`.
+- **Import creates chapters; it never replaces the text of one** (§ 2, ruling 5). That is what
+  keeps `save_content` the only path by which existing manuscript text changes. It is also why no
+  `pre-import` snapshot is ever written: nothing an import does can destroy text.
+- **Nothing is created until everything is measured.** An import parses the file, serializes every
+  chapter, and checks every size before the first row is written, so a file with one oversized
+  chapter is refused whole. A partial import leaves a writer with three chapters of a five-chapter
+  file and no way to tell which two are missing.
+- **What Markdown cannot hold is reported, and the words are kept.** A code fence becomes a
+  paragraph, a link keeps its text and loses its target, an image leaves its alt text, a heading
+  below level 3 is imported at level 3 — each named in `dropped` with the line it was on. The
+  field is a list of real losses only, which is why constructs the parser does not recognise are
+  absent from it.
+- **A Markdown export is a link, not a fetch.** The server sends it as an attachment with a
+  filename, so the client is an `<a href download>`: less code, no bytes held in memory, no second
+  implementation of the filename rules, and keyboard-reachable for free.
+- **In the combined export, level 1 means "chapter" — so every heading in a body goes down one**
+  (`D15`). The closed schema lets a writer put an H1 inside a chapter, and an exported file where
+  a boundary and a body heading are the same character cannot be split back into the chapters it
+  was made from. The offset is threaded through the block walk rather than applied to the top
+  level, because a heading inside a blockquote is subordinate too; it is zero everywhere but
+  `chapters_to_markdown`, so the per-chapter export's round-trip promise is untouched. The cost
+  lands on a body H3, which goes out as `####` and returns at level 3 **with a notice** — a loss
+  that announces itself, in the one file that never promised a round trip.
+- **The fake API client has no Markdown parser, and must never grow one** — the same rule as the
+  resolver's, for the same reason. `stageImport` says what an import creates.

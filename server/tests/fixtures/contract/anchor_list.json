@@ -1,0 +1,21 @@
+{
+  "anchors": [
+    {
+      "id": "anc_000000000001",
+      "project_id": "prj_000000000001",
+      "document_id": "doc_000000000001",
+      "from_pos": 24,
+      "to_pos": 40,
+      "quote": "harbour was grey",
+      "prefix": "Arrival\n\nThe Quay\n\nThe ",
+      "suffix": ".\n\nHe did not look back.",
+      "status": "stale",
+      "label": "the harbour",
+      "document_version": 2,
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "checked_at": "2026-01-01T00:00:00Z",
+      "suggestion": null
+    }
+  ]
+}

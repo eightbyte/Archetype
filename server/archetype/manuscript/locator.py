@@ -2,7 +2,10 @@
 
 ``GET /api/documents/{did}`` and its siblings address a document without naming its project, but
 storage is one SQLite file per project (D3) - so something has to answer "which file". That is
-this module.
+this module. ``/api/anchors/{aid}`` is addressed the same way, over the same cache (P2-7), and
+so is ``/api/snapshots/{sid}`` (P2-12) - and, from Phase 3, ``/api/entries/{eid}`` and
+``/api/links/{lid}`` (P3-9, P3-10). Each is one more prefix over one mechanism, never a second
+mechanism.
 
 The answer is cached, because the alternative is opening every project file on every keystroke's
 autosave. The cache is a hint, never an authority: every resolution re-confirms that the file
@@ -22,7 +25,13 @@ from pathlib import Path
 
 from ..projects.db import connect
 from ..projects.store import ProjectHandle, ProjectStore
+from .anchors.store import AnchorNotFoundError
 from .documents import DocumentNotFoundError
+from .snapshots import SnapshotNotFoundError
+
+# Deferred to the function bodies that raise them: the bible sits *above* the manuscript
+# (phase-3 plan section 7, `B2`), so importing its errors at module scope would put a
+# manuscript module below a bible one and re-create the cycle `anchors/__init__` avoids.
 
 __all__ = ["DocumentLocator"]
 
@@ -41,42 +50,117 @@ class DocumentLocator:
         Raises:
             DocumentNotFoundError: If no project file in the directory holds that document.
         """
-        path = self._cached_path(document_id)
-        if path is not None and _holds_document(path, document_id):
+        handle = self._locate("document", document_id)
+        if handle is None:
+            raise DocumentNotFoundError(f"no document {document_id!r} in {self.store.projects_dir}")
+        return handle
+
+    def resolve_anchor(self, anchor_id: str) -> ProjectHandle:
+        """The handle for the project holding ``anchor_id`` (P2-7).
+
+        ``PATCH`` and ``DELETE /api/anchors/{aid}`` address an anchor without naming its
+        document or its project, for the same reason a document route does: the *Marks* tab
+        holds anchors from every chapter at once, and making it carry a project id would put
+        the client in charge of a fact the server already knows.
+
+        Raises:
+            AnchorNotFoundError: If no project file in the directory holds that anchor.
+        """
+        handle = self._locate("anchor", anchor_id)
+        if handle is None:
+            raise AnchorNotFoundError(f"no anchor {anchor_id!r} in {self.store.projects_dir}")
+        return handle
+
+    def resolve_snapshot(self, snapshot_id: str) -> ProjectHandle:
+        """The handle for the project holding ``snapshot_id`` (P2-12).
+
+        ``GET /api/snapshots/{sid}`` and its restore are addressed the same way a document is,
+        and for the same reason: a snapshot already knows which document it belongs to, so
+        making the client repeat it would put it in charge of a fact the server owns.
+
+        Raises:
+            SnapshotNotFoundError: If no project file in the directory holds that snapshot.
+        """
+        handle = self._locate("snapshot", snapshot_id)
+        if handle is None:
+            raise SnapshotNotFoundError(f"no snapshot {snapshot_id!r} in {self.store.projects_dir}")
+        return handle
+
+    def resolve_entry(self, entry_id: str) -> ProjectHandle:
+        """The handle for the project holding ``entry_id`` (P3-9).
+
+        A bare ``{eid}`` is one more prefix over the mechanism documents, anchors, and snapshots
+        already use - not a second one. It is what lets the Bible tab hold entries from a project
+        it is not otherwise naming, exactly as the *Marks* tab holds anchors.
+
+        Raises:
+            EntryNotFoundError: If no project file in the directory holds that entry.
+        """
+        from ..bible.entries import EntryNotFoundError
+
+        handle = self._locate("entry", entry_id)
+        if handle is None:
+            raise EntryNotFoundError(f"no entry {entry_id!r} in {self.store.projects_dir}")
+        return handle
+
+    def resolve_link(self, link_id: str) -> ProjectHandle:
+        """The handle for the project holding ``link_id`` (P3-10).
+
+        Raises:
+            LinkNotFoundError: If no project file in the directory holds that link.
+        """
+        from ..bible.links import LinkNotFoundError
+
+        handle = self._locate("entry_link", link_id)
+        if handle is None:
+            raise LinkNotFoundError(f"no link {link_id!r} in {self.store.projects_dir}")
+        return handle
+
+    def forget(self, row_id: str) -> None:
+        """Drop a cached location. Called when a row is known to have gone."""
+        self._forget(row_id)
+
+    # -- internals --------------------------------------------------------------------------
+
+    def _locate(self, table: str, row_id: str) -> ProjectHandle | None:
+        """Which project file holds that row, or ``None``. The cache is a hint, never truth."""
+        path = self._cached_path(row_id)
+        if path is not None and _holds_row(path, table, row_id):
             return self.store.open_path(path)
 
         for candidate in self._candidate_paths():
-            if _holds_document(candidate, document_id):
-                self._remember(document_id, candidate)
+            if _holds_row(candidate, table, row_id):
+                self._remember(row_id, candidate)
                 return self.store.open_path(candidate)
 
-        self._forget(document_id)
-        raise DocumentNotFoundError(f"no document {document_id!r} in {self.store.projects_dir}")
-
-    def forget(self, document_id: str) -> None:
-        """Drop a cached location. Called when a document is known to have gone."""
-        self._forget(document_id)
-
-    # -- internals --------------------------------------------------------------------------
+        self._forget(row_id)
+        return None
 
     def _candidate_paths(self) -> list[Path]:
         return [summary.path for summary in self.store.list_projects()]
 
-    def _cached_path(self, document_id: str) -> Path | None:
+    def _cached_path(self, row_id: str) -> Path | None:
         with self._lock:
-            return self._cache.get(document_id)
+            return self._cache.get(row_id)
 
-    def _remember(self, document_id: str, path: Path) -> None:
+    def _remember(self, row_id: str, path: Path) -> None:
         with self._lock:
-            self._cache[document_id] = path
+            self._cache[row_id] = path
 
-    def _forget(self, document_id: str) -> None:
+    def _forget(self, row_id: str) -> None:
         with self._lock:
-            self._cache.pop(document_id, None)
+            self._cache.pop(row_id, None)
 
 
-def _holds_document(path: Path, document_id: str) -> bool:
-    """True if that project file holds that document. Never raises - a bad file is a 'no'."""
+#: The tables a bare id may address. A closed list, because the table name is spliced into the
+#: query rather than bound to it - ids are, and only these names ever reach it.
+_ADDRESSABLE = frozenset({"anchor", "document", "entry", "entry_link", "snapshot"})
+
+
+def _holds_row(path: Path, table: str, row_id: str) -> bool:
+    """True if that project file holds that row. Never raises - a bad file is a 'no'."""
+    if table not in _ADDRESSABLE:  # pragma: no cover - a caller bug, not a runtime condition
+        raise ValueError(f"{table!r} is not addressable by a bare id")
     if not path.is_file():
         return False
     try:
@@ -84,10 +168,11 @@ def _holds_document(path: Path, document_id: str) -> bool:
     except sqlite3.Error:
         return False
     try:
-        row = conn.execute("SELECT 1 FROM document WHERE id = ?", (document_id,)).fetchone()
+        row = conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (row_id,)).fetchone()
         return row is not None
     except sqlite3.DatabaseError:
-        # Not an Archetype project, or a corrupt one. The scan reports it; here it is a miss.
+        # Not an Archetype project, a corrupt one, or one still at a schema version without
+        # that table. The scan reports it; here it is a miss.
         return False
     finally:
         conn.close()

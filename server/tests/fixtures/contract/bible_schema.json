@@ -1,0 +1,595 @@
+{
+  "field_types": [
+    "entry_ref",
+    "enum",
+    "list_of_text",
+    "long_text",
+    "story_time",
+    "text"
+  ],
+  "kinds": [
+    {
+      "kind": "character",
+      "label": "Character",
+      "plural": "Characters",
+      "fields": [
+        {
+          "name": "aliases",
+          "type": "list_of_text",
+          "label": "Also known as",
+          "required": false,
+          "help": "Other names this is called. The bible is not a namespace and does not key off any of them.",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "role",
+          "type": "enum",
+          "label": "Role",
+          "required": false,
+          "help": "",
+          "members": [
+            "protagonist",
+            "antagonist",
+            "supporting",
+            "minor",
+            "chorus"
+          ],
+          "kinds": []
+        },
+        {
+          "name": "pronouns",
+          "type": "text",
+          "label": "Pronouns",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "age",
+          "type": "text",
+          "label": "Age",
+          "required": false,
+          "help": "Free text. 'about forty' is an answer; so is 'seventeen at the fire'.",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "appearance",
+          "type": "long_text",
+          "label": "Appearance",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "voice",
+          "type": "long_text",
+          "label": "Voice",
+          "required": false,
+          "help": "How they speak, and what they never say.",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "wants",
+          "type": "long_text",
+          "label": "What they want",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "home",
+          "type": "entry_ref",
+          "label": "Home",
+          "required": false,
+          "help": "Where they are from. Being somewhere at a particular time is a link, not this field.",
+          "members": [],
+          "kinds": [
+            "place"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "place",
+      "label": "Place",
+      "plural": "Places",
+      "fields": [
+        {
+          "name": "aliases",
+          "type": "list_of_text",
+          "label": "Also known as",
+          "required": false,
+          "help": "Other names this is called. The bible is not a namespace and does not key off any of them.",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "place_type",
+          "type": "enum",
+          "label": "Type",
+          "required": false,
+          "help": "",
+          "members": [
+            "region",
+            "settlement",
+            "building",
+            "room",
+            "wilderness",
+            "vessel",
+            "otherworld"
+          ],
+          "kinds": []
+        },
+        {
+          "name": "region",
+          "type": "entry_ref",
+          "label": "Within",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": [
+            "place"
+          ]
+        },
+        {
+          "name": "description",
+          "type": "long_text",
+          "label": "Description",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "atmosphere",
+          "type": "long_text",
+          "label": "Atmosphere",
+          "required": false,
+          "help": "What it feels like to be there.",
+          "members": [],
+          "kinds": []
+        }
+      ]
+    },
+    {
+      "kind": "item",
+      "label": "Item",
+      "plural": "Items",
+      "fields": [
+        {
+          "name": "aliases",
+          "type": "list_of_text",
+          "label": "Also known as",
+          "required": false,
+          "help": "Other names this is called. The bible is not a namespace and does not key off any of them.",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "item_type",
+          "type": "enum",
+          "label": "Type",
+          "required": false,
+          "help": "",
+          "members": [
+            "weapon",
+            "document",
+            "heirloom",
+            "tool",
+            "artifact",
+            "garment",
+            "other"
+          ],
+          "kinds": []
+        },
+        {
+          "name": "description",
+          "type": "long_text",
+          "label": "Description",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "significance",
+          "type": "long_text",
+          "label": "Why it matters",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": []
+        }
+      ]
+    },
+    {
+      "kind": "faction",
+      "label": "Faction",
+      "plural": "Factions",
+      "fields": [
+        {
+          "name": "aliases",
+          "type": "list_of_text",
+          "label": "Also known as",
+          "required": false,
+          "help": "Other names this is called. The bible is not a namespace and does not key off any of them.",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "faction_type",
+          "type": "enum",
+          "label": "Type",
+          "required": false,
+          "help": "",
+          "members": [
+            "family",
+            "guild",
+            "order",
+            "government",
+            "crew",
+            "cult",
+            "other"
+          ],
+          "kinds": []
+        },
+        {
+          "name": "seat",
+          "type": "entry_ref",
+          "label": "Seat",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": [
+            "place"
+          ]
+        },
+        {
+          "name": "purpose",
+          "type": "long_text",
+          "label": "What it wants",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "description",
+          "type": "long_text",
+          "label": "Description",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": []
+        }
+      ]
+    },
+    {
+      "kind": "event",
+      "label": "Event",
+      "plural": "Events",
+      "fields": [
+        {
+          "name": "story_time",
+          "type": "story_time",
+          "label": "When",
+          "required": false,
+          "help": "A label to read, an optional sort key to order by, an optional era. No calendar is ever parsed.",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "event_type",
+          "type": "enum",
+          "label": "Type",
+          "required": false,
+          "help": "",
+          "members": [
+            "scene",
+            "offstage",
+            "backstory",
+            "turning_point",
+            "other"
+          ],
+          "kinds": []
+        },
+        {
+          "name": "certainty",
+          "type": "enum",
+          "label": "Certainty",
+          "required": false,
+          "help": "",
+          "members": [
+            "established",
+            "implied",
+            "disputed"
+          ],
+          "kinds": []
+        },
+        {
+          "name": "consequences",
+          "type": "long_text",
+          "label": "Consequences",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": []
+        }
+      ]
+    },
+    {
+      "kind": "thread",
+      "label": "Thread",
+      "plural": "Threads",
+      "fields": [
+        {
+          "name": "thread_type",
+          "type": "enum",
+          "label": "Type",
+          "required": false,
+          "help": "",
+          "members": [
+            "main",
+            "subplot",
+            "mystery",
+            "romance",
+            "arc"
+          ],
+          "kinds": []
+        },
+        {
+          "name": "state",
+          "type": "enum",
+          "label": "State",
+          "required": false,
+          "help": "Where the thread has got to. Unrelated to the entry's own status, which is the proposal lifecycle.",
+          "members": [
+            "setup",
+            "developing",
+            "complicating",
+            "resolved",
+            "abandoned"
+          ],
+          "kinds": []
+        },
+        {
+          "name": "question",
+          "type": "long_text",
+          "label": "The question it poses",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "resolution",
+          "type": "long_text",
+          "label": "How it resolves",
+          "required": false,
+          "help": "",
+          "members": [],
+          "kinds": []
+        }
+      ]
+    },
+    {
+      "kind": "fact",
+      "label": "Fact",
+      "plural": "Facts",
+      "fields": [
+        {
+          "name": "statement",
+          "type": "long_text",
+          "label": "What is true",
+          "required": true,
+          "help": "",
+          "members": [],
+          "kinds": []
+        },
+        {
+          "name": "fact_type",
+          "type": "enum",
+          "label": "Type",
+          "required": false,
+          "help": "",
+          "members": [
+            "rule",
+            "history",
+            "custom",
+            "cosmology",
+            "language",
+            "other"
+          ],
+          "kinds": []
+        },
+        {
+          "name": "certainty",
+          "type": "enum",
+          "label": "Certainty",
+          "required": false,
+          "help": "",
+          "members": [
+            "established",
+            "implied",
+            "disputed"
+          ],
+          "kinds": []
+        },
+        {
+          "name": "scope",
+          "type": "text",
+          "label": "Where it holds",
+          "required": false,
+          "help": "'the northern provinces', 'after the flood'. Free text.",
+          "members": [],
+          "kinds": []
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "relation": "knows",
+      "label": "knows",
+      "inverse_label": "knows",
+      "from_kinds": [
+        "character"
+      ],
+      "to_kinds": [
+        "character"
+      ],
+      "symmetric": true
+    },
+    {
+      "relation": "related_to",
+      "label": "is related to",
+      "inverse_label": "is related to",
+      "from_kinds": [
+        "character"
+      ],
+      "to_kinds": [
+        "character"
+      ],
+      "symmetric": true
+    },
+    {
+      "relation": "member_of",
+      "label": "is a member of",
+      "inverse_label": "has as a member",
+      "from_kinds": [
+        "character"
+      ],
+      "to_kinds": [
+        "faction"
+      ],
+      "symmetric": false
+    },
+    {
+      "relation": "allied_with",
+      "label": "is allied with",
+      "inverse_label": "is allied with",
+      "from_kinds": [
+        "faction"
+      ],
+      "to_kinds": [
+        "faction"
+      ],
+      "symmetric": true
+    },
+    {
+      "relation": "opposes",
+      "label": "opposes",
+      "inverse_label": "is opposed by",
+      "from_kinds": [
+        "character",
+        "faction"
+      ],
+      "to_kinds": [
+        "character",
+        "faction"
+      ],
+      "symmetric": false
+    },
+    {
+      "relation": "owns",
+      "label": "owns",
+      "inverse_label": "is owned by",
+      "from_kinds": [
+        "character",
+        "faction"
+      ],
+      "to_kinds": [
+        "item"
+      ],
+      "symmetric": false
+    },
+    {
+      "relation": "located_in",
+      "label": "is in",
+      "inverse_label": "contains",
+      "from_kinds": [
+        "character",
+        "faction",
+        "place",
+        "item"
+      ],
+      "to_kinds": [
+        "place"
+      ],
+      "symmetric": false
+    },
+    {
+      "relation": "participates_in",
+      "label": "takes part in",
+      "inverse_label": "involves",
+      "from_kinds": [
+        "character",
+        "faction"
+      ],
+      "to_kinds": [
+        "event"
+      ],
+      "symmetric": false
+    },
+    {
+      "relation": "occurs_at",
+      "label": "happens at",
+      "inverse_label": "is where",
+      "from_kinds": [
+        "event"
+      ],
+      "to_kinds": [
+        "place"
+      ],
+      "symmetric": false
+    },
+    {
+      "relation": "precedes",
+      "label": "comes before",
+      "inverse_label": "comes after",
+      "from_kinds": [
+        "event"
+      ],
+      "to_kinds": [
+        "event"
+      ],
+      "symmetric": false
+    },
+    {
+      "relation": "advances",
+      "label": "advances",
+      "inverse_label": "is advanced by",
+      "from_kinds": [
+        "event"
+      ],
+      "to_kinds": [
+        "thread"
+      ],
+      "symmetric": false
+    },
+    {
+      "relation": "concerns",
+      "label": "concerns",
+      "inverse_label": "is the subject of",
+      "from_kinds": [
+        "fact"
+      ],
+      "to_kinds": [
+        "character",
+        "place",
+        "item",
+        "faction",
+        "event",
+        "thread",
+        "fact"
+      ],
+      "symmetric": false
+    }
+  ]
+}

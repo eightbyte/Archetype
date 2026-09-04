@@ -36,7 +36,14 @@ import {
   useRef,
 } from 'react';
 import type { ReactNode } from 'react';
-import type { ApiClient } from '../api';
+import type {
+  Anchor,
+  ApiClient,
+  EntryFromRange,
+  EntryInput,
+  Snapshot,
+  SnapshotMeta,
+} from '../api';
 import { ApiError } from '../api';
 import type { SaveOutcome, SaveSchedulerOptions } from '../editor/autosave';
 import { SaveScheduler } from '../editor/autosave';
@@ -77,6 +84,61 @@ interface DocumentContextValue {
   jumpToHeading: (ordinal: number) => void;
   /** The editor has scrolled; clear the request. */
   headingReached: () => void;
+  /**
+   * Open an anchor's chapter and scroll to it (P2-10).
+   *
+   * Resolves `false` when the chapter could not be switched to — unsaved work, or an unanswered
+   * conflict. Nothing was moved and nothing was lost; the caller says so.
+   */
+  goToAnchor: (documentId: string, anchorId: string) => Promise<boolean>;
+  /** The editor found the decoration and scrolled to it; clear the request. */
+  anchorReached: () => void;
+  /**
+   * Anchor a range of the open chapter (P2-9).
+   *
+   * Sends the ProseMirror range and the document version, and nothing else: the server reads
+   * the quote and its context out of the stored text, so an anchor cannot disagree with the
+   * manuscript. Flushes first, because a range against text the server has not been told about
+   * is a range against text nobody looked at (D19).
+   */
+  createAnchor: (fromPos: number, toPos: number, label?: string) => Promise<Anchor>;
+  /**
+   * *Add to bible*: make an entry out of the selection, in one act (P3-14, P3-7).
+   *
+   * The same promise `createAnchor` makes, over three tables instead of one. It flushes, sends a
+   * **range and a version and never a quote**, and the server mints the anchor, creates the
+   * entry, and cites it inside a single transaction — so a stale version leaves no anchor, no
+   * entry, and no citation (ruling 8, deviation `B1`).
+   *
+   * It lives here rather than on `BibleContext` because only this layer can answer *which*
+   * chapter and *which* version, synchronously, after a flush. What it does **not** do is tell
+   * the bible: the caller does that, so that the document layer keeps its one upward dependency
+   * (the project's dispatch) rather than acquiring a second.
+   */
+  addToBible: (fromPos: number, toPos: number, input: EntryInput) => Promise<EntryFromRange>;
+  /** Mark this version of the open chapter, with a label (D23). */
+  markVersion: (label: string) => Promise<SnapshotMeta | null>;
+  /** The open chapter's history, newest first. Metadata only — never content. */
+  listSnapshots: () => Promise<SnapshotMeta[]>;
+  /** One snapshot with its content, for a preview. */
+  readSnapshot: (snapshotId: string) => Promise<Snapshot>;
+  /**
+   * Flush, then hand back the open chapter's text as this client has it.
+   *
+   * What a restore from here would replace, which is the honest "before" to show beside a
+   * snapshot — the content the editor was *seeded* with is what the chapter was when it was
+   * opened, not what it is now. If another window has since written, this client's copy is
+   * behind, and the restore it is offering would be refused as stale either way (D19).
+   */
+  savedContent: () => Promise<ProseMirrorDocument | null>;
+  /**
+   * Restore a snapshot of the open chapter.
+   *
+   * An ordinary save on the server (D23): the current text is snapshotted as `pre-restore`
+   * inside the same transaction, the version moves, and the anchors are re-resolved. The
+   * editor then reloads to the restored content.
+   */
+  restoreSnapshot: (snapshotId: string) => Promise<void>;
 }
 
 const DocumentContext = createContext<DocumentContextValue | null>(null);
@@ -191,6 +253,37 @@ export function DocumentProvider({
     return !isDirty(stateRef.current);
   }, [saver]);
 
+  /**
+   * Read a document's anchors, resolved against its current text, into the project's list.
+   *
+   * Deliberately not fatal. Anchors are a layer over the manuscript; a panel that could not be
+   * drawn must never be the reason the writing surface is not, and the editor may be holding
+   * the only copy of a sentence (P1-9's per-region rule, applied to a request).
+   */
+  const loadAnchors = useCallback(async (documentId: string): Promise<void> => {
+    try {
+      const listed = await clientRef.current.listDocumentAnchors(documentId);
+      projectDispatchRef.current({ type: 'anchors-resolved', documentId, anchors: listed.anchors });
+    } catch {
+      // Leave whatever the project list already had: a cached answer beats an empty panel.
+    }
+  }, []);
+
+  /**
+   * Snapshot the chapter being left behind (D23).
+   *
+   * Best-effort by design: a handover snapshot is a convenience, and a chapter whose text has
+   * not changed since the last one writes nothing at all — the server deduplicates it. Failing
+   * a chapter switch over one would trade a real thing for a spare copy.
+   */
+  const captureHandover = useCallback(async (documentId: string): Promise<void> => {
+    try {
+      await clientRef.current.captureSnapshot(documentId, 'handover');
+    } catch {
+      // Nothing to say and nothing to do: the writer asked to change chapters, not to snapshot.
+    }
+  }, []);
+
   const loadDocument = useCallback(
     async (documentId: string, headingOrdinal?: number): Promise<void> => {
       saver.cancel();
@@ -216,9 +309,11 @@ export function DocumentProvider({
           return;
         }
         applyAction({ type: 'open-failed', message: describeFailure(error) });
+        return;
       }
+      await loadAnchors(documentId);
     },
-    [applyAction, saver],
+    [applyAction, loadAnchors, saver],
   );
 
   const openDocument = useCallback(
@@ -235,11 +330,27 @@ export function DocumentProvider({
       if (!(await flushForHandover())) {
         return false;
       }
+      const leaving = current.documentId;
+      if (leaving !== null && current.status === 'ready') {
+        await captureHandover(leaving);
+      }
       await loadDocument(documentId, headingOrdinal);
       return true;
     },
-    [applyAction, flushForHandover, loadDocument],
+    [applyAction, captureHandover, flushForHandover, loadDocument],
   );
+
+  /** Flush, snapshot the chapter being left, and say whether unsaved work is still here. */
+  const canLeave = useCallback(async (): Promise<boolean> => {
+    const current = stateRef.current;
+    if (!(await flushForHandover())) {
+      return false;
+    }
+    if (current.documentId !== null && current.status === 'ready') {
+      await captureHandover(current.documentId);
+    }
+    return true;
+  }, [captureHandover, flushForHandover]);
 
   const edit = useCallback(
     (content: ProseMirrorDocument) => {
@@ -283,6 +394,118 @@ export function DocumentProvider({
   );
   const headingReached = useCallback(() => applyAction({ type: 'jump-completed' }), [applyAction]);
 
+  const goToAnchor = useCallback(
+    async (documentId: string, anchorId: string): Promise<boolean> => {
+      if (!(await openDocument(documentId))) {
+        return false;
+      }
+      // After the open, not with it: the decoration does not exist until the anchors have been
+      // read, which is one request behind the document.
+      applyAction({ type: 'anchor-jump-requested', anchorId });
+      return true;
+    },
+    [applyAction, openDocument],
+  );
+  const anchorReached = useCallback(
+    () => applyAction({ type: 'anchor-jump-completed' }),
+    [applyAction],
+  );
+
+  const createAnchor = useCallback(
+    async (fromPos: number, toPos: number, label?: string): Promise<Anchor> => {
+      // Flush first. The server derives the quote from the text it holds, so anchoring a range
+      // it has not been told about would anchor the wrong words — or be refused as stale.
+      await saver.flush();
+      const current = stateRef.current;
+      if (current.documentId === null || current.status !== 'ready') {
+        throw new Error('no chapter is open to anchor');
+      }
+      const anchor = await clientRef.current.createAnchor(
+        current.documentId,
+        { from_pos: fromPos, to_pos: toPos, version: current.version },
+        label ?? '',
+      );
+      projectDispatchRef.current({ type: 'anchor-changed', anchor });
+      return anchor;
+    },
+    [saver],
+  );
+
+  const addToBible = useCallback(
+    async (fromPos: number, toPos: number, input: EntryInput): Promise<EntryFromRange> => {
+      // Flush for the reason `createAnchor` flushes: the server derives the quote from the text
+      // it holds, and a range against text it has not been told about is a range over the wrong
+      // words — or a `409` (D19).
+      await saver.flush();
+      const current = stateRef.current;
+      if (current.documentId === null || current.status !== 'ready') {
+        throw new Error('no chapter is open to add to the bible');
+      }
+      const created = await clientRef.current.createEntryFromRange(current.documentId, {
+        ...input,
+        from_pos: fromPos,
+        to_pos: toPos,
+        version: current.version,
+      });
+      // The anchor is the manuscript's, so it goes into the project's list like any other — which
+      // is what puts the highlight in the editor and the mark in the *Marks* tab.
+      projectDispatchRef.current({ type: 'anchor-changed', anchor: created.anchor });
+      return created;
+    },
+    [saver],
+  );
+
+  const markVersion = useCallback(
+    async (label: string): Promise<SnapshotMeta | null> => {
+      // A mark records what is on screen, so what is on screen has to be what is stored.
+      await saver.flush();
+      const documentId = stateRef.current.documentId;
+      if (documentId === null) {
+        return null;
+      }
+      const captured = await clientRef.current.captureSnapshot(documentId, 'manual', label);
+      return captured.snapshot;
+    },
+    [saver],
+  );
+
+  const listSnapshots = useCallback(async (): Promise<SnapshotMeta[]> => {
+    const documentId = stateRef.current.documentId;
+    if (documentId === null) {
+      return [];
+    }
+    return (await clientRef.current.listSnapshots(documentId)).snapshots;
+  }, []);
+
+  const readSnapshot = useCallback(
+    (snapshotId: string): Promise<Snapshot> => clientRef.current.getSnapshot(snapshotId),
+    [],
+  );
+
+  const savedContent = useCallback(async (): Promise<ProseMirrorDocument | null> => {
+    await saver.flush();
+    return contentRef.current;
+  }, [saver]);
+
+  const restoreSnapshot = useCallback(
+    async (snapshotId: string): Promise<void> => {
+      await saver.flush();
+      const current = stateRef.current;
+      const documentId = current.documentId;
+      if (documentId === null || current.status !== 'ready') {
+        return;
+      }
+      const result = await clientRef.current.restoreSnapshot(snapshotId, current.version);
+      // The restore is a save like any other, so the rest of the app hears about it the same
+      // way — including the anchors it moved (D21).
+      projectDispatchRef.current({ type: 'document-saved', result });
+      // And then the editor takes the restored text, through the ordinary load path: the
+      // content came from the server, so the server is where it is read back from.
+      await loadDocument(documentId);
+    },
+    [loadDocument, saver],
+  );
+
   // Open the first chapter once the project is ready. A project always has one (P1-12 seeds it
   // server-side), so a writer lands in the editor rather than in an empty state.
   const firstDocumentId = projectState.chapters[0]?.document_id ?? null;
@@ -316,7 +539,7 @@ export function DocumentProvider({
       state,
       dirty: isDirty(state),
       openDocument,
-      canLeave: flushForHandover,
+      canLeave,
       edit,
       flush,
       retrySave,
@@ -324,11 +547,20 @@ export function DocumentProvider({
       rename,
       jumpToHeading,
       headingReached,
+      goToAnchor,
+      anchorReached,
+      createAnchor,
+      addToBible,
+      markVersion,
+      listSnapshots,
+      readSnapshot,
+      savedContent,
+      restoreSnapshot,
     }),
     [
       state,
       openDocument,
-      flushForHandover,
+      canLeave,
       edit,
       flush,
       retrySave,
@@ -336,6 +568,15 @@ export function DocumentProvider({
       rename,
       jumpToHeading,
       headingReached,
+      goToAnchor,
+      anchorReached,
+      createAnchor,
+      addToBible,
+      markVersion,
+      listSnapshots,
+      readSnapshot,
+      savedContent,
+      restoreSnapshot,
     ],
   );
 
