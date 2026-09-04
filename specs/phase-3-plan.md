@@ -1,13 +1,13 @@
 # Phase 3 — Story Bible (manual)
 
-**Status:** **Code complete (2026-09-03)** — § 2 **ruled**: D25–D29 are binding and promoted to
-the register, both reversals accepted, closing backlog `Q2` and `Q7`. **All four groups delivered**
-(`P3-1` … `P3-15`), both suites green (1,147 backend, 524 frontend). Group D put the bible on
-screen: the tab with its four views, the generic form over all six field types, links, citations,
-and *Add to bible* in the editor's selection control — which closes `P3-5`'s outstanding renderer
-half. `P3-15`'s documentation pass is done. **§ 8's fifteen-step acceptance run has not been
-attempted**, and it is the only thing standing between this and the phase boundary.
-**Version:** 1.4 · **Date:** 2026-09-03
+**Status:** **COMPLETE (2026-09-04)** — § 2 **ruled**: D25–D29 are binding and promoted to the
+register, both reversals accepted, closing backlog `Q2` and `Q7`. **All four groups delivered**
+(`P3-1` … `P3-15`), and **§ 8's fifteen-step acceptance run passed on 2026-09-04**, run by hand
+against the single-process build. Two steps passed with findings (§ 7, `E1` and `E2`); `E2` is a
+real display defect the run found in the one edit shape no test makes, fixed with two new tests
+and step 12 re-run against the fix. **All ten exit criteria in § 5 are met.** Both suites green —
+**1,147 backend, 526 frontend**.
+**Version:** 1.5 · **Date:** 2026-09-04
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 **Writes:** `specs/bible.md` (P3-1) · completes [`specs/data-model.md`](data-model.md) and extends
@@ -653,7 +653,9 @@ level with the code **in the same change**, not afterwards:
 
 ## 5. Exit Criteria
 
-Phase 3 is done when **all** of these hold.
+Phase 3 is done when **all** of these hold. **All ten are met** — 1 to 7 by § 8's run on
+2026-09-04, 8 and 9 by the suites, 10 by `P3-15`'s documentation pass. The verdict on each is in
+the line that states it.
 
 1. **A bible for a test story can be built entirely by hand** — at least one entry of all seven
    kinds, links between them, and citations into the manuscript — using only the UI.
@@ -768,6 +770,15 @@ the two that put a rule in a second place, each with the argument for why that s
 | **D7** | `P3-12` | "The list filters and searches without a refetch per keystroke." | Read as a **debounce on the server-side filter**, not as client-side filtering. The `q`, `kind`, and `status` filters all go to the route (ruling 4, and the reason `counts` is unfiltered — `C6`); the search box waits 200 ms, and choosing a kind or a status goes out at once, because those are single deliberate clicks and waiting after one reads as lag. Filtering on the client instead would have made `truncated` meaningless and left the route's filters with no consumer until Phase 6. Every **write** refreshes the list unconditionally, for the same reason: working out on the client which writes change list membership means re-implementing the route's filters, and that copy is the one that drifts. |
 | **D8** | — | — | **Two touches outside the bible, both small and both deliberate.** `SelectionActions.tsx` gained a third action (*Add to bible*) and two props, and `DocumentContext` gained `addToBible` — which flushes, reads the open chapter and its version, and calls the one route, exactly as `createAnchor` does. It does **not** tell the bible: `EditorRegion` does that, so the document layer keeps its single upward dependency single. `Workspace.test.tsx`'s tab-strip assertion changed from "three tabs say when they arrive" to "two", and now checks the Timeline placeholder names Phase 8; the tab strip itself is unchanged and still five, as P1-9 fixed it. Recorded because a changed assertion is a deliberate act (`CLAUDE.md`, Testing). |
 
+**The acceptance run, 2026-09-04.** Two findings, both from § 8. `E2` is the one that matters: it
+is a real defect, in the one case the Phase 2 corpus never made, found by a person doing the thing
+the corpus abstracts.
+
+| # | Item | Planned | As built, and why |
+|---|---|---|---|
+| **E1** | § 8 step 3 | "Try to give an entry an attribute value its `enum` does not declare, and an `entry_ref` to the wrong kind. **Both are refused with a message naming the field.**" | **The step cannot be performed by hand, and that is the correct outcome rather than a gap.** `EntryFields.tsx` renders an `enum` as a `<select>` over exactly `field.members` and an `entry_ref` as a `<select>` over the candidates of the declared kinds, so no gesture exists that offers a value outside either set — the writer's note reads *"no ability to add or select outside of the dropdown provided."* The step was written expecting the server's `422` to be reachable from the UI; it is not, for the same reason step 5's illegal link is not, and D26's whole point is that the served definition makes the illegal choice **unbuildable**. The refusal still exists and is still load-bearing, because the routes are what Phase 7's proposals will arrive through rather than the form — it is covered by `test_bible_schema.py`, `test_entries.py`, and `test_entry_routes.py`, each asserting the refusal names the field and writes nothing. **What is genuinely untested by hand is the client's field-level error rendering** (`FieldShell`'s `error`), which now has no manual path at all; `entryForm.test.tsx` is the only thing standing under it, and it is recorded here beside `C7` and `C8`'s list of surfaces no test reaches — this being the mirror case, a surface no *person* can reach. Step 3 is left in § 8 unchanged: a step that cannot fail is worth knowing about, and it will be able to fail again the moment a route grows a writer the form does not mediate. |
+| **E2** | `P2-9` / § 8 step 12 | A `stale` anchor is drawn from its stored positions like any other, distinguished by a wavy underline in `--alarm`. § 8 step 12 asks only that the highlight "has **not** moved somewhere approximately right". | **The display rule was wrong, and the wavy underline was the whole of the problem.** The finding: rewriting a marked passage *wholesale* — new sentences, not a tweak, which is the one edit shape the Phase 2 corpus never makes — leaves the anchor drawn as a **range over words it never referred to**. Measured against real ProseMirror: replacing the passage with something longer leaves the underline over `"counted the mast"`, a mid-word fragment of the new sentence; with something shorter it clamps onto `"."`; and typing over the selection maps the range *onto the replacement*, so it never collapses and no `⚑` marker ever appears. That last point is why the writer reported no highlight where the code plainly draws one — a wavy red underline in a `contenteditable` **is** the browser's spellcheck idiom, so the mark was being read as a spelling squiggle rather than as a mark. Two answers were put to the writer: draw a stale anchor as the collapsed marker instead (dropping a range the server itself calls "true at no version", `anchors/rewrite.py`), or keep the range and restyle it. **Ruled: keep the range, restyle it** — so the positions stay the server's answer, unedited, and how the mark *reads* becomes the whole of the guard. `.anchor-stale` is now a tinted `--alarm` wash under a solid 2 px rule: not a thing prose does to itself, and it survives the line wrap an inline decoration has to cross. Two tests were added to `anchorPlugin.test.ts` pinning the wholesale-rewrite case in both halves — the live replacement and the server's answer on reload — because the absence of that case is what let this ship. `specs/anchors.md` § 1 carries it as one more thing an anchor does **not** promise. **The geometry is unchanged and the honest limit is now written down**: a `stale` anchor's range is not a claim about the text under it, and no consumer may read it as one. |
+
 ---
 
 ## 8. Manual Acceptance — the phase-boundary run
@@ -787,24 +798,36 @@ cd web; npm run build
 cd server; .\.venv\Scripts\python.exe -m archetype     # http://127.0.0.1:8787
 ```
 
-**Result: not yet run.** Every work item is delivered and both suites are green; this run is what
-remains. Fill the *Outcome* column in step by step as it happens, and record anything it finds in
-§ 7 the way Phase 2's step 13 recorded `D15`.
+**Result: run by hand on 2026-09-04 against the single-process build. All fifteen steps passed.**
+Two of them passed *with findings*, recorded in § 7 as `E1` and `E2` the way Phase 2's step 13
+recorded `D15`:
+
+- **Step 3 could not be performed as written** — the UI gives no way to offer an illegal value, so
+  the refusal it asks for is unreachable by hand (`E1`). The step is left in the table with what
+  actually happened, because a step that cannot fail is worth knowing about.
+- **Step 12 found the display rule for a `stale` anchor was wrong** (`E2`), in the case no test
+  reached: a passage rewritten *wholesale* rather than edited. It was fixed and step 12 re-run,
+  which is what the Phase 2 precedent asks for.
+
+It earned its keep on the second of those. The Phase 2 anchor corpus edits a character or a word
+everywhere it touches this path, and a wholesale rewrite maps differently — so a `stale` anchor was
+drawing a range over words it had never referred to, and no test on either side of the wire said
+so.
 
 | # | Do this | It must | Outcome |
 |---|---|---|---|
-| **1** | Open the Phase 2 test manuscript. Select a passage describing a character and use *Add to bible*; choose `character` and give a name. | The entry appears in the Bible tab with one citation; the passage is highlighted in the editor; the citation shows the quote the **server** derived, not one the client sent. | — |
-| **2** | Create one entry of each remaining kind by hand: `place`, `item`, `faction`, `event`, `thread`, `fact`. | Each form shows that kind's fields and nothing else, all six field types appear across the seven forms, and each entry saves and reappears after a tab switch. | — |
-| **3** | Try to give an entry an attribute value its `enum` does not declare, and an `entry_ref` to the wrong kind. | Both are refused with a message naming the field. Nothing is written. | — |
-| **4** | Link the character to the faction (`member_of`), to another character (`knows`), and to the event (`participates_in`). | Each link appears on **both** entries. The symmetric one (`knows`) appears once from each side, not twice from either. | — |
-| **5** | Try to build a link the vocabulary does not allow — a `place` that `knows` an `item`. | The relation is not offered for that pair. An illegal link cannot be built, rather than being refused after the fact. | — |
-| **6** | Give two events a `sort_key` and a `precedes` link consistent with it. Then edit one key so the order contradicts the link. | Before: both events are ordered and nothing is reported. After: the contradiction is reported naming both events, and the rest of the events are **still ordered**. | — |
-| **7** | Create a third event with neither a key nor a constraint. | It is listed as unplaced, not ordered arbitrarily and not dropped (D9). | — |
-| **8** | **Retcon the character**: change an attribute, and save with the retcon box as it comes up. | The box was **already checked**, with the reason shown. Every entry linked to the character — in either direction — is in the review queue with a reason naming the character and the revision. Nothing unlinked is flagged. | — |
-| **9** | Clear the review flag on one of them. | It leaves the queue. **Nothing new is flagged** — clearing is not itself a retcon. | — |
-| **10** | Edit another entry's **body only** and save. | A revision is written and **nobody is flagged**. This is the half of D27 that keeps the queue worth reading. | — |
-| **11** | Open the character's revision history, preview the revision before the retcon, and restore it. | The old state comes back; the restore is a **new** revision at the top of the history rather than a rewrite of it; and the restore computes its own retcon answer. | — |
-| **12** | Go to the manuscript and **rewrite the passage** the character's citation points at — new sentences, not a tweak. Wait for the save, then reload. | The citation on the entry reads `stale`, and its highlight has **not** moved somewhere approximately right. The entry itself is untouched. | — |
-| **13** | Repair the anchor from the *Marks* tab. | It returns to `ok`, and the entry's citation agrees without a separate repair step — one anchor, two views (ruling 5). | — |
-| **14** | **Delete the chapter** holding a cited anchor, then restore it. | While deleted: the citation reads `orphaned` and the entry says why. After restore: it returns to the status it held. | — |
-| **15** | **Delete the character entry**, then restore it. Reload the page. | Deleted: it leaves the list, the counts, the review queue, and **both ends of every link**. Restored: it comes back with its links, its citations, and its full revision history. After the reload, everything above is still true. | — |
+| **1** | Open the Phase 2 test manuscript. Select a passage describing a character and use *Add to bible*; choose `character` and give a name. | The entry appears in the Bible tab with one citation; the passage is highlighted in the editor; the citation shows the quote the **server** derived, not one the client sent. | **Passed.** |
+| **2** | Create one entry of each remaining kind by hand: `place`, `item`, `faction`, `event`, `thread`, `fact`. | Each form shows that kind's fields and nothing else, all six field types appear across the seven forms, and each entry saves and reappears after a tab switch. | **Passed.** |
+| **3** | Try to give an entry an attribute value its `enum` does not declare, and an `entry_ref` to the wrong kind. | Both are refused with a message naming the field. Nothing is written. | **Passed, and the step could not be performed as written** — see `E1`. *"No ability to add or select outside of the dropdown provided."* An `enum` is a `<select>` of its declared members and an `entry_ref` a `<select>` of the candidate kinds, so there is no gesture that offers an illegal value. What the step confirmed is the stronger property step 5 states: unbuildable, not refused. The server's refusal is real and covered by `test_bible_schema.py` and `test_entry_routes.py`. |
+| **4** | Link the character to the faction (`member_of`), to another character (`knows`), and to the event (`participates_in`). | Each link appears on **both** entries. The symmetric one (`knows`) appears once from each side, not twice from either. | **Passed.** |
+| **5** | Try to build a link the vocabulary does not allow — a `place` that `knows` an `item`. | The relation is not offered for that pair. An illegal link cannot be built, rather than being refused after the fact. | **Passed** — *"selection list only offered `contains` for a place and item link."* |
+| **6** | Give two events a `sort_key` and a `precedes` link consistent with it. Then edit one key so the order contradicts the link. | Before: both events are ordered and nothing is reported. After: the contradiction is reported naming both events, and the rest of the events are **still ordered**. | **Passed.** |
+| **7** | Create a third event with neither a key nor a constraint. | It is listed as unplaced, not ordered arbitrarily and not dropped (D9). | **Passed.** |
+| **8** | **Retcon the character**: change an attribute, and save with the retcon box as it comes up. | The box was **already checked**, with the reason shown. Every entry linked to the character — in either direction — is in the review queue with a reason naming the character and the revision. Nothing unlinked is flagged. | **Passed.** |
+| **9** | Clear the review flag on one of them. | It leaves the queue. **Nothing new is flagged** — clearing is not itself a retcon. | **Passed.** |
+| **10** | Edit another entry's **body only** and save. | A revision is written and **nobody is flagged**. This is the half of D27 that keeps the queue worth reading. | **Passed.** |
+| **11** | Open the character's revision history, preview the revision before the retcon, and restore it. | The old state comes back; the restore is a **new** revision at the top of the history rather than a rewrite of it; and the restore computes its own retcon answer. | **Passed.** |
+| **12** | Go to the manuscript and **rewrite the passage** the character's citation points at — new sentences, not a tweak. Wait for the save, then reload. | The citation on the entry reads `stale`, and its highlight has **not** moved somewhere approximately right. The entry itself is untouched. | **Passed, and it found the phase's one real bug** — see `E2`. *"There is no highlight in the text anymore, but everything is updating and pointing as I would have expected."* The citation, the status, and the entry were all correct; the **highlight** was not. It was still being drawn, as a wavy red underline — the browser's own spellcheck idiom, which is why it did not read as a mark — over whatever words now occupied the old offsets. Restyled, and the step **re-run against the fix: passed**, the mark now legible as a flagged region. |
+| **13** | Repair the anchor from the *Marks* tab. | It returns to `ok`, and the entry's citation agrees without a separate repair step — one anchor, two views (ruling 5). | **Passed.** |
+| **14** | **Delete the chapter** holding a cited anchor, then restore it. | While deleted: the citation reads `orphaned` and the entry says why. After restore: it returns to the status it held. | **Passed.** |
+| **15** | **Delete the character entry**, then restore it. Reload the page. | Deleted: it leaves the list, the counts, the review queue, and **both ends of every link**. Restored: it comes back with its links, its citations, and its full revision history. After the reload, everything above is still true. | **Passed.** |

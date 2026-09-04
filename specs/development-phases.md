@@ -82,7 +82,7 @@ Binding on the same terms as D1–D24. The plan's § 2 table stays as the reason
 | 0 | Planning & Specs | Decisions answered; Phase 1 plan approved | **Closed** (2026-08-29) |
 | 1 | [Skeleton & Editor](phase-1-plan.md) | Write, format, and reload a multi-chapter document; navigate by TOC; both suites green | **Complete** (2026-08-30) — every exit criterion met; acceptance recorded in its § 6 |
 | 2 | [Manuscript Model & Anchors](phase-2-plan.md) | An anchor survives heavy editing around it; deleted text yields `stale`, never a wrong match | **Complete (2026-09-01)** — § 2 ruled (D21–D24 binding, 2026-08-30); Groups A–D delivered 2026-08-31, both suites green; the § 8 acceptance run passed all fifteen steps, step 13 having found and closed `D15` |
-| 3 | [Story Bible (manual)](phase-3-plan.md) | Build a bible by hand; retcon an entry and see dependents flagged | **In progress** — plan written 2026-09-01; § 2 **ruled** the same day (D25–D29 binding, both reversals accepted), closing `Q2` and `Q7`. Group A under way |
+| 3 | [Story Bible (manual)](phase-3-plan.md) | Build a bible by hand; retcon an entry and see dependents flagged | **Complete (2026-09-04)** — § 2 ruled 2026-09-01 (D25–D29 binding, both reversals accepted), closing `Q2` and `Q7`; Groups A–D delivered 2026-09-02/03; the § 8 acceptance run passed all fifteen steps, step 12 having found and closed `E2`. All ten exit criteria met |
 | 4 | LLM Provider Layer & Chat | Ask a question about a selection, get a streamed answer; swap providers in settings with no code change | Not started |
 | 5 | Retrieval & Indexing | Search 50k words by meaning and by exact phrase; edits reindex within seconds | Not started |
 | 6 | Agent Harness & Tools | Watch the agent plan, search, read, and answer with citations | Not started |
@@ -108,7 +108,7 @@ version") · Markdown import and export (D15) · the anchor record · position r
 ProseMirror transactions · quote + prefix + suffix re-verification on load · the `ok` / `stale` /
 `orphaned` lifecycle · re-linking UI · the dedicated anchor test suite.
 
-**Phase 3 — [Story Bible](phase-3-plan.md)** — **built 2026-09-03; § 8's acceptance run outstanding** *(`specs/bible.md` written here, at `P3-1`, before the code it governs; `specs/data-model.md` completed here)*
+**Phase 3 — [Story Bible](phase-3-plan.md)** — **complete 2026-09-04** *(`specs/bible.md` written here, at `P3-1`, before the code it governs; `specs/data-model.md` completed here)*
 **Superseded by the plan** — fifteen items (`P3-1` … `P3-15`) in four groups, all delivered. Uniform entry record
 with a `kind` discriminator · per-kind attribute schemas **served by the API and rendered by one
 generic form** (D26) · CRUD for all seven kinds · links with a closed relation vocabulary
@@ -118,9 +118,12 @@ and story-time bounds (D9) · revision history and retcon dependent-flagging wit
 bible browser, filter-search, and detail views. Soft delete for entries and links (D25,
 settling `Q2`); `Q7` settled without adopting it (D29). One surface the plan did not budget: a
 story-time **readout** in the Bible tab — three lists, no drawing — so that D28's answers have a
-consumer a person can look at before Phase 8 draws the timeline (plan § 7, `D1`).
+consumer a person can look at before Phase 8 draws the timeline (plan § 7, `D1`). The § 8
+acceptance run passed all fifteen steps on 2026-09-04 and found one real defect in Phase 2's
+display of a `stale` anchor (`E2`), fixed in the same change.
 
-**Phase 4 — LLM Provider Layer & Chat** *(`specs/api-contract.md` extended here)*
+**Phase 4 — [LLM Provider Layer & Chat](phase-4-plan.md)** — **planned 2026-09-04** *(`specs/providers.md` written here, at `P4-1`, before the code it governs; `specs/api-contract.md` extended here)*
+**Superseded by the plan** — fifteen items (`P4-1` … `P4-15`) in four groups, none started.
 The `LLMProvider` port · Anthropic and OpenAI-compatible adapters · prompted-JSON tool fallback
 for providers without native tool calling · `FakeProvider` · settings UI with server-side key
 handling (D8) · WebSocket transport (D11) · streaming chat panel · selection-as-context ·

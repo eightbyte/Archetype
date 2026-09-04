@@ -216,6 +216,41 @@ describe('a range whose text is deleted', () => {
   });
 });
 
+describe('a passage rewritten wholesale (plan section 8, step 12)', () => {
+  // The case the whole Phase 2 corpus was blind to. Every other test here edits a character or
+  // a word; the acceptance run replaced a marked passage with new sentences, and that is a
+  // different shape. ProseMirror maps a range across a replacement onto the replacement, so the
+  // anchor does NOT collapse - which is why no collapsed marker appeared during the run.
+  test('typing over the marked passage keeps a range, over the words that replaced it', () => {
+    const state = withAnchors(stateOf(doc(HARBOUR)), [anchor(5, 16, 'harbour was')]);
+
+    const rewritten = state.apply(
+      state.tr.replaceWith(5, 16, state.schema.text('sky had turned')),
+    );
+
+    const [held] = anchorsIn(rewritten);
+    expect(isCollapsed(held!)).toBe(false);
+    expect(covered(rewritten, held!)).toBe('sky had turned');
+  });
+
+  // And on the reload afterwards: the server leaves a stale anchor's positions exactly where
+  // they were (P2-7), so the range lands on whatever now occupies those offsets - here a
+  // fragment that starts and ends mid-word. The plugin is right to draw it: a status is the
+  // server's to give and the positions are the server's answer. What carries the meaning is the
+  // `anchor-stale` class, and it is styled loudly for this reason (styles.css).
+  test('the server answer lands the range on text the anchor never referred to', () => {
+    const state = withAnchors(stateOf(doc('She counted the masts twice before the rain came.')), [
+      { id: 'anc_1', from: 5, to: 16, quote: 'harbour was', status: 'stale', label: 'the ship' },
+    ]);
+
+    const [held] = anchorsIn(state);
+    expect(isCollapsed(held!)).toBe(false);
+    expect(covered(state, held!)).toBe('counted the');
+    expect(held!.quote).toBe('harbour was');
+    expect(held!.status).toBe('stale');
+  });
+});
+
 describe('positions that are out of bounds', () => {
   test('are clamped rather than throwing and taking the editor down', () => {
     // The server leaves a `stale` anchor's positions where they were, deliberately (P2-7), and

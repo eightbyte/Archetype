@@ -663,9 +663,20 @@ h2 {
   text-underline-offset: 3px;
 }
 
+/* A `stale` mark is the one place the subtlety above is deliberately dropped, and the phase-3
+   acceptance run is why (plan section 8, step 12). A stale anchor's stored range is "true at no
+   version" (`anchors/rewrite.py`): the server leaves the positions where they were, so after a
+   wholesale rewrite the range sits over words the anchor never referred to. It is kept as a
+   range on the writer's ruling - the alternative was to draw a collapsed marker instead - which
+   makes how it *reads* the whole of the guard. Wavy is the browser's own spellcheck idiom and
+   was taken for one during the run; a tinted wash under a solid rule is not something prose
+   does to itself, and it survives the line wrap an inline decoration has to cross. */
 .anchor-stale {
+  background: rgb(140 47 29 / 10%);
+  border-radius: 2px;
   text-decoration-color: var(--alarm);
-  text-decoration-style: wavy;
+  text-decoration-style: solid;
+  text-decoration-thickness: 2px;
 }
 
 .anchor-collapsed {
