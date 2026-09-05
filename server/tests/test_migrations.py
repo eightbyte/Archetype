@@ -13,6 +13,9 @@ from pathlib import Path
 
 import pytest
 
+from archetype.bible.citations import CitationStore
+from archetype.bible.entries import EntryStore
+from archetype.bible.links import LinkStore
 from archetype.manuscript.anchors.store import AnchorStore
 from archetype.manuscript.documents import DocumentStore
 from archetype.manuscript.snapshots import SnapshotStore
@@ -37,6 +40,8 @@ TABLES = {
     "entry_revision",
     "entry_link",
     "entry_anchor",
+    "conversation",
+    "message",
 }
 
 
@@ -272,12 +277,15 @@ def test_a_version_2_fixture_database_migrates_forward(tmp_path: Path) -> None:
         assert len(before["anchor"]) == 4, "anchors in all three chapters"
         assert len(before["snapshot"]) == 2, "a manual mark and the delete's pre-delete snapshot"
 
-        assert migrate(conn) == 3
-        assert current_version(conn) == 3
+        # Since P4-4 this is two steps in one open - 002 -> 003 -> 004 - exactly as the
+        # version-1 fixture became a multi-step migration at P3-2. What the test is *about* is
+        # unchanged: a real Phase 2 file arrives with its manuscript untouched.
+        assert migrate(conn) == latest_version()
+        assert current_version(conn) == latest_version()
         assert TABLES <= table_names(conn)
 
         assert phase_2_rows() == before, (
-            "migration 003 adds four tables and must not touch document, anchor, or snapshot"
+            "no migration after 002 may touch document, anchor, or snapshot"
         )
         for table in ("entry", "entry_revision", "entry_link", "entry_anchor"):
             assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0, (
@@ -406,6 +414,209 @@ def test_migration_003_changed_no_manuscript_column(migrated_db: sqlite3.Connect
         "version",
     }
     assert "deleted_at" in column_names(migrated_db, "document")
+
+
+# -- migration 004 (P4-4, D30) --------------------------------------------------------------
+#
+# `tests/fixtures/db/capture_v003_phase3.py` made the fixture, before this migration existed: the
+# whole of the v002 manuscript plus a bible with all four of its tables populated - an entry made
+# *from a range*, links in a symmetric and a directed relation, a retcon that left a dependent
+# flagged, and a soft-deleted entry. Both soft deletes are the point: 004 is proved against a file
+# with D22's and D25's predicates already in play.
+
+
+def test_a_version_3_fixture_database_migrates_forward(tmp_path: Path) -> None:
+    fixture = DB_FIXTURES_DIR / "v003_phase3.sqlite"
+    assert fixture.is_file(), "the version-3 fixture database is missing"
+
+    path = tmp_path / "from_v003.sqlite"
+    shutil.copyfile(fixture, path)
+
+    conn = connect(path)
+    try:
+        assert current_version(conn) == 3
+
+        def phase_3_rows() -> dict[str, list[tuple]]:
+            return {
+                table: [tuple(row) for row in conn.execute(f"SELECT * FROM {table} ORDER BY 1, 2")]
+                for table in (
+                    "document",
+                    "anchor",
+                    "snapshot",
+                    "entry",
+                    "entry_revision",
+                    "entry_link",
+                    "entry_anchor",
+                )
+            }
+
+        before = phase_3_rows()
+        assert len(before["document"]) == 3, "three chapters, one of them soft-deleted"
+        assert len(before["anchor"]) == 5, "four made by hand and one minted by *Add to bible*"
+        assert len(before["entry"]) == 4, "three live entries and one soft-deleted"
+        assert len(before["entry_link"]) == 2
+        assert len(before["entry_anchor"]) == 1, "the citation create_from_range wrote"
+
+        assert migrate(conn) == 4
+        assert current_version(conn) == 4
+        assert TABLES <= table_names(conn)
+
+        assert phase_3_rows() == before, (
+            "migration 004 adds two tables and must not touch one row of the manuscript or the "
+            "bible"
+        )
+        for table in ("conversation", "message"):
+            assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0, (
+                f"{table} arrives empty; a migration does not invent a conversation"
+            )
+    finally:
+        conn.close()
+
+
+def test_the_migrated_v3_fixture_is_readable_through_its_stores(tmp_path: Path) -> None:
+    """A migration is not done when the schema changes - it is done when the stores can read.
+
+    Every Phase 3 surface at once, because the failure this catches is a migration that leaves
+    the file *openable* and one join wrong.
+    """
+    path = tmp_path / "readable_v003.sqlite"
+    shutil.copyfile(DB_FIXTURES_DIR / "v003_phase3.sqlite", path)
+
+    handle = ProjectStore(path.parent).open_path(path)
+    documents = DocumentStore(handle)
+    anchors = AnchorStore(handle)
+    entries = EntryStore(handle)
+    links = LinkStore(handle)
+    citations = CitationStore(handle)
+
+    metas = documents.list_meta()
+    assert [meta.title for meta in metas] == ["The Harbour", "What Elias Knew"]
+    assert [meta.title for meta in documents.list_deleted()] == ["A Chapter Removed"]
+    assert len(anchors.list_for_project()) == 5
+
+    live = entries.list()
+    assert sorted(entry.name for entry in live) == ["Elias", "Mira", "The Harbour"]
+    assert [entry.name for entry in entries.list(needs_review=True)] == ["Mira"], (
+        "the retcon captured in the fixture left its dependent flagged, and a migration does not "
+        "clear a review queue"
+    )
+    assert [entry.name for entry in entries.list(include_deleted=True) if entry.deleted_at] == [
+        "The Letter"
+    ]
+
+    mira = next(entry for entry in live if entry.name == "Mira")
+    elias = next(entry for entry in live if entry.name == "Elias")
+    assert {view.link.relation for view in links.for_entry(mira.id)} == {"knows", "located_in"}
+    assert len(entries.revisions(elias.id)) == 2, "creation, and the retcon that followed it"
+
+    cited = citations.citations(elias.id)
+    assert [citation.anchor.quote for citation in cited] == ["Elias kept the letter"]
+    assert cited[0].anchor.status == "ok", "the passage is still where the anchor left it"
+
+
+def test_the_conversation_table_has_the_planned_columns(migrated_db: sqlite3.Connection) -> None:
+    assert column_names(migrated_db, "conversation") == {
+        "id",
+        "project_id",
+        "title",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+    }
+
+
+def test_the_message_table_has_the_planned_columns(migrated_db: sqlite3.Connection) -> None:
+    """The plan's DDL plus `stop_reason`, which is deviation `A1` (phase-4-plan section 7)."""
+    assert column_names(migrated_db, "message") == {
+        "id",
+        "conversation_id",
+        "ord",
+        "role",
+        "content",
+        "context_json",
+        "provider",
+        "model",
+        "usage_json",
+        "stop_reason",
+        "error_code",
+        "created_at",
+    }
+
+
+def test_a_message_has_no_version_column_and_no_soft_delete(
+    migrated_db: sqlite3.Connection,
+) -> None:
+    """D30: an assistant turn is never edited, so there is nothing for D19 to guard.
+
+    A conversation is soft-deleted whole; a message inside one is not independently removable,
+    because a transcript with a hole in it is a record of a conversation that did not happen.
+    """
+    columns = column_names(migrated_db, "message")
+    assert "version" not in columns
+    assert "revision" not in columns
+    assert "deleted_at" not in columns
+    assert "deleted_at" in column_names(migrated_db, "conversation")
+
+
+def test_the_phase_4_indexes_exist(migrated_db: sqlite3.Connection) -> None:
+    names = {
+        row["name"]
+        for row in migrated_db.execute("SELECT name FROM sqlite_master WHERE type = 'index'")
+    }
+    assert {"idx_conversation_project", "idx_message_conversation"} <= names
+
+
+def test_two_messages_cannot_share_a_position_in_one_conversation(
+    migrated_db: sqlite3.Connection,
+) -> None:
+    """`ord` is the transcript's order, so a duplicate is a transcript that cannot be read back."""
+    with transaction(migrated_db):
+        migrated_db.execute(
+            "INSERT INTO project (id, title, created_at, updated_at, settings_json) "
+            "VALUES ('prj_migration04', 'x', ?, ?, '{}')",
+            (utc_now(), utc_now()),
+        )
+        migrated_db.execute(
+            "INSERT INTO conversation (id, project_id, title, created_at, updated_at) "
+            "VALUES ('cnv_migration004', 'prj_migration04', 'x', ?, ?)",
+            (utc_now(), utc_now()),
+        )
+        migrated_db.execute(
+            "INSERT INTO message (id, conversation_id, ord, role, content, created_at) "
+            "VALUES ('msg_migration0001', 'cnv_migration004', 1, 'user', 'hello', ?)",
+            (utc_now(),),
+        )
+    with pytest.raises(sqlite3.IntegrityError), transaction(migrated_db):
+        migrated_db.execute(
+            "INSERT INTO message (id, conversation_id, ord, role, content, created_at) "
+            "VALUES ('msg_migration0002', 'cnv_migration004', 1, 'assistant', 'hi', ?)",
+            (utc_now(),),
+        )
+
+
+def test_migration_004_changed_no_manuscript_or_bible_column(
+    migrated_db: sqlite3.Connection,
+) -> None:
+    """Extension-only, and specifically: Phase 4 writes to neither of them (plan section 1)."""
+    assert column_names(migrated_db, "entry") == {
+        "id",
+        "project_id",
+        "kind",
+        "name",
+        "summary",
+        "body_md",
+        "attributes_json",
+        "status",
+        "origin",
+        "revision",
+        "needs_review",
+        "review_reason",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+    }
+    assert "deleted_at" in column_names(migrated_db, "document")
+    assert "content_hash" in column_names(migrated_db, "snapshot")
 
 
 def test_a_file_newer_than_this_build_is_refused(tmp_path: Path) -> None:

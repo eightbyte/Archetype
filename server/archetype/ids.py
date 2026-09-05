@@ -1,9 +1,9 @@
 """Prefixed short-token IDs (P1-3, outline section 7).
 
 Every entity carries a greppable, prefixed identifier: ``prj_``, ``doc_``, ``anc_``, ``snp_``,
-``ent_``, ``lnk_``, ``run_``. The body is drawn from a Crockford-style base32 alphabet with the
-ambiguous glyphs (``i``, ``l``, ``o``, ``u``) removed, so an ID read aloud or copied out of a
-log survives the trip.
+``ent_``, ``lnk_``, ``cnv_``, ``msg_``, ``run_``. The body is drawn from a Crockford-style base32
+alphabet with the ambiguous glyphs (``i``, ``l``, ``o``, ``u``) removed, so an ID read aloud or
+copied out of a log survives the trip.
 
 Twelve body characters over a 32-symbol alphabet is 60 bits of entropy - collision-resistant far
 past the scale of a single-user manuscript, and short enough to skim in a log line.
@@ -46,10 +46,20 @@ class IdPrefix:
     #: ``(entry_id, revision)`` and is always reached through its entry, so minting an id for one
     #: would be an identity nobody dereferences.
     LINK: Final[str] = "lnk"
+    #: A chat conversation and one message in it (P4-4, D30). A message is reached
+    #: through its conversation and is addressable, so it gets an id; nothing about one
+    #: is independently mutable, so it carries no ``revision`` and no D19 guard - an
+    #: assistant turn is never edited. A Phase 6 ``run`` will *reference* a message
+    #: rather than replace it, which is why ``run`` has been reserved since Phase 1 and
+    #: is still unused.
+    CONVERSATION: Final[str] = "cnv"
+    MESSAGE: Final[str] = "msg"
     RUN: Final[str] = "run"
 
     #: Every prefix known to the current schema, for validation and log greps.
-    ALL: Final[frozenset[str]] = frozenset({"prj", "doc", "anc", "snp", "ent", "lnk", "run"})
+    ALL: Final[frozenset[str]] = frozenset(
+        {"prj", "doc", "anc", "snp", "ent", "lnk", "cnv", "msg", "run"}
+    )
 
 
 def random_token(length: int) -> str:

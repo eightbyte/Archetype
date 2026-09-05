@@ -18,22 +18,35 @@ Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository 
 `WritingAssistant` — a path, not the product name.
 
 **Current state: Phase 1 complete (2026-08-30); Phase 2 complete (2026-09-01); Phase 3 complete
-(2026-09-04). Phase 4 is planned and not started — its § 2 is unruled.** Phase 3's § 2 was ruled on
-2026-09-01, all fifteen items (`P3-1` … `P3-15`) are delivered across four groups, **§ 8's
-fifteen-step acceptance run passed on 2026-09-04**, and all ten exit criteria are met. Both suites
-green — **1,147 backend, 526 frontend**. All twenty-nine decisions are resolved and binding: the
-writer ruled D21–D24 on 2026-08-30 and **D25–D29 on 2026-09-01**, each as recommended and including
-both reversals, which settles backlog `Q1`, `Q2`, `Q5`, and `Q7`. Three open questions remain, none
-due before Phase 6.
+(2026-09-04). Phase 4 is in progress — its § 2 is ruled and Group A is delivered (2026-09-04).**
+Both suites green — **1,180 backend, 535 frontend**. All **thirty-four** decisions are resolved and
+binding: the writer ruled D21–D24 on 2026-08-30, D25–D29 on 2026-09-01 (both reversals accepted,
+settling backlog `Q1`, `Q2`, `Q5`, and `Q7`), and **D30–D34 on 2026-09-04, all five as
+recommended**. Three open questions remain, none due before Phase 6.
 
-**Next is [specs/phase-4-plan.md](specs/phase-4-plan.md) — the LLM provider layer and chat.** The
-plan is written; **none of its five proposed decisions (D30–D34) is binding until the writer rules
-on § 2**, and no work item may start before that. It proposes: where a conversation lives and that a
-Phase 4 turn is *not* a Phase 6 run (D30); whether the port carries tool declarations before any
-tool exists (D31 — the one place the phase deliberately builds ahead); one stream event vocabulary
-shared with Phase 6 (D32); that an accepted rewrite is an ordinary editor transaction rather than a
-durable proposal (D33); and that the API key stays environment-only with the settings UI read-only
-about it (D34).
+**The project file is at schema version 4.** Migration 004 added `conversation` and `message`
+(D30). `specs/data-model.md` still describes version 3 and its nine tables; it is brought level at
+`P4-15`, which is that phase's documentation pass — until then the migration and its tests are
+authoritative for the two new tables.
+
+**In progress: [specs/phase-4-plan.md](specs/phase-4-plan.md) — the LLM provider layer and
+chat.** Its § 2 was **ruled on 2026-09-04, all five as recommended**, and the five are promoted to
+the register: a conversation lives in its own two tables and a Phase 4 turn is *not* a Phase 6 run
+(D30); the port carries tool declarations before any tool exists (D31 — the one place the phase
+deliberately builds ahead, with recorded provider fixtures as their only consumer); one stream
+event vocabulary shared with Phase 6, the server rejecting an unknown event type and the client
+ignoring one (D32); an accepted rewrite is an ordinary editor transaction rather than a durable
+proposal (D33); and the API key stays environment-only with the settings UI read-only about it
+(D34, which **narrows D8**).
+
+**Group A is delivered** (`P4-1` … `P4-4`): `specs/providers.md`, written before the code it
+governs; `archetype/llm/port.py` — the protocol, the normalised shapes, and five closed
+vocabularies, pure and importable with nothing running; the empty `llm/adapters/` package and the
+**import-graph test** that keeps a provider SDK out of everything above it; `FakeProvider`, the
+first resident of `tests/fakes/`; and **migration 004** with the `cnv_` and `msg_` prefixes, proved
+against a captured version-3 project file. **Groups B, C, and D are not started** — there is no
+adapter, no registry, no route, no socket, and no panel, and nothing in the app calls a model yet.
+Six as-built deviations are in that plan's § 7.
 
 The app is a place you can write, a place you can **maintain** what you wrote, a place you can get
 words **in and out of**, and now a place that **knows what is in the story**: create a project, add
@@ -216,13 +229,16 @@ the corpus abstracts, and Phase 4's § 8 adds a third kind of blindness the suit
   the three worth reading, and **`E1` and `E2` are the acceptance run's two findings** — and **§ 8
   the fifteen-step acceptance run, run on 2026-09-04, all fifteen passed**, step 12 having found
   `E2` and been re-run against the fix.
-- [specs/phase-4-plan.md](specs/phase-4-plan.md) — Phase 4 work items (`P4-1` … `P4-15`), **not
-  started**. **Its § 2 is unruled**: five proposed register entries (D30–D34), none binding until
-  the writer rules on them, and no work item may start first. Its § 3 is the port's shape, § 5
-  twelve exit criteria, § 6 the risks — of which "money" and "the port is shaped by whichever
-  adapter is written first" are the two with no precedent in earlier phases — § 7 an empty
-  deviations table, and § 8 the fifteen-step acceptance run, which must additionally **record what
-  the model actually said**, because the suite cannot assess an answer.
+- [specs/phase-4-plan.md](specs/phase-4-plan.md) — Phase 4 work items (`P4-1` … `P4-15`).
+  **Its § 2 is ruled** (D30–D34, 2026-09-04, all five as recommended): D30 where a conversation
+  lives, D31 tool declarations before any tool exists, D32 one stream vocabulary shared with
+  Phase 6, D33 an accepted rewrite is an ordinary editor transaction, D34 keys stay
+  environment-only. Its § 3 is the port's shape, § 5 twelve exit criteria, § 6 the risks — of
+  which "money" and "the port is shaped by whichever adapter is written first" are the two with no
+  precedent in earlier phases — § 7 the deviations table (`A1`–`A6` so far; `A1` is the only one
+  that changes a stored shape and `A3` the only one that adds an unbudgeted surface), and § 8 the
+  fifteen-step acceptance run, which must additionally **record what the model actually said**,
+  because the suite cannot assess an answer.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
   phase it must be settled by. `Q1`, `Q2`, `Q5`, and `Q7` are promoted and closed; `Q3`, `Q4`, and
   `Q6` are open, none due before Phase 6. `Q2` and `Q7` were each settled **against** the leaning
@@ -230,8 +246,10 @@ the corpus abstracts, and Phase 4's § 8 adds a third kind of blindness the suit
 - [specs/data-model.md](specs/data-model.md) — storage as built at schema version 3: the project
   file, the **nine** tables, the projection rules, the write rules, all three soft-delete
   predicates, and the migration discipline. Its § 7 sketches Phases 5 and 6 and is **not** binding;
-  the rest is a bug if it disagrees with the code. Phase 4's `conversation` and `message` tables
-  (`P4-4`) are proposed in that plan and are not in this document until they are built.
+  the rest is a bug if it disagrees with the code — **with one exception, live now**: the file is
+  at version 4 and this document still describes version 3, because Phase 4's `conversation` and
+  `message` tables (`P4-4`, D30) are built and the documentation pass that folds them in is
+  `P4-15`. Until then `004_chat.sql` and `tests/test_migrations.py` are authoritative for them.
 - [specs/api-contract.md](specs/api-contract.md) — what each route promises and what it refuses:
   § 5's chapter operations, § 7's five anchor routes and the extended save response, § 8's four
   snapshot routes, § 9's two Markdown exports and one import — including the **one non-JSON
@@ -256,10 +274,16 @@ the corpus abstracts, and Phase 4's § 8 adds a third kind of blindness the suit
   relation's permitted kinds: those are D26's served definition, and a second copy in prose is
   exactly the third place to disagree that `specs/markdown.md` was refused for being. Its § 12
   carries the corrections the code makes to it — empty so far.
+- [specs/providers.md](specs/providers.md) — written at `P4-1`, **before** the code it governs,
+  on the `anchors.md` and `bible.md` pattern. It fixes the protocol and why it has two methods,
+  every normalised shape, the closed `stop_reason` set and the rule that a provider's own string
+  is kept beside it, D32's stream vocabulary and the reject-here/ignore-there asymmetry, the four
+  capability flags and exactly what each changes, the six-code error taxonomy, the context budget
+  as a **hard refusal**, and **what a provider may not be asked to do**. It deliberately does
+  **not** restate either provider's wire format — that is the adapters' translation and a recorded
+  fixture's truth. Its § 13 carries the corrections the code makes to it — empty so far. Read it
+  before touching anything in `archetype/llm/`.
 - `specs/agent-tools.md` — written as its phase begins (Phase 6).
-
-`specs/providers.md` does not exist yet: it is written at `P4-1`, before the code it governs, on
-the `anchors.md` and `bible.md` pattern.
 
 There is no `specs/markdown.md`, deliberately. The syntax is a docstring
 (`manuscript/markdown/serialize.py`) and a corpus (`tests/fixtures/markdown/cases.json`); the
@@ -396,6 +420,9 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/manuscript/markdown/parse.py` | CommonMark in, closed schema out, over `markdown-it-py`; and the notice for everything it could not keep (`P2-14`) |
 | `server/archetype/manuscript/markdown/importer.py` | The part of an import that writes: measure every chapter, then create them (`P2-14`) |
 | `server/archetype/manuscript/locator.py` | Resolves a bare document, anchor, or snapshot id to the project file holding it |
+| `server/archetype/llm/port.py` | The provider port: the protocol, the normalised shapes, and the five closed vocabularies. **Pure** — pydantic and the standard library (`P4-2`, D31, D32) |
+| `server/archetype/llm/adapters/` | The **only** place a provider SDK may be imported. Empty until `P4-5` (`P4-2`, plan ruling 2) |
+| `server/archetype/projects/migrations/004_chat.sql` | `conversation` and `message` — where a chat lives, and why a Phase 4 turn is not a Phase 6 run (`P4-4`, D30) |
 | `server/archetype/bible/schema.py` | The **one** place the seven kinds' fields and the twelve relations are written down; the six closed field types, `validate()`, and the JSON dump (`P3-5`, D26) |
 | `server/archetype/bible/predicates.py` | The live predicate for an entry, and the **three-way** one for a link — written once (`P3-3`, D25) |
 | `server/archetype/bible/entries.py` | `EntryStore` — CRUD for all seven kinds, the filters, the D25 soft delete, revisions, and D27's retcon flagging (`P3-3`, `P3-4`) |
@@ -418,8 +445,10 @@ suite keeps a developer's real config out of its way.
 | `server/tests/fixtures/schema/` | The closed schema, stated once and read by **both** suites (`P2-13`) |
 | `server/tests/fixtures/bible/storytime/` | The story-time corpus, hand-written from `specs/bible.md` § 7 (`P3-8`) |
 | `server/tests/fixtures/contract/` | API responses written by pytest, type-checked by vitest (`P1-8`) |
-| `server/tests/fakes/` | `FakeProvider` and `FakeEmbedder` land here in Phases 4 and 5 |
+| `server/tests/fakes/provider.py` | `FakeProvider` — scripted, computing nothing, and able to stage cadence and every stream failure the panel handles (`P4-3`) |
+| `server/tests/fakes/` | `FakeEmbedder` lands here in Phase 5 |
 | `web/src/api/` | The typed client, its interface, and the mirrored wire types |
+| `web/src/api/stream.ts` | D32's stream vocabulary on the client, and `parseStreamEvent` — which **ignores** an event type it does not know (`P4-2`, deviation `A3`) |
 | `web/src/state/` | The **four** contexts and their pure reducers, plus toasts and `localStorage` (`P1-9`, `P3-12`, D10) |
 | `web/src/state/projectReducer.ts` | The project's chapters, outline, deleted list, **and every anchor in it** (`P2-10`) |
 | `web/src/state/bibleReducer.ts` | The served definition, the browse list with its filters and counts, the review queue, and the deleted tray — three lists, and why they are three (`P3-12`) |
@@ -463,6 +492,7 @@ suite keeps a developer's real config out of its way.
 | `web/src/__tests__/chapters.test.tsx` | Reorder, rename, delete, and restore in the Contents tab (`P2-11`) |
 | `web/src/__tests__/snapshots.test.tsx` | The history panel, marking a version, and restoring one (`P2-12`) |
 | `web/src/__tests__/markdown.test.tsx` | The export links, the import form, and the report (`P2-13`, `P2-14`) |
+| `server/tests/test_llm_port.py` | The port, its vocabularies, the fake, and the two guards: an unknown stream event refused, and no provider SDK above `llm/adapters/` (`P4-2`, `P4-3`) |
 | `server/tests/test_bible_schema.py` | The closed field-type list, the definition's own consistency, and validation's refusals (`P3-5`) |
 | `server/tests/test_entries.py` | All seven kinds through one store, every refusal writing nothing, and the deleted entry absent from every read path together (`P3-3`) |
 | `server/tests/test_entry_revisions.py` | Revisions, restore-through-update, the retcon computation, and the review queue that empties (`P3-4`) |
@@ -473,13 +503,75 @@ suite keeps a developer's real config out of its way.
 | `server/tests/test_link_routes.py` | The link routes, and the story-time route held to the pure module's answer (`P3-10`) |
 | `server/tests/test_citation_routes.py` | *Add to bible* end to end, and the status a citation reports as the passage moves (`P3-10`) |
 | `server/tests/test_bible_routes.py` | The served definition, and that a field added to a kind reaches the wire with no other change (`P3-11`) |
+| `web/src/__tests__/stream.test.ts` | D32's other half: the client ignores an event type it does not know, and a stale bundle still reads the answer (`P4-2`) |
 | `web/src/__tests__/bibleReducer.test.ts` | The reducer, and the readers over the real served definition — including that a seventh field type fails (`P3-12`, `P3-13`) |
 | `web/src/__tests__/bible.test.tsx` | The tab: filters, live counts, the review queue that empties, the deleted tray, and the story-time readout (`P3-12`) |
 | `web/src/__tests__/entryForm.test.tsx` | Every field type round-tripping, the retcon default and its override, the `409`, and the history (`P3-13`) |
 | `web/src/__tests__/entryLinks.test.tsx` | Links both ways, the picker's refusals, citations and their status, and *Add to bible* below the gesture (`P3-14`) |
 
-**Invariants established in Phase 1's Groups A, B, and C, in Phase 2's Groups A, B, C, and D, and
-in Phase 3's Groups A, B, C, and D**, beyond those already listed above.
+**Invariants established in Phase 1's Groups A, B, and C, in Phase 2's Groups A, B, C, and D, in
+Phase 3's Groups A, B, C, and D, and in Phase 4's Group A**, beyond those already listed above.
+
+Phase 4's Group A added these:
+
+- **No provider SDK is imported outside `llm/adapters/`, and a test walks the import graph to say
+  so.** Not a convention: `test_llm_port.py` parses every module under `archetype/` and fails on an
+  `anthropic` or `openai` import anywhere else. An SDK type that escapes into a route is how
+  "nothing above the port knows which provider is in play" quietly stops being true, and it does
+  not announce itself — the app goes on working until the second provider is configured. The port
+  itself imports nothing but the standard library and pydantic, asserted the same way.
+- **The server refuses a stream event type it does not know; the client ignores one** (D32). One
+  rule, two implementations, deliberately opposite. On the server an unrecognised event means an
+  adapter and the port have parted company and the only safe answer is to stop; in the browser it
+  means a bundle older than the server, which must degrade to *less detail* rather than to a broken
+  panel. Both halves are tested — `test_llm_port.py` and `web/src/__tests__/stream.test.ts` — and
+  the client's tolerance stops at the shape: a `done` carrying a stop reason nobody defined is
+  skipped, not rendered.
+- **Two methods on the port, because faking either from the other lies.** Buffering a stream to
+  fake `complete` hides latency; chunking a result to fake `stream` invents a token cadence that
+  never existed. A provider declaring `streaming=False` **refuses** `stream()` rather than
+  pretending. What a *caller* may do — `complete()`, then one `delta` carrying the whole text — is
+  permitted and is the socket's decision in the open, never an adapter's quiet one.
+- **Every port vocabulary is a `Literal`, and its member tuple is derived from it.** `ROLES`,
+  `STOP_REASONS`, `STREAM_EVENT_TYPES`, `TOOL_CHOICES`, and `PROVIDER_ERROR_CODES` are each written
+  down once; a test restates them independently, so widening one fails the suite rather than being
+  confirmed by a check that reads the list it is checking. The same shape as `bible/schema.py`'s
+  closed field types.
+- **A stop reason has exactly one writer.** Five come from a provider's own string through an
+  adapter; `other` is what an unrecognised string normalises to, with `raw_stop_reason` keeping the
+  original; and **`cancelled` is written only by whoever closed the stream** — no adapter may
+  produce it. `raw_stop_reason` is never dropped, even when the mapping was the identity, because
+  that is what makes `other` diagnosable rather than merely honest.
+- **`provider_refused` is the provider; `stop_reason="refusal"` is the model.** The first is an
+  error and costs nothing. The second is a complete, billed answer whose content is a refusal —
+  throwing it away would lose both the text and the usage the writer paid for.
+- **Zero usage means "not reported", never "free".** A provider that reports no usage is one whose
+  bill this app cannot show, and the panel will say so rather than drawing a confident zero.
+- **The fake computes nothing and invents nothing.** It counts no tokens, judges no context budget,
+  translates nothing, and raises `NothingStagedError` when a test staged no answer — a fake that
+  made something up would let a test pass while asserting nothing. What it *may* stage is cadence
+  and failure: a mid-stream error, a stream that ends without `done`, a slow first token. Those are
+  the conditions the panel's handling exists for and no real provider produces them on demand. Its
+  one implemented rule is the port's own statement about itself (deviation `A5`).
+- **A stream that is opened and never read still counts as a call.** `FakeProvider.calls` records
+  at `stream()` rather than at first iteration, because the "money" risk is about what was
+  *asked for*: one deliberate ask is one call, including across a remount.
+- **A message is appended and never edited, so it carries no `revision` and no D19 guard.** A
+  conversation is soft-deleted whole; a message inside one is not independently removable, because
+  a transcript with a hole in it records a conversation that did not happen. `ord` is unique per
+  conversation, enforced by an index.
+- **The composed context is stored on the message that it produced** (ruling 5, D30). Phase 4 has
+  no run record, so the outline's standing invariant lands here, and Phase 6's `run` will reference
+  this row rather than replace it. Without it a wrong answer cannot be diagnosed without guessing.
+- **`provider` and `model` are recorded per message, not per conversation.** Swapping providers is
+  a settings change with no code change (D34), so two consecutive turns may legitimately have come
+  from different models — a transcript that could not say which would make § 8's step 12
+  unreadable.
+- **A fixture capture is not deterministic until the JSON is normalised too.** Pinning every
+  timestamp *column* left `v003_phase3.sqlite` differing between runs, because
+  `entry_revision.snapshot_json` embeds the entry's whole state and a soft delete's revision
+  carries a wall-clock `deleted_at` inside it. The hash check in the fixture README is what found
+  it (deviation `A6`).
 
 Phase 3's Group D added these:
 

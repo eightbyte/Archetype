@@ -100,7 +100,9 @@ def test_registered_prefixes_are_distinct() -> None:
         IdPrefix.SNAPSHOT,
         IdPrefix.ENTRY,
         IdPrefix.LINK,
+        IdPrefix.CONVERSATION,
+        IdPrefix.MESSAGE,
         IdPrefix.RUN,
     }
     assert declared == set(IdPrefix.ALL)
-    assert len(IdPrefix.ALL) == 7
+    assert len(IdPrefix.ALL) == 9

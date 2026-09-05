@@ -1,10 +1,11 @@
 # Phase 4 — LLM Provider Layer & Chat
 
-**Status:** **Planned (2026-09-04)** — not started. **§ 2 is unruled**: it proposes five register
-entries (**D30–D34**) and none of them binds until the writer rules on it. Phase 3 closed on
-2026-09-04 with all fifteen acceptance steps passed; both suites are green (1,147 backend, 526
-frontend), and this plan is written against that build.
-**Version:** 1.0 · **Date:** 2026-09-04
+**Status:** **In progress (2026-09-04)** — **§ 2 is ruled**: D30–D34 were put to the writer on
+2026-09-04 and accepted **as recommended**, all five; they are promoted to the register and
+binding, and work items may start. **Group A is under way.** Phase 3 closed on 2026-09-04 with
+all fifteen acceptance steps passed; both suites are green (1,147 backend, 526 frontend), and
+this plan is written against that build.
+**Version:** 1.1 · **Date:** 2026-09-04
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1 (D5, **D8**, D10,
 **D11**, **D12**, D13, D19, D20)
@@ -67,13 +68,18 @@ Named explicitly, because each is one small step from where this phase ends:
 
 The same reasoning as Phases 1, 2, and 3: a ruling made before files exist costs nothing, and the
 same ruling made in Phase 6 is a migration plus two adapter rewrites. **Five of these become
-binding register entries.** None is settled; each is put with a recommendation, the alternative
-that was weighed, and where it bites if the answer is wrong.
+binding register entries.** Each was put with a recommendation, the alternative that was weighed,
+and where it bites if the answer is wrong.
 
 Phase 3's § 2 was ruled the day it was written and every item landed against a settled decision.
-The same is asked here.
+The same happened here.
 
-### Register entries — D30 to D34 (**proposed, not binding**)
+### Register entries — D30 to D34 (**ruled 2026-09-04 — binding**)
+
+**Ruled by the writer on 2026-09-04: all five as recommended**, and promoted to
+[`specs/development-phases.md`](development-phases.md) § 1. D34 narrows D8, whose own wording
+permitted the UI to POST a key. The table below is unchanged from the version that was put to
+the writer — it is the reasoning behind the ruling, and it stays as it was asked.
 
 | ID | Proposed decision | Recommendation | Alternative considered | Where it bites if wrong |
 |---|---|---|---|---|
@@ -152,6 +158,11 @@ Fifteen items in four groups. The **Done when** line is the acceptance bar — a
 tests is not done (outline § 8).
 
 ### Group A — The port, the fake, and where a conversation lives (P4-1 → P4-4)
+
+**Delivered 2026-09-04.** `specs/providers.md` exists; `archetype/llm/port.py` and
+`archetype/llm/adapters/` are in place; `tests/fakes/provider.py` is the fake the
+suite runs against; migration 004 is proved against `v003_phase3.sqlite`. Six
+deviations, in § 7. Both suites green — **1,180 backend, 535 frontend**.
 
 ---
 
@@ -533,9 +544,19 @@ the failure says so → confirm no key is anywhere in the browser.
 *Every divergence from this plan is recorded here in the same change that makes it, with what
 happened and why (outline § 13).*
 
-**Nothing yet — no work item has started.** Groups A to D will each add a block here as they land,
-in the shape Phases 2 and 3 established: the item, what was planned, and what was built with the
-argument for the difference.
+**Group A, delivered 2026-09-04.** Six deviations. `A1` is the only one that changes a stored
+shape; `A3` is the only one that adds a surface the group did not budget; none touches a `D<n>`.
+
+| # | Item | Planned | As built, and why |
+|---|---|---|---|
+| **A1** | `P4-4` | The `message` DDL in § 4: `id`, `conversation_id`, `ord`, `role`, `content`, `context_json`, `provider`, `model`, `usage_json`, `error_code`, `created_at`. | **One more column: `stop_reason`**, holding the port's normalised vocabulary, `''` until a turn finishes. Without it a **cancelled** turn is indistinguishable from a complete one after a reload, which § 8's step 7 requires it not to be, and cancel is this phase's own feature (D11). The alternative was `error_code = 'cancelled'`, and it is wrong twice over: a deliberate act would be filed as a failure in the one column a writer consults when something went wrong, and ruling 4's code set is closed at six and does not contain it. Extension-only; no other column changed. |
+| **A2** | `P4-1` / `P4-2` | "`stop_reason` is normalized to a closed set" — the set left open. | **Seven members, each with exactly one writer** (`providers.md` § 3): `end_turn`, `max_tokens`, `stop_sequence`, `tool_use`, `refusal`, `other`, `cancelled`. Two of them are the ones worth arguing about. **`other`** exists so that a provider string this build does not recognise normalises honestly instead of being mapped onto `end_turn` — with `raw_stop_reason` carrying the original, which is what makes it diagnosable rather than merely honest. **`cancelled`** is never produced by an adapter: it is written by whoever closed the stream, and it is the one stop reason a provider cannot cause. |
+| **A3** | `P4-2` | Group A is the port, the fake, and the migration — no client code until Group D. | **One client module lands now: `web/src/api/stream.ts`, with nine tests and no panel.** `P4-2`'s own *done when* requires D32's asymmetry to be "tested in both suites", and the client half is the half that protects a writer — a stale bundle degrading to less detail rather than to a broken panel. Deferring it to `P4-12` would have left the ruling untested on the side it exists for, in the phase that ruled it. The reader is the whole of it: the vocabularies, `parseStreamEvent`, and two guards. Same shape as Phase 2's `D12`, and smaller. |
+| **A4** | `P4-4` | Migration 003's test against `v002_phase2.sqlite` keeps running unchanged. | **One assertion changed**: it asserted `migrate(conn) == 3`, and a version-2 file now migrates two steps to 4, so it asserts `latest_version()`. The test's subject — a real Phase 2 file carried forward with document, anchor, and snapshot rows identical — is unchanged and still compared row for row. This is the identical correction `P3-2` made to the version-1 test (phase-3 plan § 7, `A4`), and it is recorded for the same reason: a changed assertion is a deliberate act (`CLAUDE.md`, Testing). |
+| **A5** | `P4-3` | "It holds no rule of its own." | **One exception, stated in its docstring:** a `FakeProvider` declaring `streaming=False` refuses `stream()` with `provider_unavailable`, because that is what `providers.md` § 5 says a provider does. Implementing the contract it claims to satisfy is not the same as computing an answer — it still counts no tokens, judges no context, translates nothing, and invents nothing when a test staged nothing (an unstaged call raises `NothingStagedError`, which is an `AssertionError` because it is a defect in the test). |
+| **A6** | `P4-4` | The fixture-capture discipline from `P3-2`, applied again. | **It caught a second determinism trap, and the README now names it.** Pinning every *column* that holds a timestamp is not enough when a column holds a **document**: `entry_revision.snapshot_json` embeds the entry's whole state, and the revision a soft delete writes carries a `deleted_at` straight off the wall clock. The first capture differed between runs in exactly one byte range because of it. `capture_v003_phase3.py` now normalises inside the JSON as well, and the fixture is byte-for-byte reproducible — hash in `tests/fixtures/db/README.md`. |
+
+**Groups B, C, and D** will each add a block here as they land.
 
 ---
 
