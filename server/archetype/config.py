@@ -135,7 +135,14 @@ class _SecretPolicyBaseSettings(BaseSettings):
 
 
 class Settings(_SecretPolicyBaseSettings):
-    """Phase 1 settings. Provider and embedding keys arrive in Phases 4 and 5."""
+    """Phase 1 settings, plus Phase 4's provider layer. Embedding keys arrive in Phase 5.
+
+    The provider block is where the secret discipline established above stops being theoretical:
+    ``anthropic_api_key`` and ``openai_api_key`` are the first real secrets this application
+    holds. They are ``SecretStr``, so the class guard requires ``exclude=True``, the YAML layer
+    refuses to supply one, and :meth:`public_dump` strips them a second time. **The settings UI is
+    read-only about a key** and shows only whether one is present (D34, narrowing D8).
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="ARCHETYPE_",
@@ -163,6 +170,89 @@ class Settings(_SecretPolicyBaseSettings):
             "holds an index.html; skipped with a log line when it does not. Set it empty to "
             "never mount one."
         ),
+    )
+
+    # -- the provider layer (P4-8, D34) -----------------------------------------------------
+
+    llm_provider: str = Field(
+        default="anthropic",
+        description=(
+            "Which adapter to build: anthropic or openai. A plain string rather than a closed "
+            "set on purpose - a typo here must break the assistant, never the application, and "
+            "the registry answers an unknown name with provider_unconfigured."
+        ),
+    )
+    llm_base_url: str = Field(
+        default="",
+        description=(
+            "Where that provider lives. Empty means the adapter's own default; for the "
+            "OpenAI-compatible adapter this is what points it at a local or hosted server "
+            "speaking the same protocol."
+        ),
+    )
+    llm_model: str = Field(
+        default="claude-opus-5",
+        description="The model id sent on every request. Provider-specific by nature.",
+    )
+    llm_max_tokens: int = Field(
+        default=4096,
+        ge=1,
+        description="The ceiling on one answer. The writer's bill, so the writer's number.",
+    )
+    llm_context_budget: int = Field(
+        default=100_000,
+        ge=0,
+        description=(
+            "The token budget for a composed context. Exceeding it is a hard refusal naming what "
+            "was too big, never a truncation (providers.md section 7). Zero disables our own "
+            "check and leaves only the provider's declared window."
+        ),
+    )
+    llm_native_tools: bool = Field(
+        default=True,
+        description=(
+            "Whether the configured provider has a tool-calling API. False routes tool "
+            "declarations through the prompted-JSON fallback (P4-7), invisibly to the port."
+        ),
+    )
+    llm_streaming: bool = Field(
+        default=True,
+        description=(
+            "Whether it can stream. False makes stream() refuse rather than fake a cadence."
+        ),
+    )
+    llm_supports_system: bool = Field(
+        default=True,
+        description=(
+            "Whether it has a system role. False folds the system text into the first user "
+            "message, in the adapter, and says so in no other way."
+        ),
+    )
+    llm_max_context: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Override the adapter's declared context window, in tokens. Zero leaves the "
+            "adapter's own answer alone."
+        ),
+    )
+    llm_stream_usage: bool = Field(
+        default=True,
+        description=(
+            "OpenAI-compatible only: ask for usage on a streamed answer via stream_options. "
+            "Turn it off for a server that rejects the field - the answer still arrives, and "
+            "the token counts read as not reported rather than as zero."
+        ),
+    )
+    anthropic_api_key: SecretStr | None = Field(
+        default=None,
+        exclude=True,
+        description="ARCHETYPE_ANTHROPIC_API_KEY. Environment only; never returned by a route.",
+    )
+    openai_api_key: SecretStr | None = Field(
+        default=None,
+        exclude=True,
+        description="ARCHETYPE_OPENAI_API_KEY. Environment only; never returned by a route.",
     )
 
     @field_validator("log_level", mode="before")

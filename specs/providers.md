@@ -1,7 +1,7 @@
 # Archetype — The Provider Port
 
 **Status:** Specification · written at `P4-1`, **before** the code it governs ·
-**Version:** 1.0 · **Date:** 2026-09-04
+**Version:** 1.1 · **Date:** 2026-09-05
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 (D5, D8, D11, D12, D13, **D30**, **D31**, **D32**, **D33**, **D34**)
@@ -435,4 +435,6 @@ cross-references [`specs/phase-4-plan.md`](phase-4-plan.md) § 7.*
 
 | # | What this document said | What is true, and why |
 |---|---|---|
-| — | *Nothing yet.* | `P4-2` was written from this document; the first correction lands here with the deviation that caused it. |
+| **1** | § 7: "the effective budget is `min(capabilities.max_context, settings.llm_context_budget)`". | **The minimum is taken over the values that were actually declared.** `max_context` of `0` means *not declared* — which is what the OpenAI-compatible adapter says by default, because the server on the other end may be a frontier model or a quantised 7B and guessing either way is worse than saying nothing. A literal minimum with zero would refuse every request ever composed. An undeclared window leaves the writer's own budget standing, and two undeclared numbers leave no check at all — which is a writer's choice, and leaves the provider's own refusal as the guard (`llm/budget.py`, phase-4-plan § 7 `B7`). |
+| **2** | § 8, rule 2: a native path and a fallback path produce "**identical** normalised `tool_calls`". | **Identical on the name and the parsed arguments; the id is excluded, by this document's own next rule.** Rule 3 says the fallback mints ids and a native provider's are kept, so two paths that produced the same id would mean one of them was ignoring its provider. The test compares the calls without their ids and asserts both ids exist — which is the strongest claim the two rules permit together (`P4-7`, phase-4-plan § 7 `B8`). |
+| **3** | § 8, rule 1: "a tool call arrives normalised or not at all". | **True of `complete()`. On a *stream*, in Phase 4, it is "not at all" — and that is D32's vocabulary, not an adapter's choice.** `start`, `delta`, `usage`, `done`, `error` has no member a tool call fits in, so a streamed `input_json_delta` is ignored and the `done` still carries `stop_reason="tool_use"`, which is true. Phase 6 adds `tool_call` to the same union and closes it, exactly as § 12 says it will. Phase 4 declares no tools, so nothing is lost today; a test pins the behaviour so that closing it is a change rather than a discovery (phase-4-plan § 7 `B4`). |

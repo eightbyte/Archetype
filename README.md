@@ -271,6 +271,35 @@ elsewhere. It is gitignored.
 | `web_dist` | `ARCHETYPE_WEB_DIST` | `<repo>/web/dist` | The built frontend to serve from the API process. Mounted at `/` when the directory holds an `index.html`; skipped with a log line when it does not. Set it empty to never serve one. A relative value resolves against the repository root. |
 | — | `ARCHETYPE_CONFIG_FILE` | `<repo>/config.yaml` | Which YAML file the middle layer reads. Environment only. |
 
+### The provider (Phase 4)
+
+Which model Archetype talks to, and how. Everything here is an ordinary setting except the two
+keys, which are secrets and come from the environment only.
+
+| Key | Env var | Default | What it does |
+|---|---|---|---|
+| `llm_provider` | `ARCHETYPE_LLM_PROVIDER` | `anthropic` | Which adapter to build: `anthropic` or `openai`. A name with no adapter breaks the assistant with a stated cause and never the application. |
+| `llm_base_url` | `ARCHETYPE_LLM_BASE_URL` | *(the adapter's own)* | Where that provider lives. For the OpenAI-compatible adapter this is what points it at a local or hosted server speaking the same protocol. |
+| `llm_model` | `ARCHETYPE_LLM_MODEL` | `claude-opus-5` | The model id sent on every request. Provider-specific by nature. |
+| `llm_max_tokens` | `ARCHETYPE_LLM_MAX_TOKENS` | `4096` | The ceiling on one answer. |
+| `llm_context_budget` | `ARCHETYPE_LLM_CONTEXT_BUDGET` | `100000` | The token budget for a composed context. Exceeding it is a **hard refusal naming what was too big**, never a silent truncation. `0` turns our own check off and leaves the provider's. |
+| `llm_native_tools` | `ARCHETYPE_LLM_NATIVE_TOOLS` | `true` | Whether the provider has a tool-calling API. `false` renders tool declarations into the prompt instead, invisibly to everything above the port. |
+| `llm_streaming` | `ARCHETYPE_LLM_STREAMING` | `true` | Whether it can stream. `false` makes a streamed request refuse rather than fake a typing cadence. |
+| `llm_supports_system` | `ARCHETYPE_LLM_SUPPORTS_SYSTEM` | `true` | Whether it has a system role. `false` folds the system text into the first user message. |
+| `llm_max_context` | `ARCHETYPE_LLM_MAX_CONTEXT` | `0` | Override the adapter's declared context window, in tokens. `0` leaves the adapter's own answer alone. |
+| `llm_stream_usage` | `ARCHETYPE_LLM_STREAM_USAGE` | `true` | OpenAI-compatible only: ask for token counts on a streamed answer. Turn it off for a server that rejects `stream_options` — the answer still arrives, and the counts read as *not reported*. |
+| — | `ARCHETYPE_ANTHROPIC_API_KEY` | *(none)* | **Secret.** Environment only; never returned by a route, never in a log, never in the browser. |
+| — | `ARCHETYPE_OPENAI_API_KEY` | *(none)* | **Secret.** The same, for any server speaking the chat-completions protocol. |
+
+Swapping providers is a settings change and a restart — no code changes:
+
+```powershell
+$env:ARCHETYPE_LLM_PROVIDER = "openai"
+$env:ARCHETYPE_LLM_BASE_URL = "http://127.0.0.1:1234/v1"
+$env:ARCHETYPE_LLM_MODEL    = "local-model"
+$env:ARCHETYPE_OPENAI_API_KEY = "not-checked-by-most-local-servers"
+```
+
 Example `config.yaml`:
 
 ```yaml
@@ -282,8 +311,8 @@ web_dist: web/dist
 
 ### Secrets
 
-There are no secret settings yet — provider keys arrive in Phase 4 — but the discipline is
-already enforced (D8):
+The two provider keys above are the only secret settings, and the discipline around them was
+built in Phase 1 before there was one to guard (D8, narrowed to the environment by D34):
 
 - a secret-valued setting is any field annotated `SecretStr`;
 - it is read from the **environment only**; `config.yaml` cannot supply one;
@@ -291,7 +320,9 @@ already enforced (D8):
 - it is stripped from every serialization, and no route ever returns one.
 
 API keys therefore stay out of the browser, out of `localStorage`, out of the bundle, and out of
-Git.
+Git. A test walks the **whole** API surface with a key configured and searches every response
+body for it, so a route added later is covered without anyone remembering. The settings screen
+will say whether a key is **present** — never its value, its length, or its first characters.
 
 ## Your projects
 

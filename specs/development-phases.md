@@ -139,7 +139,7 @@ acceptance run passed all fifteen steps on 2026-09-04 and found one real defect 
 display of a `stale` anchor (`E2`), fixed in the same change.
 
 **Phase 4 — [LLM Provider Layer & Chat](phase-4-plan.md)** — **in progress; § 2 ruled 2026-09-04** *(`specs/providers.md` written here, at `P4-1`, before the code it governs; `specs/api-contract.md` extended here)*
-**Superseded by the plan** — fifteen items (`P4-1` … `P4-15`) in four groups; **Group A delivered 2026-09-04** (`specs/providers.md`, the port and its vocabularies, `FakeProvider`, migration 004 and the `cnv_`/`msg_` prefixes).
+**Superseded by the plan** — fifteen items (`P4-1` … `P4-15`) in four groups; **Group A delivered 2026-09-04** (`specs/providers.md`, the port and its vocabularies, `FakeProvider`, migration 004 and the `cnv_`/`msg_` prefixes) and **Group B delivered 2026-09-05** (both adapters over `httpx` and no vendor SDK, the prompted-JSON fallback, the context budget, and the registry that is the only place a provider is constructed).
 The `LLMProvider` port · Anthropic and OpenAI-compatible adapters · prompted-JSON tool fallback
 for providers without native tool calling · `FakeProvider` · settings UI with server-side key
 handling (D8) · WebSocket transport (D11) · streaming chat panel · selection-as-context ·

@@ -2,10 +2,12 @@
 
 **Status:** **In progress (2026-09-04)** — **§ 2 is ruled**: D30–D34 were put to the writer on
 2026-09-04 and accepted **as recommended**, all five; they are promoted to the register and
-binding, and work items may start. **Group A is under way.** Phase 3 closed on 2026-09-04 with
-all fifteen acceptance steps passed; both suites are green (1,147 backend, 526 frontend), and
-this plan is written against that build.
-**Version:** 1.1 · **Date:** 2026-09-04
+binding, and work items may start. **Groups A and B are delivered** (2026-09-04, 2026-09-05):
+the port, the fake, migration 004, both adapters, the prompted-JSON fallback, and the registry.
+**Groups C and D are not started** — nothing in the app calls a model yet. Phase 3 closed on
+2026-09-04 with all fifteen acceptance steps passed; both suites are green (**1,293** backend,
+535 frontend).
+**Version:** 1.2 · **Date:** 2026-09-05
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1 (D5, **D8**, D10,
 **D11**, **D12**, D13, D19, D20)
@@ -264,6 +266,12 @@ the capture script is deterministic and documented.
 ---
 
 ### Group B — The adapters (P4-5 → P4-8)
+
+**Delivered 2026-09-05.** Both adapters exist and are proved interchangeable; the prompted-JSON
+fallback is built and its corpus passes; `Settings` carries the provider block and the registry is
+the only place a provider is constructed. `httpx` is now a runtime dependency and is fenced into
+`llm/` by a second import-graph test. No product surface calls a model yet — Groups C and D are
+not started. Ten deviations, in § 7. Backend **1,293**, frontend 535 — both green.
 
 ---
 
@@ -556,7 +564,25 @@ shape; `A3` is the only one that adds a surface the group did not budget; none t
 | **A5** | `P4-3` | "It holds no rule of its own." | **One exception, stated in its docstring:** a `FakeProvider` declaring `streaming=False` refuses `stream()` with `provider_unavailable`, because that is what `providers.md` § 5 says a provider does. Implementing the contract it claims to satisfy is not the same as computing an answer — it still counts no tokens, judges no context, translates nothing, and invents nothing when a test staged nothing (an unstaged call raises `NothingStagedError`, which is an `AssertionError` because it is a defect in the test). |
 | **A6** | `P4-4` | The fixture-capture discipline from `P3-2`, applied again. | **It caught a second determinism trap, and the README now names it.** Pinning every *column* that holds a timestamp is not enough when a column holds a **document**: `entry_revision.snapshot_json` embeds the entry's whole state, and the revision a soft delete writes carries a `deleted_at` straight off the wall clock. The first capture differed between runs in exactly one byte range because of it. `capture_v003_phase3.py` now normalises inside the JSON as well, and the fixture is byte-for-byte reproducible — hash in `tests/fixtures/db/README.md`. |
 
-**Groups B, C, and D** will each add a block here as they land.
+**Group B, delivered 2026-09-05.** Ten deviations. `B1` is the one to read — it is the honest
+limit on what this group's tests actually prove. `B5` is the only one that adds stored
+configuration, `B7` the only one that adds an unbudgeted module, and three of them (`B3`, `B4`,
+`B8`) are corrections to `specs/providers.md` and are cross-referenced from its § 13.
+
+| # | Item | Planned | As built, and why |
+|---|---|---|---|
+| **B1** | `P4-5` / `P4-6` | Ruling 3: "a directory of real request/response payloads captured once by hand, committed, and replayed." | **The payloads are transcribed from each provider's published wire format, not captured from a live account** — Group B was built with no key in the environment, and a capture makes billed requests. The capture scripts are written and committed (`tests/fixtures/providers/capture_*.py`) and the fixture README says which files are which, in as many words. The limit is stated there and is worth stating here too: **a transcribed payload proves the adapter matches what the documentation says, not what the provider actually sends.** Closing that gap is § 8's job — steps 4 and 12 put a real answer from each provider on screen — and refreshing the corpus from that run is one command per provider. A capture that then makes a test fail has found something real, which is why the scripts rewrite only the provider's half and never the expectations. |
+| **B2** | `P4-5` / `P4-6` | "A directory of real request/response payloads." | **One `cases.json` per provider inside that directory**, in the shape every other corpus in this project uses (`anchors/`, `markdown/`, `schema/`, `bible/storytime/`). A reader who has seen one corpus can read this one; the capture script rewrites one file per provider rather than six; and each case states **both** halves — the body the adapter must send and the port shape it must produce — so a translation that drifted on one side only fails rather than round-tripping quietly against itself. |
+| **B3** | `P4-6` | `stop_reason` normalises to the closed set of seven. | **`stop_sequence` is unreachable through the OpenAI-compatible adapter, and that is the protocol's limit rather than this adapter's.** A chat-completions server reports `finish_reason: "stop"` whether the model finished on its own or produced a stop sequence, so `stop` maps to `end_turn` and `raw_stop_reason` records what was actually said. The member is not wrong and Anthropic writes it; this provider simply cannot tell us. It is also why the interchangeability test compares the normalised results **excluding `raw_stop_reason`**, which is *supposed* to differ (`providers.md` § 3). |
+| **B4** | `P4-5` / `P4-6` | D32's five events, and `providers.md` § 8's "a tool call arrives normalised or not at all". | **A tool call that arrives mid-stream has no Phase 4 event to arrive in.** `start`, `delta`, `usage`, `done`, `error` has no member it fits, so a streamed `input_json_delta` is ignored and the stream's `done` still carries `stop_reason="tool_use"` — which is true, and is the most a Phase 4 stream can say. `complete()` returns tool calls in full and is the path the fixtures assert. Phase 4 declares no tools, so nothing is lost today; a test pins the behaviour so that Phase 6 adding `tool_call` to the same union is a change to a test rather than a discovery. `providers.md` § 13, correction 3. |
+| **B5** | `P4-8` | `Settings` gains `llm_provider`, `llm_base_url`, `llm_model`, `llm_max_tokens`, `llm_context_budget`, and the two keys. | **Five more fields: the four capability flags and `llm_stream_usage`.** `P4-6`'s own *done when* requires that "a server declaring `native_tools=False` routes through P4-7", which needs a way to declare it — and the item's own text says this adapter is configured by "base URL + key + model id + **capability flags**". So `llm_native_tools`, `llm_streaming`, `llm_supports_system`, and `llm_max_context` are settings, with `0` on the last meaning *leave the adapter's own answer alone*. `llm_stream_usage` is the fifth and is the one that is not a capability: `stream_options.include_usage` is how this protocol reports usage on a streamed answer, and a server that has never heard of the field rejects the whole request — so a writer pointed at such a server turns it off and loses the token counts rather than the answer. |
+| **B6** | `P4-8` | Phase 1's `test_phase_1_declares_no_secrets` keeps running unchanged. | **One assertion changed, and it is still exact.** It asserted `Settings.secret_fields() == frozenset()`; it now asserts `{"anthropic_api_key", "openai_api_key"}`. Phase 1's point was that the guard existed *before* there was a secret to guard, and Phase 4 is where that stops being theoretical. It was not loosened to "contains" — a third secret is a deliberate act and fails here until it is written down. Recorded because a changed assertion is a deliberate act (`CLAUDE.md`, Testing), the same as `A4`. |
+| **B7** | `P4-8` | "`Settings` gains provider fields. The registry builds the configured adapter." | **Two modules, not one: `llm/registry.py` and `llm/budget.py`.** The budget was already named as `P4-8`'s by `providers.md` § 5 and by `FakeProvider`'s docstring ("that is the budget module's job (P4-8), tested separately") but not by this item's own text, so it is recorded here. It is pure and sits in `llm/` rather than `llm/adapters/`: it takes a request, a capability, and a number. The registry also grew `provider_status()` — provider, model, base URL, and **whether a key is present, never the key** — because that is the registry's knowledge of what it can build, and a second copy of "is this configured" in Group C's settings route is the copy that would drift. |
+| **B8** | `P4-7` | "A fallback provider and a native one produce **identical** normalized `tool_calls`." | **Identical on the name and the parsed arguments; the ids are excluded, by `providers.md` § 8's own rule 3.** That rule says the fallback mints ids and a native provider's are kept, so two paths producing the *same* id would mean one of them was ignoring its provider. The test compares the calls without ids and asserts both ids exist, which is the strongest claim the two rules permit together. The fallback's ids are positional (`call_0`, `call_1`) rather than random, so a recorded reply parses the same way twice. `providers.md` § 13, correction 2. |
+| **B9** | `P4-5` / `P4-6` | Ruling 2: no provider SDK outside `llm/adapters/`. | **This build imports no provider SDK at all, and the rule is extended to the thing it uses instead.** `specs/project-outline.md` § 3 fixes LLM access as *HTTP via `httpx`, one adapter per provider*, so `httpx` occupies the position a vendor SDK would have and inherits its rule: a second import-graph test fails if any module outside `llm/` imports it, and a third asserts `archetype.llm` still re-exports the port and nothing that would drag a transport onto the import path of everything that touches it. `httpx` moves from a dev dependency to a runtime one — it was already installed in development, because the Starlette test client is built on it. The two vendor SDKs were the alternative and were declined on the dependency budget (`P1-1`) and on ruling 6: each ships a retry policy that would have to be disabled. |
+| **B10** | ruling 4 | Six codes, and `context_too_large` for "the provider's own context error". | **Telling `provider_refused` from `context_too_large` is a heuristic over somebody else's prose, and it is written down as one.** Neither provider sets a status or a code that means only this: an over-long prompt arrives as an ordinary `400` with a sentence in it (OpenAI-compatible servers usually add `code: "context_length_exceeded"`; Anthropic does not). `transport.py` holds the substring list in one place with the reasoning beside it. The failure is mild in both directions: a miss lands as `provider_refused`, which is still a stated cause carrying the provider's own message rather than a blank reply. **Our own budget check is the path that matters** — it runs before the request is sent and never guesses (ruling 7). |
+
+**Groups C and D** will each add a block here as they land.
 
 ---
 

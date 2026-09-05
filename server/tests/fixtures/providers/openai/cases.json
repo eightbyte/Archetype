@@ -1,0 +1,264 @@
+{
+  "provider": "openai",
+  "cases": [
+    {
+      "name": "plain_completion",
+      "note": "The ordinary case, and the half of the port that is the mirror of Anthropic's: the system prompt is a message in the list rather than a parameter of its own.",
+      "port_request": {
+        "messages": [
+          {"role": "system", "content": "You are a careful reader of a novel in progress. Answer only from the passage you are given."},
+          {"role": "user", "content": "Does this paragraph say how long Mira has been waiting?"}
+        ],
+        "model": "gpt-4o-mini",
+        "max_tokens": 1024
+      },
+      "wire_request": {
+        "model": "gpt-4o-mini",
+        "max_tokens": 1024,
+        "messages": [
+          {"role": "system", "content": "You are a careful reader of a novel in progress. Answer only from the passage you are given."},
+          {"role": "user", "content": "Does this paragraph say how long Mira has been waiting?"}
+        ]
+      },
+      "http_status": 200,
+      "wire_response": {
+        "id": "chatcmpl-9pQzR4mKtVbN2sXwLd7YfGh3",
+        "object": "chat.completion",
+        "created": 1756900000,
+        "model": "gpt-4o-mini-2024-07-18",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Not directly. It says the tea has gone cold twice, which implies a long wait without measuring it.",
+              "refusal": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {"prompt_tokens": 406, "completion_tokens": 27, "total_tokens": 433},
+        "system_fingerprint": "fp_0ba0d124f1"
+      },
+      "port_result": {
+        "text": "Not directly. It says the tea has gone cold twice, which implies a long wait without measuring it.",
+        "tool_calls": [],
+        "stop_reason": "end_turn",
+        "raw_stop_reason": "stop",
+        "usage": {"input_tokens": 406, "output_tokens": 27}
+      }
+    },
+    {
+      "name": "streamed_completion",
+      "note": "With `stream_options.include_usage` on, which is how this protocol reports usage on a streamed answer. The usage chunk has an empty `choices` list and arrives after the finish reason, so the port's single `usage` event lands between the last delta and `done`.",
+      "stream": true,
+      "port_request": {
+        "messages": [{"role": "user", "content": "Give me one sentence about the harbour."}],
+        "model": "gpt-4o-mini",
+        "max_tokens": 256
+      },
+      "wire_request": {
+        "model": "gpt-4o-mini",
+        "max_tokens": 256,
+        "messages": [{"role": "user", "content": "Give me one sentence about the harbour."}],
+        "stream": true,
+        "stream_options": {"include_usage": true}
+      },
+      "http_status": 200,
+      "sse": [
+        "data: {\"id\":\"chatcmpl-9pR1\",\"object\":\"chat.completion.chunk\",\"created\":1756900001,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}",
+        "",
+        "data: {\"id\":\"chatcmpl-9pR1\",\"object\":\"chat.completion.chunk\",\"created\":1756900001,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"The harbour\"},\"finish_reason\":null}]}",
+        "",
+        "data: {\"id\":\"chatcmpl-9pR1\",\"object\":\"chat.completion.chunk\",\"created\":1756900001,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" was grey\"},\"finish_reason\":null}]}",
+        "",
+        "data: {\"id\":\"chatcmpl-9pR1\",\"object\":\"chat.completion.chunk\",\"created\":1756900001,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" all morning.\"},\"finish_reason\":null}]}",
+        "",
+        "data: {\"id\":\"chatcmpl-9pR1\",\"object\":\"chat.completion.chunk\",\"created\":1756900001,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}",
+        "",
+        "data: {\"id\":\"chatcmpl-9pR1\",\"object\":\"chat.completion.chunk\",\"created\":1756900001,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[],\"usage\":{\"prompt_tokens\":52,\"completion_tokens\":9,\"total_tokens\":61}}",
+        "",
+        "data: [DONE]",
+        ""
+      ],
+      "port_events": [
+        {"type": "start", "model": "gpt-4o-mini-2024-07-18"},
+        {"type": "delta", "text": "The harbour"},
+        {"type": "delta", "text": " was grey"},
+        {"type": "delta", "text": " all morning."},
+        {"type": "usage", "usage": {"input_tokens": 52, "output_tokens": 9}},
+        {"type": "done", "stop_reason": "end_turn", "raw_stop_reason": "stop"}
+      ]
+    },
+    {
+      "name": "tool_call",
+      "note": "The same declaration as the Anthropic corpus's, and the same normalised call out the other side - which is the whole of D31's claim. The visible difference is that `arguments` crosses this wire as a **JSON string** and is an object at the port; providers.md section 8, rule 1.",
+      "port_request": {
+        "messages": [{"role": "user", "content": "Who is Mira related to?"}],
+        "model": "gpt-4o-mini",
+        "max_tokens": 1024,
+        "tools": [
+          {
+            "name": "read_bible_entry",
+            "description": "Read one story-bible entry by name.",
+            "parameters": {
+              "type": "object",
+              "properties": {"name": {"type": "string"}},
+              "required": ["name"]
+            }
+          }
+        ],
+        "tool_choice": "auto"
+      },
+      "wire_request": {
+        "model": "gpt-4o-mini",
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": "Who is Mira related to?"}],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "read_bible_entry",
+              "description": "Read one story-bible entry by name.",
+              "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"]
+              }
+            }
+          }
+        ],
+        "tool_choice": "auto"
+      },
+      "http_status": 200,
+      "wire_response": {
+        "id": "chatcmpl-9pR7TbKmWv3XqLd8ZnYc2Fj4",
+        "object": "chat.completion",
+        "created": 1756900002,
+        "model": "gpt-4o-mini-2024-07-18",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_8xLqR2mVbN4sWfTy",
+                  "type": "function",
+                  "function": {"name": "read_bible_entry", "arguments": "{\"name\":\"Mira\"}"}
+                }
+              ]
+            },
+            "logprobs": null,
+            "finish_reason": "tool_calls"
+          }
+        ],
+        "usage": {"prompt_tokens": 498, "completion_tokens": 18, "total_tokens": 516}
+      },
+      "port_result": {
+        "text": "",
+        "tool_calls": [
+          {"id": "call_8xLqR2mVbN4sWfTy", "name": "read_bible_entry", "arguments": {"name": "Mira"}}
+        ],
+        "stop_reason": "tool_use",
+        "raw_stop_reason": "tool_calls",
+        "usage": {"input_tokens": 498, "output_tokens": 18}
+      }
+    },
+    {
+      "name": "local_server_streamed",
+      "note": "The reason this adapter exists: a server that is only **nearly** compatible. Captured from a local llama.cpp-style server - no `system_fingerprint`, a file path where a model id goes, no usage at all because `stream_options` was turned off for it, and a stream that ends with `[DONE]` and nothing else. The port reports Usage() of zero, which means *not reported* rather than free, and the panel says so.",
+      "stream": true,
+      "adapter": {"stream_usage": false},
+      "port_request": {
+        "messages": [{"role": "user", "content": "Give me one sentence about the harbour."}],
+        "model": "local-model",
+        "max_tokens": 256
+      },
+      "wire_request": {
+        "model": "local-model",
+        "max_tokens": 256,
+        "messages": [{"role": "user", "content": "Give me one sentence about the harbour."}],
+        "stream": true
+      },
+      "http_status": 200,
+      "sse": [
+        "data: {\"id\":\"chatcmpl-local-1\",\"object\":\"chat.completion.chunk\",\"created\":1756900003,\"model\":\"models/Meta-Llama-3.1-8B-Instruct-Q6_K.gguf\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}",
+        "",
+        ": keep-alive",
+        "",
+        "data: {\"id\":\"chatcmpl-local-1\",\"object\":\"chat.completion.chunk\",\"created\":1756900003,\"model\":\"models/Meta-Llama-3.1-8B-Instruct-Q6_K.gguf\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Grey water,\"},\"finish_reason\":null}]}",
+        "",
+        "data: {\"id\":\"chatcmpl-local-1\",\"object\":\"chat.completion.chunk\",\"created\":1756900003,\"model\":\"models/Meta-Llama-3.1-8B-Instruct-Q6_K.gguf\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" grey sky.\"},\"finish_reason\":\"stop\"}]}",
+        "",
+        "data: [DONE]",
+        ""
+      ],
+      "port_events": [
+        {"type": "start", "model": "models/Meta-Llama-3.1-8B-Instruct-Q6_K.gguf"},
+        {"type": "delta", "text": "Grey water,"},
+        {"type": "delta", "text": " grey sky."},
+        {"type": "done", "stop_reason": "end_turn", "raw_stop_reason": "stop"}
+      ]
+    },
+    {
+      "name": "auth_failure",
+      "note": "The same condition as the Anthropic corpus's, in this protocol's error shape, mapping to the same code. That the two arrive identically at the port is the point of having a taxonomy at all.",
+      "port_request": {
+        "messages": [{"role": "user", "content": "Anything."}],
+        "model": "gpt-4o-mini",
+        "max_tokens": 256
+      },
+      "http_status": 401,
+      "wire_response": {
+        "error": {
+          "message": "Incorrect API key provided: sk-wrong***. You can find your API key at https://platform.openai.com/account/api-keys.",
+          "type": "invalid_request_error",
+          "param": null,
+          "code": "invalid_api_key"
+        }
+      },
+      "port_error": {"code": "provider_auth_failed", "message_contains": "Incorrect API key provided"}
+    },
+    {
+      "name": "rate_limited",
+      "note": "A 429. Note the body says `insufficient_quota` while the status says rate limit: the status is read first and the body only refines it, because the servers that are nearly compatible are inconsistent about exactly this field.",
+      "port_request": {
+        "messages": [{"role": "user", "content": "Anything."}],
+        "model": "gpt-4o-mini",
+        "max_tokens": 256
+      },
+      "http_status": 429,
+      "wire_response": {
+        "error": {
+          "message": "You exceeded your current quota, please check your plan and billing details.",
+          "type": "insufficient_quota",
+          "param": null,
+          "code": "insufficient_quota"
+        }
+      },
+      "port_error": {"code": "provider_rate_limited", "message_contains": "exceeded your current quota"}
+    },
+    {
+      "name": "over_context",
+      "note": "This protocol names the condition in `code`, which the Anthropic one does not - and the transport reads both the message and the code, so either signal is enough.",
+      "port_request": {
+        "messages": [{"role": "user", "content": "The whole manuscript, pasted."}],
+        "model": "gpt-4o-mini",
+        "max_tokens": 4096
+      },
+      "http_status": 400,
+      "wire_response": {
+        "error": {
+          "message": "This model's maximum context length is 128000 tokens. However, your messages resulted in 190423 tokens. Please reduce the length of the messages.",
+          "type": "invalid_request_error",
+          "param": "messages",
+          "code": "context_length_exceeded"
+        }
+      },
+      "port_error": {"code": "context_too_large", "message_contains": "maximum context length"}
+    }
+  ]
+}

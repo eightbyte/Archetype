@@ -274,6 +274,42 @@ def test_the_port_itself_imports_nothing_but_pydantic_and_the_standard_library()
     assert imported <= {"__future__", "collections", "typing", "pydantic"}
 
 
+def test_the_http_client_never_escapes_the_provider_layer() -> None:
+    """The same guard as the SDK's, over the thing this build uses **instead** of one (P4-5).
+
+    ``specs/project-outline.md`` section 3 fixes LLM access as HTTP via httpx, one adapter per
+    provider, so httpx occupies the position a vendor SDK would have and inherits the position's
+    rule. A route or a store that started making its own HTTP calls would be a second way to reach
+    a model, outside the port, which is the thing ruling 2 exists to prevent - and it would go on
+    working, quietly, until somebody asked why swapping providers did not change that surface.
+
+    The boundary is ``llm/`` rather than ``llm/adapters/`` because the registry (P4-8) constructs
+    an adapter and may hand it a client to use; ``port.py``'s own purity is asserted above.
+    """
+    llm_package = PACKAGE_ROOT / "llm"
+    offenders = [
+        str(path.relative_to(PACKAGE_ROOT))
+        for path in sorted(PACKAGE_ROOT.rglob("*.py"))
+        if llm_package not in path.parents and path.parent != llm_package
+        if "httpx" in imported_modules(path.read_text(encoding="utf-8"))
+    ]
+    assert not offenders, "an HTTP client escaped the provider layer: " + ", ".join(offenders)
+
+
+def test_the_llm_package_exports_the_port_and_nothing_that_drags_a_transport_in() -> None:
+    """``archetype.llm`` is imported by everything that touches the port, so what it re-exports
+    is what every one of those modules pays for. An adapter here would put httpx on the import
+    path of a pure reducer-shaped module - the mistake the anchors package refused when it kept
+    ``AnchorStore`` out of its own ``__init__``."""
+    source = (PACKAGE_ROOT / "llm" / "__init__.py").read_text(encoding="utf-8")
+    relative = {
+        node.module
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.ImportFrom) and node.level > 0
+    }
+    assert relative == {"port"}
+
+
 # -- P4-3: the fake -----------------------------------------------------------------------
 
 

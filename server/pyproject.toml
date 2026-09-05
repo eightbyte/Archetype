@@ -19,6 +19,13 @@ dependencies = [
     # hand-rolled parser gets subtly wrong in ways nobody notices until an import mangles a
     # chapter. Pure Python; pulls one 10 KB transitive, mdurl.
     "markdown-it-py>=3.0",
+    # P4-5, P4-6, and specs/project-outline.md section 3: LLM access is HTTP via httpx, one
+    # adapter per provider - no vendor SDK. It was already here as a test dependency (the
+    # Starlette test client is built on it), and promoting it to a runtime dependency adds
+    # nothing to the install that was not already present in development. The alternative was
+    # two vendor SDKs, each large, each with its own retry policy to disable (ruling 6), and
+    # each pulling a transitive tree for a wire format that is a dozen JSON fields wide.
+    "httpx>=0.27",
 ]
 
 # Dependency budget is fixed by the Phase 1 plan (P1-1). Anything not listed here is an
@@ -27,7 +34,6 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
-    "httpx>=0.27",
     "ruff>=0.5",
 ]
 

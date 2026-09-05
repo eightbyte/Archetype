@@ -21,6 +21,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -46,6 +47,7 @@ ANCHOR_FIXTURES_DIR = FIXTURES_DIR / "anchors"
 MARKDOWN_FIXTURES_DIR = FIXTURES_DIR / "markdown"
 SCHEMA_FIXTURES_DIR = FIXTURES_DIR / "schema"
 STORYTIME_FIXTURES_DIR = FIXTURES_DIR / "bible" / "storytime"
+PROVIDER_FIXTURES_DIR = FIXTURES_DIR / "providers"
 
 
 @pytest.fixture(autouse=True)
@@ -432,3 +434,84 @@ def load_storytime_cases() -> list[dict[str, Any]]:
     """
     raw = (STORYTIME_FIXTURES_DIR / "cases.json").read_text(encoding="utf-8")
     return json.loads(raw)["cases"]
+
+
+# -- the provider corpora (Phase 4, Group B) ------------------------------------------------
+
+
+def load_provider_cases(provider: str) -> list[dict[str, Any]]:
+    """One adapter's recorded payloads (P4-5, P4-6; plan section 2, ruling 3).
+
+    ``tests/fixtures/providers/README.md`` holds the case shape and, importantly, the provenance:
+    these were transcribed from each provider's published wire format rather than captured from a
+    live account, and the capture scripts beside them are how they are refreshed from a real run.
+    """
+    raw = (PROVIDER_FIXTURES_DIR / provider / "cases.json").read_text(encoding="utf-8")
+    return json.loads(raw)["cases"]
+
+
+def case_named(cases: list[dict[str, Any]], name: str) -> dict[str, Any]:
+    """One case by name, failing loudly rather than silently skipping when it is not there."""
+    for case in cases:
+        if case["name"] == name:
+            return case
+    raise AssertionError(
+        f"no provider case named {name!r}; the corpus has: "
+        + ", ".join(str(case.get("name")) for case in cases)
+    )
+
+
+class RecordedCalls:
+    """Every request an adapter made, so a test can assert on the body it actually sent."""
+
+    def __init__(self) -> None:
+        self.requests: list[httpx.Request] = []
+
+    @property
+    def count(self) -> int:
+        return len(self.requests)
+
+    @property
+    def last(self) -> httpx.Request:
+        assert self.requests, "no request was made"
+        return self.requests[-1]
+
+    @property
+    def body(self) -> dict[str, Any]:
+        return json.loads(self.last.content.decode("utf-8"))
+
+
+def replay(
+    *,
+    status: int = 200,
+    json_body: Any = None,
+    sse: list[str] | None = None,
+) -> tuple[httpx.AsyncClient, RecordedCalls]:
+    """An ``httpx`` client that answers with a recorded payload and opens no socket.
+
+    This is what makes ruling 3 a property of the suite rather than a promise: an adapter test
+    cannot reach the network even by accident, because the transport under it has no network in
+    it. Returns the client and the record of what was sent through it.
+    """
+    calls = RecordedCalls()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.requests.append(request)
+        if sse is not None:
+            return httpx.Response(
+                status,
+                text="\n".join(sse),
+                headers={"content-type": "text/event-stream"},
+            )
+        return httpx.Response(status, json=json_body)
+
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler)), calls
+
+
+def replay_case(case: dict[str, Any]) -> tuple[httpx.AsyncClient, RecordedCalls]:
+    """A replay client wired to exactly what one corpus case recorded."""
+    return replay(
+        status=int(case.get("http_status", 200)),
+        json_body=case.get("wire_response"),
+        sse=case.get("sse"),
+    )

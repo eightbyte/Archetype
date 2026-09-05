@@ -187,8 +187,15 @@ class SettingsWithSecret(Settings):
     api_key: SecretStr | None = Field(default=None, exclude=True)
 
 
-def test_phase_1_declares_no_secrets() -> None:
-    assert Settings.secret_fields() == frozenset()
+def test_the_only_secrets_are_the_two_provider_keys() -> None:
+    """P4-8, and the first real secrets this application holds.
+
+    Phase 1 asserted this set was **empty** - it had no secret to guard and the point was that
+    the guard existed before there was one. Phase 4 gives it two, and the assertion is still
+    exact rather than loosened: a third secret is a deliberate act and fails here until it is
+    written down (phase-4-plan section 7, ``B6``).
+    """
+    assert Settings.secret_fields() == frozenset({"anthropic_api_key", "openai_api_key"})
 
 
 def test_a_secret_field_is_read_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:

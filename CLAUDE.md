@@ -18,8 +18,8 @@ Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository 
 `WritingAssistant` — a path, not the product name.
 
 **Current state: Phase 1 complete (2026-08-30); Phase 2 complete (2026-09-01); Phase 3 complete
-(2026-09-04). Phase 4 is in progress — its § 2 is ruled and Group A is delivered (2026-09-04).**
-Both suites green — **1,180 backend, 535 frontend**. All **thirty-four** decisions are resolved and
+(2026-09-04). Phase 4 is in progress — its § 2 is ruled, and Groups A and B are delivered
+(2026-09-04, 2026-09-05).** Both suites green — **1,293 backend, 535 frontend**. All **thirty-four** decisions are resolved and
 binding: the writer ruled D21–D24 on 2026-08-30, D25–D29 on 2026-09-01 (both reversals accepted,
 settling backlog `Q1`, `Q2`, `Q5`, and `Q7`), and **D30–D34 on 2026-09-04, all five as
 recommended**. Three open questions remain, none due before Phase 6.
@@ -41,12 +41,27 @@ proposal (D33); and the API key stays environment-only with the settings UI read
 
 **Group A is delivered** (`P4-1` … `P4-4`): `specs/providers.md`, written before the code it
 governs; `archetype/llm/port.py` — the protocol, the normalised shapes, and five closed
-vocabularies, pure and importable with nothing running; the empty `llm/adapters/` package and the
+vocabularies, pure and importable with nothing running; the `llm/adapters/` package and the
 **import-graph test** that keeps a provider SDK out of everything above it; `FakeProvider`, the
 first resident of `tests/fakes/`; and **migration 004** with the `cnv_` and `msg_` prefixes, proved
-against a captured version-3 project file. **Groups B, C, and D are not started** — there is no
-adapter, no registry, no route, no socket, and no panel, and nothing in the app calls a model yet.
-Six as-built deviations are in that plan's § 7.
+against a captured version-3 project file. Six as-built deviations are in that plan's § 7.
+
+**Group B is delivered** (`P4-5` … `P4-8`): **both adapters, and nothing that knows which one is
+in play.** `llm/adapters/anthropic.py` translates the Messages API and `llm/adapters/openai_compat.py`
+the chat-completions shape, over one shared `transport.py` and one `sse.py`; `prompted_tools.py` is
+D31's fallback and is invisible above the port; `llm/budget.py` is ruling 7's hard refusal;
+`llm/registry.py` is the **only** place a provider is constructed, and `Settings` gained the
+provider block including the two `SecretStr` keys. **No vendor SDK is used at all** — the outline's
+own § 3 fixes LLM access as HTTP via `httpx`, so `httpx` occupies the position an SDK would have
+and inherits its rule: it is fenced into `llm/` by a second import-graph test, and `httpx` is now a
+runtime dependency. The two corpora in `tests/fixtures/providers/` are **transcribed from each
+provider's published wire format, not captured from a live account** (deviation `B1`, and the
+fixture README says so plainly) — the capture scripts are committed and unrun, because a capture
+makes billed requests, so § 8's steps 4 and 12 are where that gap closes. Ten as-built deviations,
+three of which are corrections now carried in `specs/providers.md` § 13.
+
+**Groups C and D are not started** — there is no route, no socket, and no panel, and **nothing in
+the app calls a model yet**.
 
 The app is a place you can write, a place you can **maintain** what you wrote, a place you can get
 words **in and out of**, and now a place that **knows what is in the story**: create a project, add
@@ -235,8 +250,10 @@ the corpus abstracts, and Phase 4's § 8 adds a third kind of blindness the suit
   Phase 6, D33 an accepted rewrite is an ordinary editor transaction, D34 keys stay
   environment-only. Its § 3 is the port's shape, § 5 twelve exit criteria, § 6 the risks — of
   which "money" and "the port is shaped by whichever adapter is written first" are the two with no
-  precedent in earlier phases — § 7 the deviations table (`A1`–`A6` so far; `A1` is the only one
-  that changes a stored shape and `A3` the only one that adds an unbudgeted surface), and § 8 the
+  precedent in earlier phases — § 7 the deviations table (`A1`–`A6` and `B1`–`B10` so far; `A1`
+  is the only one that changes a stored shape, `A3` and `B7` the only ones that add an unbudgeted
+  surface, `B5` the only one that adds stored configuration, and **`B1` is the one to read** —
+  it says what the recorded fixtures actually prove), and § 8 the
   fifteen-step acceptance run, which must additionally **record what the model actually said**,
   because the suite cannot assess an answer.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
@@ -281,8 +298,12 @@ the corpus abstracts, and Phase 4's § 8 adds a third kind of blindness the suit
   capability flags and exactly what each changes, the six-code error taxonomy, the context budget
   as a **hard refusal**, and **what a provider may not be asked to do**. It deliberately does
   **not** restate either provider's wire format — that is the adapters' translation and a recorded
-  fixture's truth. Its § 13 carries the corrections the code makes to it — empty so far. Read it
-  before touching anything in `archetype/llm/`.
+  fixture's truth. **Its § 13 carries three corrections the adapters made to it**: the effective
+  budget is a minimum over the windows that were actually *declared* (zero means "not declared",
+  not "no context"); "identical normalised tool_calls" is exact on the name and the arguments and
+  excludes the id, by that document's own next rule; and a tool call arriving **mid-stream** has
+  no Phase 4 event to arrive in, which is D32's vocabulary rather than an adapter's choice. Read
+  it before touching anything in `archetype/llm/`.
 - `specs/agent-tools.md` — written as its phase begins (Phase 6).
 
 There is no `specs/markdown.md`, deliberately. The syntax is a docstring
@@ -421,7 +442,14 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/manuscript/markdown/importer.py` | The part of an import that writes: measure every chapter, then create them (`P2-14`) |
 | `server/archetype/manuscript/locator.py` | Resolves a bare document, anchor, or snapshot id to the project file holding it |
 | `server/archetype/llm/port.py` | The provider port: the protocol, the normalised shapes, and the five closed vocabularies. **Pure** — pydantic and the standard library (`P4-2`, D31, D32) |
-| `server/archetype/llm/adapters/` | The **only** place a provider SDK may be imported. Empty until `P4-5` (`P4-2`, plan ruling 2) |
+| `server/archetype/llm/adapters/` | The **only** place a provider's wire format is known — and the only place `httpx` is imported outside `llm/` (`P4-2`, plan ruling 2) |
+| `server/archetype/llm/adapters/transport.py` | One httpx client per adapter, and the one place a status code or a dropped connection becomes a `ProviderError`. **Retries nothing** (`P4-5`, ruling 6) |
+| `server/archetype/llm/adapters/sse.py` | The framing both providers stream over, parsed once. **Pure** (`P4-5`, `P4-6`) |
+| `server/archetype/llm/adapters/anthropic.py` | The Messages API: the system prompt's own parameter, `stop_reason` normalisation, tool blocks, and the two halves of streamed usage (`P4-5`) |
+| `server/archetype/llm/adapters/openai_compat.py` | The chat-completions shape, for **any** server that speaks it — base URL, key, model id, four capability flags (`P4-6`) |
+| `server/archetype/llm/adapters/prompted_tools.py` | D31's fallback: declarations into the prompt, JSON back out, presented as ordinary `tool_calls`. **Pure** (`P4-7`) |
+| `server/archetype/llm/budget.py` | Ruling 7's hard refusal: the conservative estimate, the effective budget, and `context_too_large` naming what was too big. **Pure** (`P4-8`) |
+| `server/archetype/llm/registry.py` | The **only** place a provider is constructed, and the only place a key is unwrapped (`P4-8`, D34) |
 | `server/archetype/projects/migrations/004_chat.sql` | `conversation` and `message` — where a chat lives, and why a Phase 4 turn is not a Phase 6 run (`P4-4`, D30) |
 | `server/archetype/bible/schema.py` | The **one** place the seven kinds' fields and the twelve relations are written down; the six closed field types, `validate()`, and the JSON dump (`P3-5`, D26) |
 | `server/archetype/bible/predicates.py` | The live predicate for an entry, and the **three-way** one for a link — written once (`P3-3`, D25) |
@@ -492,7 +520,13 @@ suite keeps a developer's real config out of its way.
 | `web/src/__tests__/chapters.test.tsx` | Reorder, rename, delete, and restore in the Contents tab (`P2-11`) |
 | `web/src/__tests__/snapshots.test.tsx` | The history panel, marking a version, and restoring one (`P2-12`) |
 | `web/src/__tests__/markdown.test.tsx` | The export links, the import form, and the report (`P2-13`, `P2-14`) |
-| `server/tests/test_llm_port.py` | The port, its vocabularies, the fake, and the two guards: an unknown stream event refused, and no provider SDK above `llm/adapters/` (`P4-2`, `P4-3`) |
+| `server/tests/test_llm_port.py` | The port, its vocabularies, the fake, and the guards: an unknown stream event refused, no provider SDK above `llm/adapters/`, and no HTTP client above `llm/` (`P4-2`, `P4-3`, `P4-5`) |
+| `server/tests/fixtures/providers/` | The two recorded corpora, their README's **provenance note**, and the capture scripts that refresh them from a real run (`P4-5`, `P4-6`, ruling 3) |
+| `server/tests/test_adapter_anthropic.py` | The Messages API corpus, both ways, plus the translations worth stating alone (`P4-5`) |
+| `server/tests/test_adapter_openai.py` | The chat-completions corpus, and every way a *nearly* compatible server differs (`P4-6`) |
+| `server/tests/test_llm_adapters.py` | What is true of **both**: interchangeable, one taxonomy, nothing retried, and the SSE framing (`P4-5`, `P4-6`) |
+| `server/tests/test_prompted_tools.py` | P4-7's corpus of replies, and D31's bar — a native and a fallback path producing the same call (`P4-7`) |
+| `server/tests/test_provider_registry.py` | Both adapters from configuration alone, `provider_unconfigured` before anything is composed, the budget, and the walk of the whole API surface for a leaked key (`P4-8`, D34) |
 | `server/tests/test_bible_schema.py` | The closed field-type list, the definition's own consistency, and validation's refusals (`P3-5`) |
 | `server/tests/test_entries.py` | All seven kinds through one store, every refusal writing nothing, and the deleted entry absent from every read path together (`P3-3`) |
 | `server/tests/test_entry_revisions.py` | Revisions, restore-through-update, the retcon computation, and the review queue that empties (`P3-4`) |
@@ -510,7 +544,61 @@ suite keeps a developer's real config out of its way.
 | `web/src/__tests__/entryLinks.test.tsx` | Links both ways, the picker's refusals, citations and their status, and *Add to bible* below the gesture (`P3-14`) |
 
 **Invariants established in Phase 1's Groups A, B, and C, in Phase 2's Groups A, B, C, and D, in
-Phase 3's Groups A, B, C, and D, and in Phase 4's Group A**, beyond those already listed above.
+Phase 3's Groups A, B, C, and D, and in Phase 4's Groups A and B**, beyond those already listed
+above.
+
+Phase 4's Group B added these:
+
+- **No vendor SDK is used, and `httpx` inherits the rule an SDK would have had.** The outline's
+  § 3 fixes LLM access as HTTP via `httpx`, one adapter per provider, so the transport occupies the
+  position an SDK would have occupied — and a second import-graph test fails if any module outside
+  `llm/` imports it. A route or a store that started making its own HTTP calls would be a second
+  way to reach a model, outside the port, and it would go on working quietly until somebody asked
+  why swapping providers did not change that surface. A third test keeps `archetype.llm` exporting
+  the port and nothing that would drag a transport onto the import path of everything above it.
+- **Nothing retries, and that is structural rather than remembered.** `httpx` retries no request
+  by default and `transport.py` adds none (ruling 6). The autosave backoff ladder is right there
+  and is exactly wrong here: retrying a save costs nothing and protects the writer's words;
+  retrying a completion costs money and protects nothing. One test asserts that a provider which
+  cannot be reached is attempted **once**.
+- **Each corpus states both halves — what goes out and what must come back.** A fixture that only
+  recorded the response would let a request drift, and two halves that agreed with each other on a
+  body no provider accepts would pass. Same discipline as the Markdown corpus, which states the
+  exact Markdown rather than only the round trip.
+- **The two adapters are proved interchangeable, and `raw_stop_reason` is excluded on purpose.**
+  One normalised request goes through both and the normalised results are compared — the test that
+  fails the moment the port has a favourite (§ 6's first risk). The provider's own stop string is
+  *supposed* to differ, which is what makes `other` diagnosable rather than merely honest.
+- **The port's `temperature` default of `None` is load-bearing, not stylistic.** The current Claude
+  models reject `temperature` with a `400`, so an adapter sends it only when the caller chose one.
+  A port that had defaulted it to `0.0` would make every request to them fail.
+- **A capability is a statement about the provider and never a switch above the port.** Only the
+  adapters, the budget check, and (in Group C) the socket's decision to stream at all may read one.
+  `supports_system=False` folds the system text into the first user message *inside the adapter*
+  and says so in no other way.
+- **An undeclared context window is `0`, and `0` means "not declared" rather than "no context".**
+  The effective budget is the minimum over the windows that were actually declared, because the
+  OpenAI-compatible adapter genuinely does not know what server is on the other end. The Anthropic
+  adapter declares the **smallest** current window rather than the largest, deliberately:
+  under-declaring refuses a request that might have fitted, which costs nothing and is fixed by
+  narrowing a selection, while over-declaring sends one that is billed and then refused.
+- **The prompted-JSON fallback is invisible above the port, and a reply that calls no tool is not
+  a failure.** The `"tool_calls"` marker separates a reply that meant to call a tool and produced
+  unreadable JSON — `provider_refused`, with the raw text preserved — from one that never intended
+  to. A silently empty tool call would run a tool with defaults the model never asked for. Its ids
+  are positional, so a recorded reply parses the same way twice.
+- **`provider_refused` versus `context_too_large` is a heuristic over somebody else's prose, and
+  it is written down as one.** Neither provider sets a code that means only "your prompt is too
+  long"; the substring list lives in one place with its reasoning beside it. A miss degrades to
+  `provider_refused`, which still carries the provider's own message — and our own budget check,
+  which never guesses, is the path that matters.
+- **A key is unwrapped in exactly one place.** `llm/registry.py` reads it from settings, which read
+  it from the environment, and puts it in a header. Nothing returns it, logs it, or names it in an
+  error. A test walks the **whole** API surface with a key configured and asserts it appears in no
+  response body, so a route added later is covered without anyone remembering.
+- **A provider name this build cannot serve breaks the assistant, never the application.**
+  `llm_provider` is a plain string rather than a `Literal`, so a typo in one environment variable
+  answers `provider_unconfigured` instead of stopping the writer from opening their manuscript.
 
 Phase 4's Group A added these:
 
