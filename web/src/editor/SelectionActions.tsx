@@ -1,16 +1,22 @@
 /**
- * The control that appears over a selection (P2-9, P2-10, P3-14).
+ * The control that appears over a selection (P2-9, P2-10, P3-14, P4-13).
  *
- * Three jobs, and which of them it offers depends on whether a repair is in progress:
+ * Four jobs, and which of them it offers depends on whether a repair is in progress:
  *
- * * ordinarily, **Mark passage** — anchor what is selected — and **Add to bible**, which anchors
- *   it *and* makes an entry out of it in one act;
+ * * ordinarily, **Mark passage** — anchor what is selected — **Add to bible**, which anchors it
+ *   *and* makes an entry out of it in one act, and **Ask agent**, which hands the range to the
+ *   assistant panel as the context for a question;
  * * while the *Marks* tab has armed a manual re-link, **Re-link here** — point that anchor at
  *   what is selected instead, in whichever chapter the writer has ended up in.
  *
- * All three send a range and the document version, and nothing else. The server reads the quote
- * and its context out of the text it holds, so a client cannot create, repair, or cite an anchor
- * whose quote disagrees with the manuscript — it is never asked what the manuscript says.
+ * All of them send a range and the document version, and nothing else. The server reads the quote
+ * and its context out of the text it holds, so a client cannot create, repair, cite, or *compose
+ * a context over* an anchor whose quote disagrees with the manuscript — it is never asked what
+ * the manuscript says.
+ *
+ * *Ask agent* is the outline's own sentence — "the writer selects text and asks questions about
+ * it" — reaching the model for the first time. It is one button and no form: the question is
+ * typed in the panel, where there is room for it and where what will be sent is shown first.
  *
  * *Add to bible* is the interaction the whole product is arranged around — the outline's
  * "selecting text and asking a question about it", in its manual form — so it is two fields and a
@@ -61,6 +67,8 @@ export interface SelectionActionsProps {
    */
   kinds: readonly KindDefinition[];
   onAddToBible: (range: SelectionRange, draft: BibleDraft) => void;
+  /** Point the assistant at this passage and open the panel on its composer (P4-13). */
+  onAskAgent: (range: SelectionRange) => void;
 }
 
 interface Placement {
@@ -78,6 +86,7 @@ export function SelectionActions({
   busy,
   kinds,
   onAddToBible,
+  onAskAgent,
 }: SelectionActionsProps) {
   const [placement, setPlacement] = useState<Placement | null>(null);
   const [adding, setAdding] = useState<Placement | null>(null);
@@ -169,6 +178,9 @@ export function SelectionActions({
               Add to bible
             </button>
           )}
+          <button type="button" disabled={busy} onClick={() => onAskAgent(placement.range)}>
+            Ask agent
+          </button>
         </>
       )}
     </div>

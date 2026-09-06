@@ -20,6 +20,13 @@
  * layer takes the anchor, and the bible layer is told an entry now exists. Doing that join here
  * rather than inside `DocumentContext` keeps the document layer's single upward dependency
  * single — it tells the project a save landed, and nothing else.
+ *
+ * Phase 4's *Ask agent* is a fourth action on the same control and the same kind of join (P4-13):
+ * the document layer knows which chapter is open, the chat layer takes the range as the context
+ * for a question, and the UI layer opens the panel it will be typed into. It sends **only a
+ * range** — the server derives the passage from the text it holds, exactly as an anchor's quote
+ * is derived — and it flushes first, because a range against text the server has not been told
+ * about is a range over the wrong words.
  */
 
 import { useCallback, useState } from 'react';
@@ -31,10 +38,12 @@ import { SaveIndicator } from '../editor/SaveIndicator';
 import { SnapshotHistory } from '../panels/SnapshotHistory';
 import { plural } from '../format';
 import { useBible } from '../state/BibleContext';
+import { useChat } from '../state/ChatContext';
 import { useDocument } from '../state/DocumentContext';
 import { useProject } from '../state/ProjectContext';
 import { anchorsOf } from '../state/projectReducer';
 import { useToasts } from '../state/ToastContext';
+import { useUi } from '../state/UiContext';
 import { describeAnchor } from '../anchorText';
 
 export function EditorRegion() {
@@ -49,9 +58,12 @@ export function EditorRegion() {
     anchorReached,
     createAnchor,
     addToBible,
+    replacementApplied,
   } = useDocument();
   const { state: projectState, relinkAnchor, cancelRelink } = useProject();
   const { state: bibleState, entryCreated } = useBible();
+  const { selectContext } = useChat();
+  const { dispatch: uiDispatch } = useUi();
   const { push } = useToasts();
   const [anchorBusy, setAnchorBusy] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -95,6 +107,35 @@ export function EditorRegion() {
       })();
     },
     [addToBible, entryCreated, push],
+  );
+
+  const onAskAgent = useCallback(
+    (range: SelectionRange) => {
+      void (async () => {
+        // Flush for the reason every other selection action flushes: the server composes the
+        // passage out of the text it holds, and a range against text it has not been told about
+        // is a range over the wrong words (`specs/anchors.md` § 8, one module over).
+        await flush();
+        const documentId = state.documentId;
+        if (documentId === null) {
+          return;
+        }
+        selectContext({
+          document_id: documentId,
+          from_pos: range.from,
+          to_pos: range.to,
+          // The chapter comes with the passage by default and can be dropped in the panel. A
+          // question about a paragraph is nearly always a question about where it sits.
+          include_chapter: true,
+          entry_ids: [],
+          include_history: true,
+        });
+        // The panel is where the question is typed, so it has to be open to type into. A writer
+        // who has collapsed it and then asks for it has asked for it.
+        uiDispatch({ type: 'set-pane-collapsed', pane: 'agent', collapsed: false });
+      })();
+    },
+    [flush, selectContext, state.documentId, uiDispatch],
   );
 
   const onRelink = useCallback(
@@ -193,6 +234,9 @@ export function EditorRegion() {
         anchorBusy={anchorBusy}
         bibleKinds={bibleState.schema?.kinds ?? []}
         onAddToBible={onAddToBible}
+        onAskAgent={onAskAgent}
+        pendingReplacement={state.pendingReplacement}
+        onReplacementApplied={replacementApplied}
       />
     </div>
   );

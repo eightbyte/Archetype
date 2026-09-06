@@ -17,6 +17,12 @@
  * document layer would make the bible something that resets when a chapter is opened. Being an
  * ancestor of the document layer is also what lets the editor's *Add to bible* tell it that an
  * entry now exists.
+ *
+ * `ChatProvider` joins it in Phase 4, in the same band and for the same two reasons (P4-12): a
+ * conversation is stored in the project file and outlives every chapter switch, and the editor's
+ * *Ask agent* — which lives inside the document layer — has to be able to hand a selection up to
+ * it. It is nested inside the bible's because the composer offers bible entries as context and
+ * reads them from there; nothing goes the other way.
  */
 
 import { useCallback, useMemo, useState } from 'react';
@@ -34,6 +40,7 @@ import {
   writeStored,
 } from './state/persistence';
 import { BibleProvider } from './state/BibleContext';
+import { ChatProvider } from './state/ChatContext';
 import { ProjectProvider } from './state/ProjectContext';
 import { ToastProvider } from './state/ToastContext';
 import { UiProvider } from './state/UiContext';
@@ -82,9 +89,11 @@ export function App({ client, initialProjectId }: AppProps = {}) {
           ) : (
             <ProjectProvider key={projectId} client={api} projectId={projectId}>
               <BibleProvider client={api} projectId={projectId}>
-                <DocumentProvider client={api}>
-                  <Workspace onLeaveProject={leave} />
-                </DocumentProvider>
+                <ChatProvider client={api} projectId={projectId}>
+                  <DocumentProvider client={api}>
+                    <Workspace onLeaveProject={leave} />
+                  </DocumentProvider>
+                </ChatProvider>
               </BibleProvider>
             </ProjectProvider>
           )}

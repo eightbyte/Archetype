@@ -15,6 +15,10 @@
  * selection **and** makes an entry out of it. It is covered here for the same reason the other two
  * are — this is the half of the gesture a real editor can be held to — and its other half, what
  * happens below the call, is in `entryLinks.test.tsx`.
+ *
+ * Phase 4 added a fourth: *Ask agent* (P4-13), which hands the range to the assistant panel as the
+ * context for a question. Same split, for the fourth time: the range it reports is here, and what
+ * the panel does with it is in `chat.test.tsx`.
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -36,6 +40,7 @@ interface ProbeProps {
   /** The served definition's kinds. Empty by default: P2-9's tests are about marking. */
   kinds?: KindDefinition[];
   onAddToBible?: (range: SelectionRange, draft: BibleDraft) => void;
+  onAskAgent?: (range: SelectionRange) => void;
 }
 
 /** A real editor over one paragraph, with the control beside it and a way to select text. */
@@ -47,6 +52,7 @@ function Probe({
   busy,
   kinds,
   onAddToBible,
+  onAskAgent,
 }: ProbeProps) {
   const [ready, setReady] = useState(false);
   const editor = useEditor({
@@ -83,6 +89,7 @@ function Probe({
         busy={busy ?? false}
         kinds={kinds ?? []}
         onAddToBible={onAddToBible ?? (() => {})}
+        onAskAgent={onAskAgent ?? (() => {})}
       />
     </div>
   );
@@ -270,5 +277,42 @@ describe('adding to the bible (P3-14)', () => {
 
     expect(screen.queryByRole('button', { name: 'Add to bible' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Mark passage' })).toBeNull();
+  });
+});
+
+describe('asking about a passage (P4-13)', () => {
+  test('selecting text offers to ask about it, and reports the range that was selected', async () => {
+    const user = userEvent.setup();
+    const onAskAgent = vi.fn();
+    render(<Probe onAskAgent={onAskAgent} />);
+
+    await select(user);
+    await user.click(await screen.findByRole('button', { name: 'Ask agent' }));
+
+    // The same range the mark path sends, and for the same reason: the client sends *where*, and
+    // the server derives *what* out of the text it holds.
+    expect(onAskAgent).toHaveBeenCalledWith({ from: 5, to: 16 });
+  });
+
+  test('it is offered without the bible definition, unlike *Add to bible*', async () => {
+    const user = userEvent.setup();
+    render(<Probe />);
+
+    await select(user);
+
+    // *Add to bible* needs the served definition to build its kind picker and is absent without
+    // one. Asking a question needs nothing but a range, so it is always there.
+    expect(await screen.findByRole('button', { name: 'Ask agent' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Add to bible' })).toBeNull();
+  });
+
+  test('a repair in progress replaces it, as it replaces the other two', async () => {
+    const user = userEvent.setup();
+    render(<Probe relinking={{ anchorId: 'anc_1', description: '“the harbour”' }} />);
+
+    await select(user);
+
+    await screen.findByRole('button', { name: 'Re-link here' });
+    expect(screen.queryByRole('button', { name: 'Ask agent' })).toBeNull();
   });
 });

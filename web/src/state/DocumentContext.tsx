@@ -139,6 +139,30 @@ interface DocumentContextValue {
    * editor then reloads to the restored content.
    */
   restoreSnapshot: (snapshotId: string) => Promise<void>;
+  /**
+   * Re-read one anchor's **current** status from the server (P4-14).
+   *
+   * Flushes first, so the answer is about the text as it now stands rather than as it stood
+   * before the writer's last keystroke — and the flush's own response has already re-resolved
+   * every anchor of the document inside its transaction (D21). Resolves `null` when the anchor
+   * is no longer there at all.
+   *
+   * Nothing here decides whether an anchor still points at its passage. That is the resolver's,
+   * it lives on the server, and it has a specification and a corpus behind it; a client that
+   * worked it out for itself would be a second one with neither.
+   */
+  resolveAnchor: (documentId: string, anchorId: string) => Promise<Anchor | null>;
+  /**
+   * Replace a range of the open chapter with new text, as **one** editor transaction (P4-14, D33).
+   *
+   * Undoable, autosaved through the ordinary loop, and covered by the snapshot machinery that
+   * already exists — which is the whole of what D33 means by "an ordinary editor transaction
+   * rather than a durable proposal". It does not save by itself: the transaction marks the
+   * document dirty and the autosave that already runs is what writes it.
+   */
+  applyReplacement: (from: number, to: number, text: string) => void;
+  /** The editor has applied it; clear the request. */
+  replacementApplied: () => void;
 }
 
 const DocumentContext = createContext<DocumentContextValue | null>(null);
@@ -260,12 +284,14 @@ export function DocumentProvider({
    * drawn must never be the reason the writing surface is not, and the editor may be holding
    * the only copy of a sentence (P1-9's per-region rule, applied to a request).
    */
-  const loadAnchors = useCallback(async (documentId: string): Promise<void> => {
+  const loadAnchors = useCallback(async (documentId: string): Promise<Anchor[] | null> => {
     try {
       const listed = await clientRef.current.listDocumentAnchors(documentId);
       projectDispatchRef.current({ type: 'anchors-resolved', documentId, anchors: listed.anchors });
+      return listed.anchors;
     } catch {
       // Leave whatever the project list already had: a cached answer beats an empty panel.
+      return null;
     }
   }, []);
 
@@ -455,6 +481,36 @@ export function DocumentProvider({
     [saver],
   );
 
+  const resolveAnchor = useCallback(
+    async (documentId: string, anchorId: string): Promise<Anchor | null> => {
+      // Flush first, for the reason `createAnchor` flushes: an answer about text the server has
+      // not been told about is an answer about the wrong text. The save re-resolves every anchor
+      // of the document inside its own transaction (D21), so the list read here is the current
+      // one — and it is read rather than taken from the save's `moved` list, which reports only
+      // the anchors that changed.
+      await saver.flush();
+      const anchors = await loadAnchors(documentId);
+      if (anchors === null) {
+        // The read failed. Refusing is the only honest answer: an action must never apply to a
+        // `stale` anchor, and "we could not find out" is not "it is fine".
+        throw new Error('the passage could not be checked against the manuscript');
+      }
+      return anchors.find((anchor) => anchor.id === anchorId) ?? null;
+    },
+    [loadAnchors, saver],
+  );
+
+  const applyReplacement = useCallback(
+    (from: number, to: number, text: string) =>
+      applyAction({ type: 'replacement-requested', replacement: { from, to, text } }),
+    [applyAction],
+  );
+
+  const replacementApplied = useCallback(
+    () => applyAction({ type: 'replacement-applied' }),
+    [applyAction],
+  );
+
   const markVersion = useCallback(
     async (label: string): Promise<SnapshotMeta | null> => {
       // A mark records what is on screen, so what is on screen has to be what is stored.
@@ -556,6 +612,9 @@ export function DocumentProvider({
       readSnapshot,
       savedContent,
       restoreSnapshot,
+      resolveAnchor,
+      applyReplacement,
+      replacementApplied,
     }),
     [
       state,
@@ -577,6 +636,9 @@ export function DocumentProvider({
       readSnapshot,
       savedContent,
       restoreSnapshot,
+      resolveAnchor,
+      applyReplacement,
+      replacementApplied,
     ],
   );
 

@@ -356,6 +356,7 @@ export const ERROR_CODES = {
   entryVersionConflict: 'entry_version_conflict',
   duplicateLink: 'duplicate_link',
   invalidAttributes: 'invalid_attributes',
+  conversationNotFound: 'conversation_not_found',
 } as const;
 
 /* -------------------------------------------------------------------------------------------

@@ -57,6 +57,28 @@ export interface DocumentState {
    * so this stays set until the decoration is actually there.
    */
   pendingAnchor: string | null;
+  /**
+   * A replacement the editor should apply as one transaction, or null (P4-14, D33).
+   *
+   * An accepted rewrite is an ordinary editor transaction — undoable, autosaved, and covered by
+   * the snapshot machinery that already exists — and not a durable proposal (Phase 7 owns those).
+   * It travels through the reducer for the reason a heading jump does: the editor instance is
+   * owned by `ManuscriptEditor` and everything it is asked to do arrives as pending state that
+   * it clears when it has done it.
+   */
+  pendingReplacement: PendingReplacement | null;
+}
+
+/**
+ * A range of the open chapter, and what should be in it instead.
+ *
+ * The positions are ProseMirror positions and they are the **anchor's**, which is the server's
+ * answer about where that passage is now — not a range the panel worked out for itself.
+ */
+export interface PendingReplacement {
+  from: number;
+  to: number;
+  text: string;
 }
 
 export type DocumentAction =
@@ -73,6 +95,8 @@ export type DocumentAction =
   | { type: 'jump-completed' }
   | { type: 'anchor-jump-requested'; anchorId: string }
   | { type: 'anchor-jump-completed' }
+  | { type: 'replacement-requested'; replacement: PendingReplacement }
+  | { type: 'replacement-applied' }
   | { type: 'closed' };
 
 export const INITIAL_DOCUMENT_STATE: DocumentState = {
@@ -91,6 +115,7 @@ export const INITIAL_DOCUMENT_STATE: DocumentState = {
   loadError: null,
   pendingHeading: null,
   pendingAnchor: null,
+  pendingReplacement: null,
 };
 
 /** True when the editor holds something the server has not been told about. */
@@ -198,6 +223,17 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 
     case 'anchor-jump-completed':
       return state.pendingAnchor === null ? state : { ...state, pendingAnchor: null };
+
+    case 'replacement-requested':
+      // Refused rather than queued when the chapter is not open and ready. A replacement against
+      // a document that is loading would land on whatever arrives, which is not the passage the
+      // writer read the suggestion against.
+      return state.status === 'ready'
+        ? { ...state, pendingReplacement: action.replacement }
+        : state;
+
+    case 'replacement-applied':
+      return state.pendingReplacement === null ? state : { ...state, pendingReplacement: null };
 
     case 'closed':
       return INITIAL_DOCUMENT_STATE;

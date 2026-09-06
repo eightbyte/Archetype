@@ -28,12 +28,21 @@
  * between those the plugin maps them through each transaction so a highlight follows the words.
  * That mapping is display-only and never leaves the browser: the ranges this component sends are
  * only ever the writer's own selection.
+ *
+ * ## Applying a replacement (P4-14, D33)
+ *
+ * An accepted rewrite arrives the way a heading jump does — as pending state this component
+ * clears once it has acted — and it is applied as **one** ProseMirror transaction. That is the
+ * whole of D33: the result is undoable with one press, it marks the document dirty exactly once,
+ * and the autosave that already runs is what writes it. There is no second save path and no
+ * durable proposal record; Phase 7 owns those.
  */
 
 import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { ProseMirrorDocument } from './projection';
+import type { PendingReplacement } from '../state/documentReducer';
 import type { EditorAnchor } from './anchors';
 import { setAnchorsTransaction } from './anchors';
 import { EDITOR_EXTENSIONS } from './extensions';
@@ -71,6 +80,12 @@ export interface ManuscriptEditorProps {
   bibleKinds: readonly KindDefinition[];
   /** Anchor the selection *and* make an entry out of it, in one act. */
   onAddToBible: (range: SelectionRange, draft: BibleDraft) => void;
+  /** Hand the selection to the assistant panel as the context for a question (P4-13). */
+  onAskAgent: (range: SelectionRange) => void;
+  /** A replacement to apply as one transaction, or null (P4-14). */
+  pendingReplacement: PendingReplacement | null;
+  /** It has been applied; clear the request. */
+  onReplacementApplied: () => void;
 }
 
 export function ManuscriptEditor({
@@ -91,6 +106,9 @@ export function ManuscriptEditor({
   anchorBusy,
   bibleKinds,
   onAddToBible,
+  onAskAgent,
+  pendingReplacement,
+  onReplacementApplied,
 }: ManuscriptEditorProps) {
   const callbacks = useRef({ onChange, onBlur });
   callbacks.current = { onChange, onBlur };
@@ -164,6 +182,16 @@ export function ManuscriptEditor({
     }
   }, [editor, pendingAnchor, onAnchorReached, signature, seedKey]);
 
+  // Apply an accepted rewrite. One transaction, and the `onUpdate` it fires is what marks the
+  // document dirty — so the ordinary autosave writes it and the ordinary undo takes it back.
+  useEffect(() => {
+    if (!editor || pendingReplacement === null) {
+      return;
+    }
+    applyReplacement(editor, pendingReplacement);
+    onReplacementApplied();
+  }, [editor, pendingReplacement, onReplacementApplied]);
+
   return (
     <div className="editor">
       <EditorToolbar editor={editor} />
@@ -178,6 +206,7 @@ export function ManuscriptEditor({
           busy={anchorBusy}
           kinds={bibleKinds}
           onAddToBible={onAddToBible}
+          onAskAgent={onAskAgent}
         />
       </div>
     </div>
@@ -196,6 +225,53 @@ function anchorSignature(anchors: readonly EditorAnchor[]): string {
   return anchors
     .map((anchor) => `${anchor.id}:${anchor.status}:${anchor.from}:${anchor.to}`)
     .join('|');
+}
+
+/**
+ * Replace a range with new text, as exactly one transaction (P4-14, D33).
+ *
+ * Two shapes, and the difference is what the answer actually contains:
+ *
+ * * **no blank line in it** — a text node straight into the range, so replacing part of a
+ *   sentence stays part of that paragraph rather than splitting it into two;
+ * * **blank lines in it** — one paragraph per block, because a model asked to rewrite a passage
+ *   that spanned paragraphs will answer with paragraphs, and putting those newlines into a single
+ *   text node would produce one long paragraph the writer then has to break up by hand.
+ *
+ * The range is clamped into the document first, for the reason a decoration is: these positions
+ * are an anchor's, the server leaves a `stale` anchor's positions where they were, and a
+ * transaction built out of bounds throws and takes the writing surface with it. An action never
+ * applies to a `stale` anchor — that is refused before it reaches here — but the clamp is the
+ * cheap guard that keeps a mistake from being a crash.
+ */
+export function applyReplacement(editor: Editor, replacement: PendingReplacement): void {
+  const end = editor.state.doc.content.size;
+  const from = Math.min(Math.max(replacement.from, 0), end);
+  const to = Math.min(Math.max(replacement.to, from), end);
+  const text = replacement.text;
+
+  const paragraphs = text.split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean);
+  if (paragraphs.length > 1) {
+    editor
+      .chain()
+      .focus()
+      .insertContentAt(
+        { from, to },
+        paragraphs.map((block) => ({
+          type: 'paragraph',
+          content: [{ type: 'text', text: block }],
+        })),
+      )
+      .run();
+    return;
+  }
+
+  const single = text.trim();
+  const transaction =
+    single === ''
+      ? editor.state.tr.delete(from, to)
+      : editor.state.tr.replaceWith(from, to, editor.schema.text(single));
+  editor.view.dispatch(transaction);
 }
 
 /**

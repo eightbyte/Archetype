@@ -19,6 +19,11 @@ import type {
   Citation,
   CitationRemoved,
   CitationRole,
+  ComposedContext,
+  ContextSelector,
+  Conversation,
+  ConversationDetail,
+  ConversationList,
   Document,
   DocumentList,
   DocumentMeta,
@@ -43,6 +48,8 @@ import type {
   ReorderMismatchDetail,
   RevisionList,
   SaveResult,
+  SettingsDocument,
+  SettingsPatch,
   Snapshot,
   SnapshotCapture,
   SnapshotList,
@@ -316,6 +323,55 @@ export interface ApiClient {
 
   /** D28's three answers over the project's events, and the eras. Phase 3 draws no timeline. */
   getStoryTime(projectId: string, signal?: AbortSignal): Promise<StoryTime>;
+
+  /* -- chat (P4-9, P4-10, D30) -------------------------------------------------------------- */
+
+  /** This project's live conversations, most recently used first. */
+  listConversations(projectId: string, signal?: AbortSignal): Promise<ConversationList>;
+  /** The restore tray. A soft delete whose only recovery is a toast is not a recovery (D22). */
+  listDeletedConversations(projectId: string, signal?: AbortSignal): Promise<ConversationList>;
+  /** Start one. An empty title is fine — the panel names it from its first question. */
+  createConversation(projectId: string, title?: string, signal?: AbortSignal): Promise<Conversation>;
+  /**
+   * One conversation and every turn in it, in `ord`.
+   *
+   * This is what a reload reads and what the panel re-reads when a stream terminates: the socket
+   * carries D32's five events and no persisted ids, and the terminator is sent **after** the row
+   * is written, so this read cannot lose the race.
+   */
+  getConversation(conversationId: string, signal?: AbortSignal): Promise<ConversationDetail>;
+  renameConversation(
+    conversationId: string,
+    title: string,
+    signal?: AbortSignal,
+  ): Promise<Conversation>;
+  deleteConversation(conversationId: string, signal?: AbortSignal): Promise<Conversation>;
+  restoreConversation(conversationId: string, signal?: AbortSignal): Promise<Conversation>;
+  /**
+   * What would be sent, before it is sent — and **spending nothing** (ruling 5).
+   *
+   * The same `compose()` the socket calls, so the number on screen is the number the refusal
+   * will use. An over-budget context is *reported* here rather than refused: the refusal belongs
+   * to the ask.
+   */
+  previewContext(
+    conversationId: string,
+    prompt: string,
+    context: ContextSelector,
+    signal?: AbortSignal,
+  ): Promise<ComposedContext>;
+
+  /* -- settings (P4-11, D34) ---------------------------------------------------------------- */
+
+  /** Every non-secret setting, and what the provider layer can build. Never a key (D8, D34). */
+  getSettings(signal?: AbortSignal): Promise<SettingsDocument>;
+  /**
+   * Change a provider setting.
+   *
+   * The provider block only — everything else is resolved once at startup and is read-only here
+   * (deviation `C4`). A key is refused by name, twice, on the way to disk.
+   */
+  patchSettings(patch: SettingsPatch, signal?: AbortSignal): Promise<SettingsDocument>;
 }
 
 /** A failing response, carrying the envelope the server sent. */
@@ -687,6 +743,65 @@ export function createApiClient(baseUrl = ''): ApiClient {
 
     getStoryTime: (projectId, signal) =>
       request('GET', `/api/projects/${encodeURIComponent(projectId)}/storytime`, undefined, signal),
+
+    // -- chat (P4-9, P4-10) -------------------------------------------------------------------
+
+    listConversations: (projectId, signal) =>
+      request(
+        'GET',
+        `/api/projects/${encodeURIComponent(projectId)}/conversations`,
+        undefined,
+        signal,
+      ),
+    listDeletedConversations: (projectId, signal) =>
+      request(
+        'GET',
+        `/api/projects/${encodeURIComponent(projectId)}/conversations/deleted`,
+        undefined,
+        signal,
+      ),
+    createConversation: (projectId, title, signal) =>
+      request(
+        'POST',
+        `/api/projects/${encodeURIComponent(projectId)}/conversations`,
+        { title: title ?? '' },
+        signal,
+      ),
+    getConversation: (conversationId, signal) =>
+      request(
+        'GET',
+        `/api/conversations/${encodeURIComponent(conversationId)}`,
+        undefined,
+        signal,
+      ),
+    renameConversation: (conversationId, title, signal) =>
+      request('PATCH', `/api/conversations/${encodeURIComponent(conversationId)}`, { title }, signal),
+    deleteConversation: (conversationId, signal) =>
+      request(
+        'DELETE',
+        `/api/conversations/${encodeURIComponent(conversationId)}`,
+        undefined,
+        signal,
+      ),
+    restoreConversation: (conversationId, signal) =>
+      request(
+        'POST',
+        `/api/conversations/${encodeURIComponent(conversationId)}/restore`,
+        undefined,
+        signal,
+      ),
+    previewContext: (conversationId, prompt, context, signal) =>
+      request(
+        'POST',
+        `/api/conversations/${encodeURIComponent(conversationId)}/context`,
+        { prompt, context },
+        signal,
+      ),
+
+    // -- settings (P4-11, D34) ----------------------------------------------------------------
+
+    getSettings: (signal) => request('GET', '/api/settings', undefined, signal),
+    patchSettings: (patch, signal) => request('PATCH', '/api/settings', patch, signal),
   };
 }
 

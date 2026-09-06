@@ -33,13 +33,18 @@ async function readyWorkspace() {
 }
 
 describe('the three regions', () => {
-  test('all three are present, with the agent panel holding its place for Phase 4', async () => {
+  test('all three are present, and the agent panel is the assistant (P4-12)', async () => {
     await readyWorkspace();
 
     expect(screen.getByRole('region', { name: 'Outline' })).toBeDefined();
     expect(screen.getByRole('region', { name: 'Manuscript' })).toBeDefined();
+    // The third region held a paragraph about Phase 4 from P1-9 until P4-12 filled it. This
+    // assertion changed with that commit, deliberately, and is recorded in the phase plan's
+    // deviations table: what it asserts is that the region now holds the conversation list.
     const agent = screen.getByRole('region', { name: 'Assistant' });
-    expect(within(agent).getByText(/arrives in Phase 4/)).toBeDefined();
+    expect(
+      await within(agent).findByRole('button', { name: 'New conversation' }),
+    ).toBeDefined();
   });
 
   test('the outline panel offers its five tabs, two of which say when they arrive', async () => {

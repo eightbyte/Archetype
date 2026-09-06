@@ -1738,3 +1738,441 @@ h2 {
   padding: 0.15rem 0.3rem;
   font-size: 0.8rem;
 }
+
+/* -- the assistant panel (P4-12 - P4-15) --------------------------------------------------- */
+
+.agent-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.agent-settings-toggle,
+.chat-back,
+.chat-tray-toggle {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+}
+
+.agent-settings-toggle:hover,
+.chat-back:hover,
+.chat-tray-toggle:hover {
+  color: var(--accent);
+}
+
+.chat-list,
+.chat-conversation {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  gap: 0.5rem;
+}
+
+.chat-new {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--page);
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.chat-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--rule);
+  padding: 0.3rem 0;
+}
+
+.chat-row > button:first-child {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+}
+
+.chat-row-title {
+  font-size: 0.85rem;
+}
+
+.chat-row-meta,
+.chat-row-delete {
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+}
+
+.chat-row-delete {
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+.chat-row-delete:hover {
+  color: var(--alarm);
+}
+
+.chat-rows-deleted .chat-row-title {
+  color: var(--ink-soft);
+}
+
+.chat-conversation-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.3rem;
+}
+
+.chat-conversation-title {
+  flex: 1;
+  font-size: 0.85rem;
+}
+
+.chat-conversation-usage,
+.chat-turn-meta,
+.chat-turn-usage,
+.chat-turn-model,
+.chat-turn-stop {
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+}
+
+/* The transcript takes whatever height is left, and it is the only thing here that scrolls:
+   the composer and the context preview must stay reachable however long the answer is. */
+.chat-transcript {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.chat-turn {
+  margin-bottom: 0.6rem;
+}
+
+.chat-turn-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.chat-turn-role {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.chat-turn-body {
+  margin: 0.15rem 0;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+
+.chat-turn-user .chat-turn-body {
+  border-left: 2px solid var(--rule);
+  padding-left: 0.4rem;
+  color: var(--ink-soft);
+}
+
+.chat-turn-error,
+.chat-context-error,
+.rewrite-diff-refusal {
+  margin: 0.2rem 0;
+  color: var(--alarm);
+  font-size: 0.78rem;
+}
+
+.chat-turn-foot {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat-composer {
+  border-top: 1px solid var(--rule);
+  padding-top: 0.4rem;
+}
+
+.chat-composer textarea {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--page);
+  padding: 0.3rem;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+.chat-composer-label {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+}
+
+.chat-composer-controls {
+  display: flex;
+  gap: 0.4rem;
+  padding-top: 0.3rem;
+}
+
+.chat-composer-controls button,
+.rewrite-diff-controls button,
+.rewrite-actions button,
+.settings-controls button {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--page);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+.chat-cancel {
+  color: var(--alarm);
+}
+
+/* -- what will be sent (P4-13, ruling 5) --------------------------------------------------- */
+
+.chat-context {
+  border-top: 1px solid var(--rule);
+  padding: 0.4rem 0;
+}
+
+.chat-context-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.chat-context-total {
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+}
+
+.chat-context-total.chat-over {
+  color: var(--alarm);
+}
+
+.chat-context-parts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-context-part {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.chat-context-kind {
+  color: var(--ink-faint);
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.chat-context-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-context-tokens {
+  color: var(--ink-faint);
+}
+
+.chat-context-part button,
+.chat-context-add button {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+}
+
+.chat-context-part button:hover,
+.chat-context-add button:hover {
+  color: var(--accent);
+}
+
+.chat-context-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.2rem;
+}
+
+/* -- the three actions and their diff (P4-14, D12) ----------------------------------------- */
+
+.rewrite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.4rem;
+}
+
+.rewrite-actions-label {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+}
+
+.rewrite-diff {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.4rem;
+}
+
+.rewrite-diff-body {
+  margin: 0.2rem 0;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+
+/* Removed text is struck through as well as tinted, and added text underlined as well as
+   tinted, so the two are distinguishable without colour - the P2-9 rule for the anchor
+   statuses, one panel over. */
+.diff-removed {
+  background: #f6e3df;
+  color: var(--alarm);
+  text-decoration: line-through;
+}
+
+.diff-added {
+  background: #dfe9f2;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.rewrite-diff-unchanged {
+  margin: 0.2rem 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.rewrite-diff-controls {
+  display: flex;
+  gap: 0.4rem;
+  padding-top: 0.3rem;
+}
+
+/* -- the settings screen (P4-15, D34) ------------------------------------------------------ */
+
+.settings-screen {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  font-size: 0.8rem;
+}
+
+.settings-status {
+  border-left: 2px solid var(--accent);
+  padding-left: 0.4rem;
+}
+
+.settings-status.settings-unset {
+  border-left-color: var(--alarm);
+}
+
+.settings-status p {
+  margin: 0.2rem 0;
+}
+
+.settings-keys,
+.settings-fixed {
+  margin: 0.2rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-keys li,
+.settings-fixed li {
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+}
+
+.settings-key-name {
+  min-width: 6rem;
+  color: var(--ink-soft);
+}
+
+.settings-key-set {
+  color: var(--accent);
+}
+
+.settings-key-unset {
+  color: var(--ink-faint);
+}
+
+.settings-key-env,
+.settings-key-note,
+.settings-fixed-note,
+.setting-help {
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+}
+
+.setting-field {
+  padding: 0.25rem 0;
+}
+
+.setting-field label {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+}
+
+.setting-field-check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.setting-field-check label {
+  display: inline;
+}
+
+.setting-field-check .setting-help {
+  flex-basis: 100%;
+}
+
+.setting-field input[type='text'],
+.setting-field input[type='number'],
+.setting-field select {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--page);
+  padding: 0.15rem 0.3rem;
+  font-size: 0.8rem;
+}
+
+.setting-help {
+  margin: 0.1rem 0 0;
+}
+
+.settings-controls {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.4rem 0;
+}

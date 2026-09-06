@@ -58,6 +58,30 @@
  * The served definition is **not** hand-written either: `getBibleSchema` returns the contract
  * fixture, so these tests render the real seven kinds with their real fields, and a kind that
  * gains a field reaches the client tests in the same commit it reaches the wire (D26).
+ *
+ * ## Chat and settings (P4-12 - P4-15), and the same rule a third time
+ *
+ * Conversations keep real state: creating one puts it in the list, renaming moves it, and a
+ * delete leaves it in the tray until it is restored.
+ *
+ * **It composes nothing.** `previewContext` does not decide what the model would be shown, how
+ * big any of it is, or what it would cost. The composer is one module with a specification and a
+ * corpus behind it (`llm/context.py`, `test_context.py`), and its answer reaches this suite as a
+ * **contract fixture** rather than as a second implementation — which is what P4-13's "held by a
+ * shared contract fixture rather than by two implementations agreeing" asks for. What this does
+ * is reflect the *selector*: one row per thing the writer chose to include, so the panel has rows
+ * to draw and a dropped part visibly stops being sent. Every size it reports is a placeholder and
+ * is documented as one.
+ *
+ * **It runs no stream.** The socket is its own fake (`fakeChatSocket.ts`), and the turn a stream
+ * would have persisted is written by a test through {@link FakeApiClient.seedTurn} — because on
+ * the server the socket and the store are joined by a transaction, and here they are two fakes
+ * that a test joins deliberately.
+ *
+ * `getSettings` returns the contract fixture with whatever a `PATCH` has since changed, so the
+ * settings screen renders the real field list, the real writable list, and the real provider
+ * status. It validates nothing: `SettingsPatchIn` is the validator, it refuses a secret by name
+ * and an unknown provider, and a test that needs either refusal stages one with `failNext`.
  */
 
 import type {
@@ -77,10 +101,17 @@ import type {
   AnchorEntries,
   AnchorList,
   BibleSchema,
+  ChatMessage,
   Citation,
   CitationRemoved,
   CitationRole,
   CitingEntry,
+  ComposedContext,
+  ContextPart,
+  ContextSelector,
+  Conversation,
+  ConversationDetail,
+  ConversationList,
   Entry,
   EntryDetail,
   EntryFromRange,
@@ -93,6 +124,8 @@ import type {
   LinkView,
   RelationDefinition,
   RevisionList,
+  SettingsDocument,
+  SettingsPatch,
   StoryTime,
   AnchorStatus,
   AnchorSuggestion,
@@ -122,6 +155,14 @@ import { emptyDocument, project } from '../../editor/projection';
 import { readServerFixture } from '../fixtures';
 
 const FIXED_NOW = '2026-01-01T00:00:00Z';
+
+/**
+ * What every reflected context part reports as its size.
+ *
+ * A placeholder, and named as one. This fake does not estimate tokens - `llm/budget.py` does, and
+ * its answer reaches this suite through `contract/context_preview.json`.
+ */
+const PLACEHOLDER_PART_TOKENS = 20;
 
 /** How much of `text_plain` either side of a quote is kept as context. Matches `CONTEXT_CHARS`. */
 const CONTEXT_CHARS = 48;
@@ -153,6 +194,12 @@ interface StoredCitation {
   created_at: string;
 }
 
+/** One conversation and every turn in it. Turns are appended and never edited (D30). */
+interface StoredConversation {
+  conversation: Conversation;
+  messages: ChatMessage[];
+}
+
 /** What a test says the server's resolver will answer for one anchor on the next save. */
 export interface StagedResolution {
   id: string;
@@ -160,6 +207,23 @@ export interface StagedResolution {
   from_pos?: number;
   to_pos?: number;
   suggestion?: AnchorSuggestion | null;
+}
+
+/**
+ * What a turn looked like when the socket persisted it.
+ *
+ * A test writes this before it emits the stream's terminator, because that is the order the
+ * server does it in: the row is written and *then* the terminator is sent, so a client refetching
+ * on `done` cannot beat the row it is looking for (`chat_routes.py`).
+ */
+export interface SeededTurn {
+  role: 'user' | 'assistant';
+  content: string;
+  usage?: { input_tokens: number; output_tokens: number };
+  stop_reason?: string;
+  error_code?: string;
+  provider?: string;
+  model?: string;
 }
 
 /** What a test says an import creates, standing in for a parser the fake does not have. */
@@ -209,6 +273,9 @@ export class FakeApiClient implements ApiClient {
   private readonly entries = new Map<string, StoredEntry>();
   private readonly links = new Map<string, Link>();
   private citations: StoredCitation[] = [];
+  private readonly conversations = new Map<string, StoredConversation>();
+  private settingsDocument: SettingsDocument | null = null;
+  private contextBudget = 100_000;
   private readonly stagedImports: StagedImport[] = [];
   private stagedStoryTime: StoryTime | null = null;
   private schemaCache: BibleSchema | null = null;
@@ -427,6 +494,13 @@ export class FakeApiClient implements ApiClient {
   }
 
   /** The stored anchor, for asserting that a re-link or a delete actually landed. */
+  /** Every anchor of one chapter, in the order they were minted. */
+  anchorIdsOf(documentId: string): string[] {
+    return [...this.anchors.values()]
+      .filter((anchor) => anchor.document_id === documentId)
+      .map((anchor) => anchor.id);
+  }
+
   anchorOf(anchorId: string): Anchor | undefined {
     const anchor = this.anchors.get(anchorId);
     return anchor ? this.withEffectiveStatus(anchor) : undefined;
@@ -1236,7 +1310,223 @@ export class FakeApiClient implements ApiClient {
     };
   }
 
+  // -- chat (P4-9, P4-10, D30) -----------------------------------------------------------------
+
+  async listConversations(projectId: string): Promise<ConversationList> {
+    this.record('listConversations');
+    this.requireProject(projectId);
+    return { conversations: this.orderedConversations(projectId, false) };
+  }
+
+  async listDeletedConversations(projectId: string): Promise<ConversationList> {
+    this.record('listDeletedConversations');
+    this.requireProject(projectId);
+    return { conversations: this.orderedConversations(projectId, true) };
+  }
+
+  async createConversation(projectId: string, title = ''): Promise<Conversation> {
+    this.record('createConversation');
+    this.requireProject(projectId);
+    const now = this.tick();
+    const conversation: Conversation = {
+      id: this.nextId('cnv'),
+      project_id: projectId,
+      title,
+      message_count: 0,
+      created_at: now,
+      updated_at: now,
+      deleted_at: null,
+    };
+    this.conversations.set(conversation.id, { conversation, messages: [] });
+    return { ...conversation };
+  }
+
+  async getConversation(conversationId: string): Promise<ConversationDetail> {
+    this.record('getConversation');
+    const stored = this.requireConversation(conversationId);
+    return {
+      conversation: { ...stored.conversation },
+      messages: stored.messages.map((message) => ({ ...message })),
+    };
+  }
+
+  async renameConversation(conversationId: string, title: string): Promise<Conversation> {
+    this.record('renameConversation');
+    const stored = this.requireConversation(conversationId);
+    stored.conversation = { ...stored.conversation, title, updated_at: this.tick() };
+    return { ...stored.conversation };
+  }
+
+  async deleteConversation(conversationId: string): Promise<Conversation> {
+    this.record('deleteConversation');
+    const stored = this.requireConversation(conversationId);
+    // Soft, and whole: every turn stays and the conversation leaves every read path (D22, D25).
+    stored.conversation = { ...stored.conversation, deleted_at: this.tick() };
+    return { ...stored.conversation };
+  }
+
+  async restoreConversation(conversationId: string): Promise<Conversation> {
+    this.record('restoreConversation');
+    const stored = this.requireConversation(conversationId, true);
+    stored.conversation = { ...stored.conversation, deleted_at: null, updated_at: this.tick() };
+    return { ...stored.conversation };
+  }
+
+  /**
+   * What would be sent - **reflected from the selector, never composed** (see the file docstring).
+   *
+   * One row per thing the writer chose to include, in the order `compose()` produces them, so a
+   * dropped part visibly stops being sent and the panel has rows to draw. Every size here is a
+   * placeholder: what the server actually composes and what it actually estimates are held to the
+   * client by `contract/context_preview.json`, not by this.
+   */
+  async previewContext(
+    conversationId: string,
+    prompt: string,
+    context: ContextSelector,
+  ): Promise<ComposedContext> {
+    this.record('previewContext');
+    this.requireConversation(conversationId);
+    const parts: ContextPart[] = [part('instructions', 'Instructions', '')];
+
+    const documentId = context.document_id ?? '';
+    const stored = documentId === '' ? undefined : this.documents.get(documentId);
+    if (stored && context.from_pos != null && context.to_pos != null) {
+      parts.push(
+        part('selection', `Selected passage in ${stored.meta.title}`, documentId),
+      );
+    }
+    if (stored && context.include_chapter) {
+      parts.push(part('chapter', `Chapter: ${stored.meta.title}`, documentId));
+    }
+    for (const entryId of context.entry_ids ?? []) {
+      const entry = this.entries.get(entryId)?.entry;
+      parts.push(part('entry', entry ? `${entry.name} (${entry.kind})` : entryId, entryId));
+    }
+    const turns = this.conversations.get(conversationId)?.messages.length ?? 0;
+    if ((context.include_history ?? true) && turns > 0) {
+      parts.push(part('history', `${turns} earlier turns`, ''));
+    }
+    parts.push(part('question', 'Your question', ''));
+
+    const estimate = parts.length * PLACEHOLDER_PART_TOKENS + prompt.length;
+    return {
+      parts,
+      estimated_tokens: estimate,
+      max_tokens: 4096,
+      budget: this.contextBudget,
+      fits: this.contextBudget === 0 || estimate + 4096 <= this.contextBudget,
+    };
+  }
+
+  // -- settings (P4-11, D34) ---------------------------------------------------------------------
+
+  async getSettings(): Promise<SettingsDocument> {
+    this.record('getSettings');
+    return copySettings(this.settings());
+  }
+
+  async patchSettings(patch: SettingsPatch): Promise<SettingsDocument> {
+    this.record('patchSettings');
+    // Merged and returned. Nothing is validated here: one validator, on the server, and a test
+    // that needs a refusal stages one - the rule `bible/schema.py` already set for this fake.
+    const current = this.settings();
+    const updated: SettingsDocument = {
+      ...current,
+      settings: { ...current.settings, ...patch },
+      provider: {
+        ...current.provider,
+        provider: patch.llm_provider ?? current.provider.provider,
+        model: patch.llm_model ?? current.provider.model,
+        base_url: patch.llm_base_url ?? current.provider.base_url,
+      },
+    };
+    this.settingsDocument = updated;
+    return copySettings(updated);
+  }
+
+  // -- what a test stages for the chat ------------------------------------------------------------
+
+  /**
+   * Write the turn a stream would have persisted.
+   *
+   * The socket and the store are joined by a transaction on the server and by a test here, for
+   * the reason the resolver is staged rather than computed: there is one place a turn is written
+   * and it is not this file.
+   */
+  seedTurn(conversationId: string, turn: SeededTurn): ChatMessage {
+    const stored = this.requireConversation(conversationId, true);
+    const message: ChatMessage = {
+      id: this.nextId('msg'),
+      conversation_id: conversationId,
+      ord: stored.messages.length,
+      role: turn.role,
+      content: turn.content,
+      context: {},
+      provider: turn.provider ?? (turn.role === 'assistant' ? 'fake' : ''),
+      model: turn.model ?? (turn.role === 'assistant' ? 'fake-model' : ''),
+      usage: turn.usage ?? { input_tokens: 0, output_tokens: 0 },
+      stop_reason: turn.stop_reason ?? '',
+      error_code: turn.error_code ?? '',
+      created_at: this.tick(),
+    };
+    stored.messages.push(message);
+    stored.conversation = {
+      ...stored.conversation,
+      message_count: stored.messages.length,
+      updated_at: message.created_at,
+    };
+    return { ...message };
+  }
+
+  /** Start a conversation without going through the client, so a test can open one directly. */
+  seedConversation(projectId: string, title = ''): string {
+    const now = this.tick();
+    const id = this.nextId('cnv');
+    this.conversations.set(id, {
+      conversation: {
+        id,
+        project_id: projectId,
+        title,
+        message_count: 0,
+        created_at: now,
+        updated_at: now,
+        deleted_at: null,
+      },
+      messages: [],
+    });
+    return id;
+  }
+
+  /** What the preview reports as the budget. `0` is "no budget in force", as it is on the wire. */
+  stageContextBudget(budget: number): void {
+    this.contextBudget = budget;
+  }
+
   // -- internals ----------------------------------------------------------------------------
+
+  private orderedConversations(projectId: string, deleted: boolean): Conversation[] {
+    return [...this.conversations.values()]
+      .map((stored) => stored.conversation)
+      .filter((row) => row.project_id === projectId && (row.deleted_at !== null) === deleted)
+      .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
+      .map((row) => ({ ...row }));
+  }
+
+  private requireConversation(conversationId: string, includeDeleted = false): StoredConversation {
+    const stored = this.conversations.get(conversationId);
+    if (!stored || (!includeDeleted && stored.conversation.deleted_at !== null)) {
+      throw new ApiError(404, ERROR_CODES.conversationNotFound, 'no such conversation', {
+        conversation_id: conversationId,
+      });
+    }
+    return stored;
+  }
+
+  private settings(): SettingsDocument {
+    this.settingsDocument ??= readServerFixture<SettingsDocument>('contract/settings.json');
+    return this.settingsDocument;
+  }
 
   private record(method: keyof ApiClient): void {
     this.calls.push(method);
@@ -1801,6 +2091,32 @@ function copyEntry(entry: Entry): Entry {
 }
 
 /** `ORDER BY name COLLATE NOCASE, created_at, id` — the order the entry list comes back in. */
+/** One reflected part, with placeholder sizes. See {@link PLACEHOLDER_PART_TOKENS}. */
+function part(kind: string, label: string, refId: string): ContextPart {
+  return {
+    kind,
+    label,
+    ref_id: refId,
+    chars: PLACEHOLDER_PART_TOKENS * 4,
+    estimated_tokens: PLACEHOLDER_PART_TOKENS,
+    excerpt: '',
+  };
+}
+
+function copySettings(document: SettingsDocument): SettingsDocument {
+  return {
+    ...document,
+    settings: { ...document.settings },
+    provider: {
+      ...document.provider,
+      known_providers: [...document.provider.known_providers],
+      has_key: { ...document.provider.has_key },
+      key_env_vars: { ...document.provider.key_env_vars },
+    },
+    writable: [...document.writable],
+  };
+}
+
 function byName(a: Entry, b: Entry): number {
   const left = a.name.toLowerCase();
   const right = b.name.toLowerCase();
