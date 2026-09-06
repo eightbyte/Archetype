@@ -18,18 +18,19 @@ Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository 
 `WritingAssistant` — a path, not the product name.
 
 **Current state: Phase 1 complete (2026-08-30); Phase 2 complete (2026-09-01); Phase 3 complete
-(2026-09-04). Phase 4 is in progress — its § 2 is ruled, and Groups A, B, and C are delivered
-(2026-09-04, 2026-09-05, 2026-09-05).** Both suites green — **1,373 backend, 544 frontend**. All **thirty-four** decisions are resolved and
-binding: the writer ruled D21–D24 on 2026-08-30, D25–D29 on 2026-09-01 (both reversals accepted,
-settling backlog `Q1`, `Q2`, `Q5`, and `Q7`), and **D30–D34 on 2026-09-04, all five as
-recommended**. Three open questions remain, none due before Phase 6.
+(2026-09-04). Phase 4 is *built* (2026-09-06) and awaits its § 8 acceptance run** — all four
+groups are delivered (2026-09-04, 2026-09-05, 2026-09-05, 2026-09-06), every exit criterion the
+suites can prove is met, and what is left is the fifteen-step run by hand against a real provider
+with a real key. Both suites green — **1,373 backend, 616 frontend**. All **thirty-four** decisions
+are resolved and binding: the writer ruled D21–D24 on 2026-08-30, D25–D29 on 2026-09-01 (both
+reversals accepted, settling backlog `Q1`, `Q2`, `Q5`, and `Q7`), and **D30–D34 on 2026-09-04, all
+five as recommended**. Three open questions remain, none due before Phase 6.
 
 **The project file is at schema version 4.** Migration 004 added `conversation` and `message`
-(D30). `specs/data-model.md` still describes version 3 and its nine tables; it is brought level at
-`P4-15`, which is that phase's documentation pass — until then the migration and its tests are
-authoritative for the two new tables.
+(D30), and `specs/data-model.md` describes them — the documentation pass at `P4-15` brought every
+spec level with the code, so there is no longer any document lagging behind the build.
 
-**In progress: [specs/phase-4-plan.md](specs/phase-4-plan.md) — the LLM provider layer and
+**Built, awaiting § 8: [specs/phase-4-plan.md](specs/phase-4-plan.md) — the LLM provider layer and
 chat.** Its § 2 was **ruled on 2026-09-04, all five as recommended**, and the five are promoted to
 the register: a conversation lives in its own two tables and a Phase 4 turn is *not* a Phase 6 run
 (D30); the port carries tool declarations before any tool exists (D31 — the one place the phase
@@ -74,42 +75,72 @@ client frame. `archetype/api/settings_routes.py` is D34 on the wire: every non-s
 `config.yaml` and refuses a secret **by name**. Ten as-built deviations; `C2` (the preview route)
 and `C6` (what closes the socket rather than borrowing a provider's code) are the two to read.
 
-**Group D is not started** — there is no panel, no *Ask agent*, no before/after diff, and no
-settings screen. **Nothing a writer can click reaches a model yet**: the socket is real and works,
-and the only things that drive it are the suite and a shell.
+**Group D is delivered** (`P4-12` … `P4-15`): **the model is now something a writer can reach.**
+`web/src/state/chatReducer.ts` is the fifth pure reducer and holds the phase's hard part — an
+answer that arrives in fragments over a channel that can stop halfway — with its rules tested by
+handing it event sequences directly rather than by driving a component. `web/src/api/socket.ts` is
+the seam that constructs one, and `ChatContext` owns the single socket, opened on the first *ask*
+and never reopened by itself. The panel carries three views (the conversation list, a transcript
+with a composer and a live token count, and the settings screen), inside its own error boundary.
+*Ask agent* is the fourth action over a selection, and what will be sent is **the server's own
+answer** shown before anything is spent, with any part droppable. `web/src/wordDiff.ts` picks out
+the words that changed in a proofread, tone, or rewrite result, each of which mints its anchor
+through `AnchorStore` and by no other means, applies as one ordinary editor transaction (D33), and
+**refuses to apply to a `stale` anchor**. `web/src/panels/SettingsScreen.tsx` renders its inputs
+from the server's own `writable` list and says whether a key is present, per provider, and never a
+key. Sixteen as-built deviations; `D2` (what an accepted rewrite does **not** leave behind) and
+`D11` (the rule that keeps the editor the only thing that edits) are the two to read, and `D13`,
+`D14`, and `D16` are the three the documentation pass found rather than the build.
+
+**What is left in Phase 4 is § 8** — the fifteen-step acceptance run, by hand, against a real
+provider with a real key. It cannot be run from a test, and the phase is not complete until its
+*Outcome* column is filled in (deviation `D12`). It carries a third kind of blindness the earlier
+runs did not: **whether the answers are any good**, which is why its steps 4 and 12 must record
+what the model actually said.
 
 The app is a place you can write, a place you can **maintain** what you wrote, a place you can get
-words **in and out of**, and now a place that **knows what is in the story**: create a project, add
-chapters, reorder them by drag or by keyboard, rename them in place, delete one recoverably and
-restore it; mark a passage and watch the highlight follow it as you type around it; find every mark
-in the *Marks* tab, see which have gone stale, and repair one by hand; mark a version of a chapter,
-read it beside what is there now, and restore it; export a chapter or the whole manuscript to
-Markdown, and import a Markdown file back as chapters — with a list of anything it could not keep.
-And now: select a passage and **add it to the bible** as a character, a place, or any of the other
-five kinds; fill in that kind's own fields on one generic form; join two entries with a relation
-the vocabulary allows and no other; see which passages produced an entry and whether they have
-since been rewritten; change something established and watch every entry that depended on it land
-in a **review queue** that empties as you work through it; read any past version of an entry and
-restore it; and delete one recoverably, links and all.
+words **in and out of**, a place that **knows what is in the story**, and now a place where you can
+**ask about it**: create a project, add chapters, reorder them by drag or by keyboard, rename them
+in place, delete one recoverably and restore it; mark a passage and watch the highlight follow it
+as you type around it; find every mark in the *Marks* tab, see which have gone stale, and repair
+one by hand; mark a version of a chapter, read it beside what is there now, and restore it; export
+a chapter or the whole manuscript to Markdown, and import a Markdown file back as chapters — with
+a list of anything it could not keep; select a passage and **add it to the bible** as a character,
+a place, or any of the other five kinds; fill in that kind's own fields on one generic form; join
+two entries with a relation the vocabulary allows and no other; see which passages produced an
+entry and whether they have since been rewritten; change something established and watch every
+entry that depended on it land in a **review queue** that empties as you work through it; read any
+past version of an entry and restore it; and delete one recoverably, links and all.
+
+And now: select a passage and **ask the assistant about it**; see exactly what will be sent before
+anything is spent, and drop any part of it; watch the answer arrive a fragment at a time, stop it
+mid-answer and keep what arrived; read a failed turn in the transcript rather than finding a gap
+where one should be; **proofread, adjust the tone of, or rewrite** an anchored passage and get an
+explicit before/after with the changed words picked out, applied — if you accept it — as one
+ordinary edit you can undo; and see which provider and model is in play, and whether a key is
+present, without ever being shown one.
 
 What exists on the server: configuration and the secret guard, the project file schema at
-**version 2** with its migration runner, the ID generator, the project store, the whole Phase 1
-REST surface with its uniform error envelope and structured request logging, the save protocol
-with the D19 version guard, the text projection, the static mount that lets one process serve both
-the API and the built app; Group A's **chapter reorder, soft delete, and restore; snapshots with
-capture, history, and restore-through-the-save-path; and the `anchor` and `snapshot` tables**;
-Group B's **block index over the projection, anchor resolver and corpus, anchor store with its
-five routes, and re-resolution inside every save's transaction**; Group C's **nine chapter and
-snapshot routes**; and — new in Group D — the **Markdown serializer and parser, their round-trip
-corpus, and the two export routes and one import route** over them.
+**version 4** with its migration runner, the ID generator, the project store, the whole Phase 1
+REST surface with its uniform error envelope and structured request logging, the save protocol with
+the D19 version guard, the text projection, the static mount that lets one process serve both the
+API and the built app; Phase 2's **chapter reorder, soft delete and restore, snapshots, the block
+index, the anchor resolver and its corpus, the anchor store and its five routes, re-resolution
+inside every save's transaction, and the Markdown serializer, parser, and three routes**; Phase 3's
+**seven kinds in one `entry` table, the served definition, revisions and D27's retcon queue, links,
+citations, story-time, and twenty-three routes**; and Phase 4's **provider port, two adapters over
+one transport with no vendor SDK, the prompted-tools fallback, the budget refusal, the registry,
+the context composer, `ConversationStore`, seven conversation routes, the context preview, the one
+WebSocket, and the two settings routes**.
 
-On the client: the three-region workspace with resizable keyboard-accessible dividers, the **four**
+On the client: the three-region workspace with resizable keyboard-accessible dividers, the **five**
 contexts and their pure reducers, the TipTap editor over a closed schema with autosave, the live
 table of contents with jump-to-heading, the project picker, error boundaries per region; Phase 2's
-**anchor decorations mapped live through every transaction, the selection control that marks and
-re-links a passage, the fifth outline tab (*Marks*) with its filters and repair flow, chapter
-management in the Contents tab, the per-chapter history panel, Markdown export links, and the
-import form**; and — new in Phase 3's Group D — **the Bible tab and everything behind it**.
+**anchor decorations mapped live through every transaction, the selection control, the *Marks* tab,
+chapter management, the history panel, and the Markdown export links and import form**; Phase 3's
+**Bible tab and everything behind it**; and — new in Phase 4's Group D — **the assistant panel, its
+socket, the context preview over a selection, the three rewrite actions with their word-level diff,
+and the settings screen**.
 
 Every Phase 1 exit criterion is met, including the acceptance script run by hand against the
 single-process build; the results are in [specs/phase-1-plan.md](specs/phase-1-plan.md) § 6.
@@ -218,14 +249,20 @@ load-bearing for Phase 7's proposals, and still covered by three backend suites.
 One thing the Phase 1 run surfaced, still true: **some of the app's surfaces are hard or impossible
 to reach from a test.** Phase 1 could not make a save fail where the writer could see it — the
 retry loop absorbed the outage — but § 8's step 15 reached it on 2026-09-01, so that one is
-**closed**. Two remain, both pointer gestures jsdom cannot make: there is no native editing, so a
-text selection cannot be made through the DOM, and the mark, re-link, **and now *Add to bible***
-gestures are each covered in two halves that meet at a typed boundary (phase-2 deviation `C7`, and
-`web/src/__tests__/entryLinks.test.tsx`'s docstring); and a file *drop* is a gesture too, so the
-import is tested by pasting rather than dropping. The backoff ladder, the `409` reload prompt, the
-selection control, and the drop target are exercised only by the frontend suite; a regression in
-them will not show up by using the app, so those tests and the § 8 runs are the only things
-standing under them.
+**closed**. Three remain. Two are pointer gestures jsdom cannot make: there is no native editing,
+so a text selection cannot be made through the DOM, and the mark, re-link, *Add to bible*, **and
+now *Ask agent*** gestures are each covered in two halves that meet at a typed boundary (phase-2
+deviation `C7`, and `web/src/__tests__/entryLinks.test.tsx`'s docstring); and a file *drop* is a
+gesture too, so the import is tested by pasting rather than dropping. The third is new in Phase 4
+and is the largest: **no test may reach a real provider**, so everything from the socket outward is
+exercised against `FakeProvider` on one side and `FakeChatSocket` on the other, and the two corpora
+in `tests/fixtures/providers/` are transcribed from published documentation rather than captured
+from a live account (deviation `B1`). What that proves is that the adapters match what the
+documentation *says*; § 8's steps 4 and 12 are the only thing that will prove they match what a
+provider actually sends. The backoff ladder, the `409` reload prompt, the selection control, the
+drop target, and now the whole assistant panel are exercised only by the frontend suite; a
+regression in them will not show up by using the app, so those tests and the § 8 runs are the only
+things standing under them.
 
 **And § 8 is not a formality — it has now found a real bug in each of the two phases that ran
 one.** Phase 2's step 13 found `D15`, in a case the whole Markdown corpus was blind to because no
@@ -265,35 +302,34 @@ the corpus abstracts, and Phase 4's § 8 adds a third kind of blindness the suit
   Phase 6, D33 an accepted rewrite is an ordinary editor transaction, D34 keys stay
   environment-only. Its § 3 is the port's shape, § 5 twelve exit criteria, § 6 the risks — of
   which "money" and "the port is shaped by whichever adapter is written first" are the two with no
-  precedent in earlier phases — § 7 the deviations table (`A1`–`A6`, `B1`–`B10`, and `C1`–`C10`
-  so far; `A1` is the only one that changes a stored shape, `A3`, `B7`, and `C2` the only ones that
-  add an unbudgeted surface, `B5` the only one that adds stored configuration, `C4` the only one
-  that narrows a stated capability, and **`B1` and `C6` are the two to read** — one says what the
-  recorded fixtures actually prove and the other is a rule the phase had not written down), and
-  § 8 the
-  fifteen-step acceptance run, which must additionally **record what the model actually said**,
-  because the suite cannot assess an answer.
+  precedent in earlier phases — § 7 the deviations table (`A1`–`A6`, `B1`–`B10`, `C1`–`C10`, and
+  `D1`–`D16`; `A1` is the only one that changes a stored shape, `A3`, `B7`, and `C2` the only ones
+  that add an unbudgeted surface, `B5` the only one that adds stored configuration, `C4` the only
+  one that narrows a stated capability, and **`B1`, `C6`, `D2`, and `D11` are the four to read** —
+  what the recorded fixtures actually prove, what closes the socket rather than borrowing a
+  provider's code, what an accepted rewrite does *not* leave behind, and the rule that keeps the
+  editor the only thing that edits), and **§ 8 the fifteen-step acceptance run, which is what is
+  left of the phase**: it must additionally **record what the model actually said**, because the
+  suite cannot assess an answer.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
   phase it must be settled by. `Q1`, `Q2`, `Q5`, and `Q7` are promoted and closed; `Q3`, `Q4`, and
   `Q6` are open, none due before Phase 6. `Q2` and `Q7` were each settled **against** the leaning
   recorded there, and § 3 keeps the reasoning so a future reversal is a deliberate act.
-- [specs/data-model.md](specs/data-model.md) — storage as built at schema version 3: the project
-  file, the **nine** tables, the projection rules, the write rules, all three soft-delete
-  predicates, and the migration discipline. Its § 7 sketches Phases 5 and 6 and is **not** binding;
-  the rest is a bug if it disagrees with the code — **with one exception, live now**: the file is
-  at version 4 and this document still describes version 3, because Phase 4's `conversation` and
-  `message` tables (`P4-4`, D30) are built and the documentation pass that folds them in is
-  `P4-15`. Until then `004_chat.sql` and `tests/test_migrations.py` are authoritative for them.
+- [specs/data-model.md](specs/data-model.md) — storage as built at schema version 4: the project
+  file, the **eleven** tables — `conversation` and `message` joined them at `P4-4` (D30) — the
+  projection rules, the write rules, all three soft-delete predicates, and the migration
+  discipline. Its § 7 sketches Phases 5 and 6 and is **not** binding; the rest is a bug if it
+  disagrees with the code.
 - [specs/api-contract.md](specs/api-contract.md) — what each route promises and what it refuses.
-  **Its body describes the surface through Phase 3; § 12 records what Phase 4's Group C added**
-  and `P4-15` folds the chat, socket, and settings routes into the body — until then those route
-  modules and their suites are authoritative for them, exactly as `004_chat.sql` is for the two
-  tables `data-model.md` does not yet describe. In the body:
-  § 5's chapter operations, § 7's five anchor routes and the extended save response, § 8's four
-  snapshot routes, § 9's two Markdown exports and one import — including the **one non-JSON
-  response in the API** and why it is one — and **§ 10's twenty-three bible routes**, the served
-  definition among them. The generated OpenAPI schema is authoritative for types; this is
-  authoritative for behaviour.
+  **Its body describes every route through the end of Phase 4.** § 5's chapter operations, § 7's
+  five anchor routes and the extended save response, § 8's four snapshot routes, § 9's two Markdown
+  exports and one import — including the **one non-JSON HTTP response in the API** and why it is
+  one — § 10's twenty-three bible routes with the served definition among them, § 11's seven
+  conversation routes and the context preview, **§ 12's one WebSocket** — the only non-HTTP surface,
+  which answers no status code and closes with a reason instead — and § 13's two settings routes.
+  § 15 is what is still deliberately absent, and its struck-through rows say where each arrival
+  landed. The generated OpenAPI schema is authoritative for types; this is authoritative for
+  behaviour.
 - [specs/anchors.md](specs/anchors.md) — what an anchor stores, the two coordinate systems and
   the block index, the matching ladder with its exact thresholds, the whitespace normal form, the
   suggestion protocol, and **what an anchor does not promise**. Written in `P2-4` before the code
@@ -319,11 +355,15 @@ the corpus abstracts, and Phase 4's § 8 adds a third kind of blindness the suit
   capability flags and exactly what each changes, the six-code error taxonomy, the context budget
   as a **hard refusal**, and **what a provider may not be asked to do**. It deliberately does
   **not** restate either provider's wire format — that is the adapters' translation and a recorded
-  fixture's truth. **Its § 13 carries three corrections the adapters made to it**: the effective
-  budget is a minimum over the windows that were actually *declared* (zero means "not declared",
-  not "no context"); "identical normalised tool_calls" is exact on the name and the arguments and
-  excludes the id, by that document's own next rule; and a tool call arriving **mid-stream** has
-  no Phase 4 event to arrive in, which is D32's vocabulary rather than an adapter's choice. Read
+  fixture's truth. **Its § 13 carries five corrections the code made to it** — three from the
+  adapters and two from the client. The effective budget is a minimum over the windows that were
+  actually *declared* (zero means "not declared", not "no context"); "identical normalised
+  tool_calls" is exact on the name and the arguments and excludes the id, by that document's own
+  next rule; a tool call arriving **mid-stream** has no Phase 4 event to arrive in, which is D32's
+  vocabulary rather than an adapter's choice; § 4's ordering rules bind the **stream** and not its
+  reader, so the client keeps a fragment that arrives out of order and enforces only that nothing
+  lands after a terminator; and the six error codes are the **provider's**, so a socket that stops
+  mid-answer carries none of them. Read
   it before touching anything in `archetype/llm/`.
 - `specs/agent-tools.md` — written as its phase begins (Phase 6).
 
@@ -503,10 +543,13 @@ suite keeps a developer's real config out of its way.
 | `server/tests/fakes/` | `FakeEmbedder` lands here in Phase 5 |
 | `web/src/api/` | The typed client, its interface, and the mirrored wire types |
 | `web/src/api/stream.ts` | D32's stream vocabulary on the client, and `parseStreamEvent` — which **ignores** an event type it does not know (`P4-2`, deviation `A3`) |
-| `web/src/state/` | The **four** contexts and their pure reducers, plus toasts and `localStorage` (`P1-9`, `P3-12`, D10) |
+| `web/src/api/socket.ts` | The one seam a `WebSocket` is constructed through. It does not reconnect, reorder, or turn a close into an event (`P4-12`, deviation `D3`) |
+| `web/src/state/` | The **five** contexts and their pure reducers, plus toasts and `localStorage` (`P1-9`, `P3-12`, `P4-12`, D10) |
 | `web/src/state/projectReducer.ts` | The project's chapters, outline, deleted list, **and every anchor in it** (`P2-10`) |
 | `web/src/state/bibleReducer.ts` | The served definition, the browse list with its filters and counts, the review queue, and the deleted tray — three lists, and why they are three (`P3-12`) |
 | `web/src/state/BibleContext.tsx` | The reads and writes over them: the debounced filter, the refresh after every write, and the detail reads it deliberately does **not** hold (`P3-12`) |
+| `web/src/state/chatReducer.ts` | The fifth reducer, and the phase's hard part: an answer arriving in fragments over a channel that can stop halfway (`P4-12`, D32) |
+| `web/src/state/ChatContext.tsx` | The one socket, its buffering and teardown, the debounced context preview, and the settings reads and writes (`P4-12`, `P4-15`, deviations `D6`, `D10`) |
 | `web/src/bibleSchema.ts` | The one place the served definition is *read*: kind labels, an `entry_ref`'s candidates, the relation options for a pair of kinds, and the closed field-type guard (`P3-12` … `P3-14`, D26) |
 | `web/src/shell/` | The workspace frame, the split dividers, the editor region, error boundaries, toasts |
 | `web/src/panels/` | The outline panel and its five tabs, the contents, the *Marks* tab, the history, the picker |
@@ -519,14 +562,25 @@ suite keeps a developer's real config out of its way.
 | `web/src/panels/EntryLinksPanel.tsx` | Both directions in one list, and the picker that makes an illegal link unbuildable (`P3-14`) |
 | `web/src/panels/EntryCitations.tsx` | The passages behind an entry, with each anchor's current status — and the route to *Marks* for a repair (`P3-14`) |
 | `web/src/panels/StoryTimeCheck.tsx` | D28's three answers, as three lists. **Not a timeline** — Phase 8 owns that (`P3-12`, deviation `D1`) |
+| `web/src/panels/AgentPanel.tsx` | The third region: the conversation list, the transcript, the settings screen, and its **own** error boundary (`P4-12`, `P4-15`) |
+| `web/src/panels/ConversationList.tsx` | Every conversation in the project, newest first, and the deleted tray (`P4-12`) |
+| `web/src/panels/Transcript.tsx` | The turns as they were stored, and the one that is still arriving (`P4-12`) |
+| `web/src/panels/ChatComposer.tsx` | The question, and **what will go with it** — the server's own preview, each part droppable, with the estimate the refusal uses (`P4-13`) |
+| `web/src/panels/RewriteActions.tsx` | Proofread, tone, and rewrite over an anchored range, and nothing else (`P4-14`, deviation `D1`) |
+| `web/src/panels/RewriteDiff.tsx` | The explicit before/after, and the two buttons that make it an ordinary edit or nothing at all (`P4-14`, D33) |
+| `web/src/panels/SettingsScreen.tsx` | Inputs rendered from the server's own `writable` list, and whether a key is present — **never a key** (`P4-15`, D34) |
+| `web/src/rewriteActions.ts` | The three actions' wording, in one place. An unknown action throws (`P4-14`, deviation `D5`) |
+| `web/src/wordDiff.ts` | The longest-common-subsequence over words, where a word carries its trailing space so the parts concatenate back to both texts (`P4-14`, deviation `D4`) |
+| `web/src/chatText.ts` | The one place a provider's answer is put into words: six error codes, seven stop reasons, and *usage not reported* (`P4-12`) |
 | `web/src/anchorText.ts` | The one place an anchor is put into words, for the panel, the control, and the decoration |
 | `web/src/editor/extensions.ts` | The closed TipTap schema — a change here is a spec change (`P1-10`, D1) |
 | `web/src/editor/anchors.ts` | The decoration plugin: mapping, collapse, clamping — display-only (`P2-9`, D21) |
-| `web/src/editor/SelectionActions.tsx` | The control over a selection: *Mark passage*, *Re-link here*, and *Add to bible* (`P2-9`, `P2-10`, `P3-14`) |
+| `web/src/editor/SelectionActions.tsx` | The control over a selection: *Mark passage*, *Re-link here*, *Add to bible*, and *Ask agent* (`P2-9`, `P2-10`, `P3-14`, `P4-13`) |
 | `web/src/editor/autosave.ts` | `SaveScheduler` — *when* a save happens, with no React in it (`P1-10`) |
 | `web/src/editor/projection.ts` | The client mirror of the projection, held to the server by shared fixtures |
 | `web/src/format.ts` | The display edge: the only place a UTC timestamp becomes words |
-| `web/src/__tests__/fakes/` | The hand-written typed fake API client (`P1-8`) |
+| `web/src/__tests__/fakes/` | The hand-written typed fake API client (`P1-8`) and the fake chat socket (`P4-12`) |
+| `web/src/__tests__/fakes/fakeChatSocket.ts` | Cadence and every stream failure the panel handles, staged from a test — what `FakeProvider` is on the other side of the wire (`P4-12`) |
 | `web/src/__tests__/harness.tsx` | The real provider stack with a fake client and a hurried autosave |
 | `server/tests/test_static.py` | The run-mode tests; each builds its own miniature `dist` in `tmp_path` |
 | `server/tests/test_chapters.py` | Reorder, delete, restore, and the soft-delete predicate across all four read paths (`P2-2`) |
@@ -573,10 +627,92 @@ suite keeps a developer's real config out of its way.
 | `web/src/__tests__/bible.test.tsx` | The tab: filters, live counts, the review queue that empties, the deleted tray, and the story-time readout (`P3-12`) |
 | `web/src/__tests__/entryForm.test.tsx` | Every field type round-tripping, the retcon default and its override, the `409`, and the history (`P3-13`) |
 | `web/src/__tests__/entryLinks.test.tsx` | Links both ways, the picker's refusals, citations and their status, and *Add to bible* below the gesture (`P3-14`) |
+| `web/src/__tests__/chatReducer.test.ts` | The stream as state: an out-of-order fragment kept, a second `start` ignored, nothing after a terminator, and a cancel that keeps what arrived (`P4-12`) |
+| `web/src/__tests__/chat.test.tsx` | The panel through the real provider stack over a fake socket: a streamed answer, a cancel, a mid-stream failure, and a reload that reads the turn back (`P4-12`) |
+| `web/src/__tests__/askAgent.test.tsx` | What travels with a question, and that dropping a part changes what is **sent** (`P4-13`) |
+| `web/src/__tests__/wordDiff.test.ts` | The diff, and that its parts concatenate back to both texts (`P4-14`) |
+| `web/src/__tests__/rewrite.test.tsx` | The three actions, the before/after, accept as one undoable edit, discard as nothing, and the refusal over a `stale` anchor (`P4-14`, D33) |
+| `web/src/__tests__/settings.test.tsx` | The screen: inputs from the served `writable` list, key **presence** and never a key, and the response rather than the draft on screen (`P4-15`, D34) |
 
 **Invariants established in Phase 1's Groups A, B, and C, in Phase 2's Groups A, B, C, and D, in
-Phase 3's Groups A, B, C, and D, and in Phase 4's Groups A, B, and C**, beyond those already listed
-above.
+Phase 3's Groups A, B, C, and D, and in Phase 4's Groups A, B, C, and D**, beyond those already
+listed above.
+
+Phase 4's Group D added these:
+
+- **The socket lives in the provider as an effect with one owner and an explicit teardown, and
+  *constructing* one is an injected seam.** A reducer is pure and holds no `localStorage`, no
+  client, and no DOM, and a `WebSocket` is all three problems at once. `ChatSocketFactory` sits
+  beside `ApiClient` as the second thing the harness replaces — jsdom has a `WebSocket` constructor
+  and it would try to open a real connection, which is the one thing the testing rules forbid
+  outright. `web/src/api/socket.ts` does not reconnect, does not reorder, does not accumulate, and
+  does not turn a close into an event; every one of those would be a second implementation of a
+  rule that already lives somewhere.
+- **The client enforces none of D32's ordering rules but one, and that is the asymmetry taken one
+  step further.** A `delta` that arrives before `start` is appended; a second `start` marks the
+  model and does not reset the text. Dropping a fragment to satisfy an ordering nobody promised on
+  the wire would lose the writer **words they paid for**, which is strictly worse than the detail
+  an unknown event type costs. The one rule that *is* enforced is the one that cannot be tolerated:
+  **after a terminator, nothing lands** — a fragment after `done` belongs to a stream this panel is
+  no longer listening to (`specs/providers.md` § 13, correction 4).
+- **A socket that stops mid-answer is a failure carrying none of the six provider codes.** Nothing
+  was refused, no limit was reached, and the provider said nothing at all, so `StreamFailure.code`
+  is `null` and the panel has its own sentence for it. This is Group C's rule arriving on the
+  client: the six are the **provider's** taxonomy, and a condition no provider caused does not get
+  one of its names (`specs/providers.md` § 13, correction 5).
+- **The socket opens on the first *ask*, never on opening a conversation.** Reading a transcript is
+  a read of the project file: it opens nothing and spends nothing. A socket held for every
+  conversation the writer merely looked at would make "token spend is always a deliberate user
+  act" (D13) a statement about the composer rather than about the application.
+- **When a stream ends, the panel re-reads the conversation.** There is no sixth event announcing a
+  saved message, because the vocabulary is shared with Phase 6 and adding to it here would make
+  "one vocabulary" mean two different things on the two sides. The server writes the row *before*
+  it sends the terminator, so that read cannot lose the race — the client half of Group C's
+  ordering rule.
+- **What will be sent is the server's answer, and dropping a part changes what is sent.** The
+  preview is fetched, not computed here, and it is deliberately **not** held in the reducer: a
+  second copy of the server's answer would exist only for the two to disagree, which is the rule
+  `bibleReducer` follows for an open entry's citations. What the reducer *does* hold is the
+  writer's own choices — the selection — because those are an input rather than an answer. The
+  number on screen is therefore the number the refusal uses, and a request that will not fit says
+  so before it costs anything.
+- **The editor is the only thing that edits.** An accepted rewrite travels to it as *pending
+  state*, the way a heading jump does, and `ManuscriptEditor` owns the ProseMirror transaction —
+  so an accept is one entry in the writer's own undo stack (D33) and nothing outside the editor
+  ever holds a transaction. `DocumentContext.resolveAnchor` flushes first and re-reads, because the
+  question "has this passage been rewritten since the action started?" is only answerable against
+  saved text.
+- **A rewrite action never applies to a `stale` anchor, and refuses rather than falls back.** The
+  positions of a stale anchor are true at no version (`specs/anchors.md` § 1), so applying a
+  replacement to them would drop new sentences onto whatever now occupies those offsets — the
+  exact failure the phase-3 acceptance run found from the other side. The action mints its anchor
+  through `AnchorStore` and by no other means, which is what makes the check possible at all.
+- **The before/after is not durable, and the action's anchor is removed whether the writer accepts
+  or discards.** D33 says an accepted rewrite is an ordinary transaction rather than a proposal, so
+  there is nothing to store; the anchor was machinery rather than a mark the writer asked for, and
+  leaving it behind would fill the *Marks* tab with references nobody made.
+- **The assistant panel has its own error boundary, inside the region's.** The same rule the Bible
+  tab follows, for the same reason: the panel with the most moving parts must not be able to take
+  down the surface that may be holding the only copy of a sentence.
+- **The settings screen renders its inputs from the server's own `writable` list**, so a field that
+  stops being writable stops being editable in the same commit — and it shows key **presence** per
+  provider and never a key, a length, or a prefix (D34).
+- **The fake API client has no context composer, and must never grow one.** `previewContext`
+  reflects the selector back; what holds the two sides together is the contract fixture, not two
+  implementations agreeing. Same rule as the fake's missing resolver and missing Markdown parser,
+  for the same reason: a fake that computed an answer would let a client test pass while asserting
+  against a specification nobody wrote.
+- **`FakeChatSocket` stages cadence and failure**, which is what `FakeProvider` is on the other
+  side of the wire: a mid-stream error, a stream that ends without a terminator, a server close, a
+  slow first token. No real provider produces those on demand, and they are exactly the conditions
+  the panel's handling exists for.
+- **A test waits for the text it typed, never for an exact version number.** `versionOf` answers
+  *has anything been written?*; an exact version asserts **how many autosave windows elapsed while
+  `userEvent` typed**, which is a property of the machine rather than of the application — seven
+  keystrokes straddle one window on an idle run and two on a loaded one. Two Phase 2 tests were
+  written that way and became flaky the moment Group D made the suite bigger; both now wait on
+  `FakeApiClient.textOf`, which is the question they always had. Waiting on the content is the
+  stronger claim, so nothing was loosened to get a green suite (deviation `D16`).
 
 Phase 4's Group C added these:
 

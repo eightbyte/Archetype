@@ -488,6 +488,19 @@ export class FakeApiClient implements ApiClient {
     return this.documents.get(documentId)?.meta.version;
   }
 
+  /**
+   * The stored text of a document — for asserting **what** a save landed rather than how many.
+   *
+   * `versionOf` answers "has anything been written?", and a test that waits for an exact version
+   * is asserting how many autosave windows elapsed while it typed, which is a property of the
+   * machine rather than of the application: seven keystrokes can straddle one window on an idle
+   * run and two on a loaded one. Waiting on the text asks the question the test actually has.
+   */
+  textOf(documentId: string): string | undefined {
+    const stored = this.documents.get(documentId);
+    return stored ? project(stored.content).text_plain : undefined;
+  }
+
   /** The document ids of a project, in order. */
   documentIdsOf(projectId: string): string[] {
     return this.orderedDocuments(projectId).map((stored) => stored.meta.id);

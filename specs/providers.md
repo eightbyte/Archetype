@@ -1,16 +1,17 @@
 # Archetype — The Provider Port
 
 **Status:** Specification · written at `P4-1`, **before** the code it governs ·
-**Version:** 1.1 · **Date:** 2026-09-05
+**Version:** 1.2 · **Date:** 2026-09-06
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 (D5, D8, D11, D12, D13, **D30**, **D31**, **D32**, **D33**, **D34**)
 **Plan:** [`specs/phase-4-plan.md`](phase-4-plan.md) — this document is `P4-1`; it governs `P4-2`
-through `P4-14`, and any place the code corrects it is marked in § 12 and cross-referenced to that
+through `P4-14`, and any place the code corrects it is marked in § 13 and cross-referenced to that
 plan's § 7
 **Companions:** [`specs/api-contract.md`](api-contract.md) (the socket and the settings route) ·
 [`specs/data-model.md`](data-model.md) (the two tables a conversation lives in) ·
-`server/archetype/llm/port.py` (the types this document fixes)
+`server/archetype/llm/port.py` (the types this document fixes) ·
+`web/src/api/stream.ts` (the client half of § 4, which is a **reader** and not a second port)
 
 The **provider port** is the one interface through which Archetype talks to a language model.
 Phase 4 puts a chat panel and three single-pass actions on top of it; Phase 6 writes an entire
@@ -238,7 +239,7 @@ panel skips it, because a browser holding a stale bundle against a newer server 
 must still show the answer.
 
 This is one rule with two implementations on purpose, and it is tested in **both** suites
-(`P4-2`).
+(`P4-2`). The same asymmetry governs **order**, and for a sharper reason — see § 13's correction 4.
 
 ---
 
@@ -425,6 +426,9 @@ Shapes chosen so that a later phase adds rather than migrates:
   (D30) — so an agent turn is an addition to this schema, not a rewrite of it.
 - **`ProviderError.detail` is untyped and preserved**, so a provider condition this build does not
   distinguish is still diagnosable from a log.
+- **A reader of this vocabulary holds `code` as *one of the six or nothing*** (§ 13, correction 5),
+  so a later phase that adds a seventh code widens a union rather than teaching every consumer
+  that a failure might have no code at all.
 
 ---
 
@@ -438,3 +442,5 @@ cross-references [`specs/phase-4-plan.md`](phase-4-plan.md) § 7.*
 | **1** | § 7: "the effective budget is `min(capabilities.max_context, settings.llm_context_budget)`". | **The minimum is taken over the values that were actually declared.** `max_context` of `0` means *not declared* — which is what the OpenAI-compatible adapter says by default, because the server on the other end may be a frontier model or a quantised 7B and guessing either way is worse than saying nothing. A literal minimum with zero would refuse every request ever composed. An undeclared window leaves the writer's own budget standing, and two undeclared numbers leave no check at all — which is a writer's choice, and leaves the provider's own refusal as the guard (`llm/budget.py`, phase-4-plan § 7 `B7`). |
 | **2** | § 8, rule 2: a native path and a fallback path produce "**identical** normalised `tool_calls`". | **Identical on the name and the parsed arguments; the id is excluded, by this document's own next rule.** Rule 3 says the fallback mints ids and a native provider's are kept, so two paths that produced the same id would mean one of them was ignoring its provider. The test compares the calls without their ids and asserts both ids exist — which is the strongest claim the two rules permit together (`P4-7`, phase-4-plan § 7 `B8`). |
 | **3** | § 8, rule 1: "a tool call arrives normalised or not at all". | **True of `complete()`. On a *stream*, in Phase 4, it is "not at all" — and that is D32's vocabulary, not an adapter's choice.** `start`, `delta`, `usage`, `done`, `error` has no member a tool call fits in, so a streamed `input_json_delta` is ignored and the `done` still carries `stop_reason="tool_use"`, which is true. Phase 6 adds `tool_call` to the same union and closes it, exactly as § 12 says it will. Phase 4 declares no tools, so nothing is lost today; a test pins the behaviour so that closing it is a change rather than a discovery (phase-4-plan § 7 `B4`). |
+| **4** | § 4: "`start` is first … `done` or `error` is last", stated as ordering **rules**, and § 4's asymmetry stated as being about an unknown `type`. | **They are a promise the stream makes, not a licence for a reader to enforce them — and the client enforces none of them.** `chatReducer` appends a `delta` that arrives *before* a `start`, and a second `start` marks the model without resetting the text. The reasoning is D32's own, one step further: an unknown `type` costs the writer detail, whereas a fragment dropped to satisfy an ordering **nobody promised on the wire** costs them words they paid for. The rules still bind the server — the adapters emit in this order and the suite says so — and the one rule the client *does* enforce is the one that cannot be tolerated: after a terminator, nothing lands, because a fragment after `done` belongs to a stream this panel is no longer listening to (`P4-12`, phase-4-plan § 7 `D13`). |
+| **5** | § 6: six codes, **closed** — read together with § 4's "a stream that ends without either is a failure the caller must handle". | **The caller's answer to that failure carries none of the six, and that is deliberate.** A socket that stops mid-answer is not a provider condition: nothing was refused, no limit was reached, and the provider said nothing at all. Filing it as `provider_unavailable` would put a guess in the one column a writer consults when something went wrong — Group C's rule for what closes the socket, arriving on the client. So `StreamFailure.code` is `ProviderErrorCode \| null` and the panel has its own sentence for `null` (*the answer stopped; whatever had arrived is kept*). The six stay closed and stay the **provider's**; the seventh condition has no code because no provider caused it (`P4-12`, phase-4-plan § 7 `D14`). |

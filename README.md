@@ -8,7 +8,10 @@ chat panel sits on the other.
 React + TypeScript frontend, Python (FastAPI) backend, one SQLite file per project. Single user,
 localhost, Windows 11 primary.
 
-**Current state: Phase 2 built** — you can write in it, and you can maintain what you wrote.
+**Current state: Phase 4 built, awaiting its acceptance run** — you can write in it, maintain what
+you wrote, keep a story bible beside it, and now ask an assistant about the passage in front of
+you.
+
 Create a project, add chapters, write formatted prose that saves itself and survives a reload, and
 move around the manuscript by its headings. Reorder chapters, rename them, delete one and get it
 back. Mark a passage and watch the highlight follow it as you type around it; find every mark in
@@ -16,7 +19,18 @@ one place, see which have gone stale, and repair one by hand. Mark a version of 
 beside what is there now, and restore it. Export a chapter or the whole manuscript to Markdown,
 and import Markdown back as chapters.
 
-There is still no AI, no story bible, and no search; those are Phase 4 onwards. See
+Add a passage to the **story bible** as a character, a place, or one of five other kinds; join two
+entries with a relation the vocabulary allows and no other; change something established and watch
+everything that depended on it land in a review queue that empties as you work through it.
+
+Select a passage and **ask about it** — the assistant answers into a panel beside the manuscript,
+a fragment at a time, and you can stop it mid-answer and keep what arrived. Before anything is
+sent, the panel shows exactly what will go with the question and lets you drop any part of it.
+Proofread, adjust the tone of, or rewrite an anchored passage, and the result arrives as an
+explicit before/after with the words that changed picked out — accepting it is an ordinary edit you
+can undo, and nothing is ever written into your manuscript without you accepting it.
+
+There is still no search and no agent that takes multiple steps; those are Phases 5 and 6. See
 [specs/project-outline.md](specs/project-outline.md) for the whole plan, and each phase plan's
 final sections for what that phase actually shipped.
 
@@ -103,8 +117,8 @@ not.
 chapter and word counts. Type a title and *Create project* to start one; it opens straight into a
 writable first chapter. Projects you have opened before are offered as a *Recent* shortcut.
 
-**The workspace** has three regions: the outline panel, the manuscript, and the assistant panel
-(a placeholder until Phase 4). Drag the dividers between them, or focus one and use the keyboard:
+**The workspace** has three regions: the outline panel, the manuscript, and the assistant panel.
+Drag the dividers between them, or focus one and use the keyboard:
 
 | Key | What it does |
 |---|---|
@@ -151,8 +165,7 @@ silently re-points itself at the wrong paragraph is worse than one that admits i
 mark can be repaired from the *Marks* tab — sometimes with a suggested passage to accept, always
 by selecting new text and choosing *Re-link here*. Nothing repairs itself.
 
-Marks are the foundation the story bible is built on in Phase 3. For now they are yours to use as
-bookmarks.
+Marks are the foundation the story bible is built on, and they are useful as plain bookmarks too.
 
 **History.** *Mark version* records the chapter as it stands, with a label. The history panel
 lists every version — the ones you marked, the ones taken automatically when you leave a chapter,
@@ -169,6 +182,50 @@ whole file, or a chapter per top-level heading. It always **appends**; it never 
 chapter you already have. Anything Markdown can express that this editor cannot hold — a code
 fence, a link's target, an image, a heading deeper than three — is reported afterwards, with the
 line it was on and what became of it. The words are kept; only the formatting is lost.
+
+**The story bible.** Select a passage and choose *Add to bible* to make a character, place,
+faction, item, event, concept, or thread out of it — the passage becomes a mark, the mark becomes
+a citation, and the entry remembers which words it came from. Every kind has its own fields, and
+they come from the server rather than from the app, so the vocabulary is one list in one place.
+
+The *Bible* tab holds four views. **Entries** is the browse list, filtered by kind, by status, or
+by a search over names and summaries, with live counts. **Review** is the queue: mark a change as
+a retcon and every entry joined to it by a link is flagged, so working through the consequences is
+a list you empty rather than something you have to remember. **Story time** reads out what order
+your events must be in, which ones are not placed at all, and where two statements contradict each
+other. **Deleted** brings an entry back, with its links.
+
+Two entries are joined by choosing the other entry first and then the relation — so a relation
+that would not make sense between those two kinds is never offered. Every save writes a revision,
+any revision can be read and restored, and deleting an entry is recoverable.
+
+**The assistant.** The panel on the right holds your conversations with a model. Select a passage
+and choose *Ask agent*, or type a question straight into the composer.
+
+Before anything is sent, the panel shows **what will go with the question**: the passage you
+selected, the chapter it is in, the conversation so far, and any bible entries you named — each
+with an estimated size, and each one droppable. That estimate is the server's own, and it is the
+same number the refusal uses: if what you are sending is too large, the request is refused before
+it costs anything, naming what was too big, rather than being quietly cut in half.
+
+The answer arrives a fragment at a time. *Stop* ends it and keeps every word that had arrived; a
+failure mid-answer keeps them too, and says what went wrong in the transcript rather than leaving a
+gap. Every turn records what it cost and which model produced it — and if a provider reports no
+token counts, the panel says *usage not reported* rather than drawing a confident zero. Your
+conversations are stored in the project file, so they survive a reload, and deleting one is
+recoverable.
+
+**Proofread, tone, and rewrite** are three single-pass actions over a marked passage. Each returns
+a replacement, shown as an explicit **before/after** with the words that changed picked out. Accept
+it and it applies as one ordinary edit — one press of undo takes it back. Discard it and nothing
+happened. If you have rewritten the passage yourself since the action started, applying it is
+refused rather than dropped onto the wrong words.
+
+**Settings.** The *Settings* view in the assistant panel shows which provider is in play, its base
+URL and model, the answer-length and context budgets, and **whether an API key is present** — never
+the key, its length, or its first characters. Keys come from the environment only and are read-only
+here, by design (see *Secrets* below). Everything else on that screen is writable and lands in
+`config.yaml`.
 
 ## Test and lint
 
@@ -222,9 +279,33 @@ storage behind it is [specs/data-model.md](specs/data-model.md).
 | `GET` | `/api/projects/{pid}/markdown` | Every live chapter as one Markdown file |
 | `POST` | `/api/projects/{pid}/import` | Create chapters from Markdown |
 
-The two Markdown exports are the one **non-JSON** response here: they answer `text/markdown` with
-a filename attached, because an export is a file you save rather than a payload a client parses.
-Everything else, failures included, is JSON.
+The story bible adds twenty-three more, and the assistant eleven. Grouped, rather than listed one
+by one — [specs/api-contract.md](specs/api-contract.md) is the full account:
+
+| Method | Route | What |
+|---|---|---|
+| `GET` | `/api/bible/schema` | The seven kinds, their fields, and the twelve relations. The **one** route with no project scope until Phase 4 added the settings; the vocabulary is the product's, not a manuscript's |
+| `GET`/`POST` | `/api/projects/{pid}/entries` | Browse and filter the bible; create an entry |
+| `GET`/`PUT`/`DELETE` | `/api/entries/{eid}` | One entry; save it (with the retcon flag); soft-delete it |
+| `GET` | `/api/entries/{eid}/revisions` | Its history, and any revision restorable through the save path |
+| `GET`/`POST` | `/api/projects/{pid}/links` | Every relationship; join two entries |
+| `GET` | `/api/entries/{eid}/citations` | The passages an entry came from, each with the mark's current status |
+| `POST` | `/api/documents/{did}/entries` | *Add to bible*: mint a mark, create an entry, and cite it — in **one** transaction |
+| `GET` | `/api/projects/{pid}/storytime` | The order the events must be in, the unplaced ones, and the contradictions |
+| `GET`/`POST` | `/api/projects/{pid}/conversations` | Your conversations with the assistant; start one |
+| `GET`/`PATCH`/`DELETE` | `/api/conversations/{cid}` | One transcript; rename it; soft-delete it |
+| `POST` | `/api/conversations/{cid}/context` | What would be sent, composed and costed — **spending nothing** |
+| `WS` | `/api/conversations/{cid}/stream` | The one WebSocket: ask, and receive the answer a fragment at a time. *Cancel* is a frame back the other way |
+| `GET`/`PATCH` | `/api/settings` | Every non-secret setting, and whether a key is present. **Never a key** |
+
+The socket is the one row that is not HTTP. It answers no status code: everything that would have
+been a `4xx` on a route is a close with a reason instead, and everything that is genuinely a
+*provider* failure arrives as an `error` event on the stream carrying one of six codes — so a
+failed answer is a turn you can read afterwards rather than a gap in the transcript.
+
+The two Markdown exports are the one **non-JSON** HTTP response here: they answer `text/markdown`
+with a filename attached, because an export is a file you save rather than a payload a client
+parses. Everything else, failures included, is JSON.
 
 Every failing response uses one envelope:
 
@@ -322,7 +403,9 @@ built in Phase 1 before there was one to guard (D8, narrowed to the environment 
 API keys therefore stay out of the browser, out of `localStorage`, out of the bundle, and out of
 Git. A test walks the **whole** API surface with a key configured and searches every response
 body for it, so a route added later is covered without anyone remembering. The settings screen
-will say whether a key is **present** — never its value, its length, or its first characters.
+says whether a key is **present**, per provider — never its value, its length, or its first
+characters — and `PATCH /api/settings` refuses a key **by name**, with a sentence saying where
+keys actually come from.
 
 ## Your projects
 
@@ -349,5 +432,6 @@ data/            Runtime project files (gitignored)
 ```
 
 The specs are binding, not background reading. `specs/development-phases.md` holds the decision
-register (`D1`–`D20`); `specs/phase-1-plan.md` holds the current work items and their as-built
-deviations.
+register (`D1`–`D34`) and the work breakdown across every phase; each phase plan holds that phase's
+work items, its as-built deviations, and the manual acceptance run that closed it.
+`specs/phase-4-plan.md` is the current one.

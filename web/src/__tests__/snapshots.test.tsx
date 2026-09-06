@@ -117,7 +117,10 @@ describe('the history', () => {
     // chapter was opened with — the "now" side is what a restore would replace.
     await user.click(document.querySelector<HTMLElement>('.manuscript')!);
     await user.keyboard('Later. ');
-    await waitFor(() => expect(client.versionOf(first)).toBe(3));
+    // Waited on by its *text*, not by an exact version: seven keystrokes can straddle one
+    // autosave window on an idle run and two on a loaded one, and how many saves it took is a
+    // property of the machine rather than of the preview.
+    await waitFor(() => expect(client.textOf(first)).toBe(`Later. ${FIRST_DRAFT}`));
 
     await user.click(within(panel).getByRole('button', { name: 'Preview' }));
 
@@ -207,7 +210,9 @@ describe('restoring a version', () => {
     await mark(user, panel, 'the first draft');
     await user.click(document.querySelector<HTMLElement>('.manuscript')!);
     await user.keyboard(REWRITTEN);
-    await waitFor(() => expect(client.versionOf(first)).toBe(3));
+    // By its text rather than an exact version, for the reason above: a long string of keystrokes
+    // straddles a different number of autosave windows on a loaded machine than on an idle one.
+    await waitFor(() => expect(client.textOf(first)).toBe(`${REWRITTEN}${FIRST_DRAFT}`));
 
     await user.click(within(panel).getByRole('button', { name: 'Restore' }));
     await user.click(screen.getByRole('button', { name: 'Restore this version' }));
