@@ -4,8 +4,8 @@
 storage is one SQLite file per project (D3) - so something has to answer "which file". That is
 this module. ``/api/anchors/{aid}`` is addressed the same way, over the same cache (P2-7), and
 so is ``/api/snapshots/{sid}`` (P2-12) - and, from Phase 3, ``/api/entries/{eid}`` and
-``/api/links/{lid}`` (P3-9, P3-10). Each is one more prefix over one mechanism, never a second
-mechanism.
+``/api/links/{lid}`` (P3-9, P3-10), and from Phase 4 ``/api/conversations/{cid}`` (P4-9). Each
+is one more prefix over one mechanism, never a second mechanism.
 
 The answer is cached, because the alternative is opening every project file on every keystroke's
 autosave. The cache is a hint, never an authority: every resolution re-confirms that the file
@@ -116,6 +116,25 @@ class DocumentLocator:
             raise LinkNotFoundError(f"no link {link_id!r} in {self.store.projects_dir}")
         return handle
 
+    def resolve_conversation(self, conversation_id: str) -> ProjectHandle:
+        """The handle for the project holding ``conversation_id`` (P4-9).
+
+        The chat panel addresses a conversation the way the *Marks* tab addresses an anchor and
+        the Bible tab an entry: by its own id, without repeating a project the server already
+        knows. One more prefix over one mechanism (D30).
+
+        Raises:
+            ConversationNotFoundError: If no project file in the directory holds it.
+        """
+        from ..chat.conversations import ConversationNotFoundError
+
+        handle = self._locate("conversation", conversation_id)
+        if handle is None:
+            raise ConversationNotFoundError(
+                f"no conversation {conversation_id!r} in {self.store.projects_dir}"
+            )
+        return handle
+
     def forget(self, row_id: str) -> None:
         """Drop a cached location. Called when a row is known to have gone."""
         self._forget(row_id)
@@ -154,7 +173,9 @@ class DocumentLocator:
 
 #: The tables a bare id may address. A closed list, because the table name is spliced into the
 #: query rather than bound to it - ids are, and only these names ever reach it.
-_ADDRESSABLE = frozenset({"anchor", "document", "entry", "entry_link", "snapshot"})
+_ADDRESSABLE = frozenset(
+    {"anchor", "conversation", "document", "entry", "entry_link", "message", "snapshot"}
+)
 
 
 def _holds_row(path: Path, table: str, row_id: str) -> bool:

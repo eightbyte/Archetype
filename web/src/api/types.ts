@@ -13,8 +13,12 @@
  */
 
 import type { Heading, ProseMirrorDocument, ProseMirrorNode } from '../editor/projection';
+import type { Usage } from './stream';
 
 export type { Heading, ProseMirrorDocument, ProseMirrorNode };
+// The port's own shape, mirrored once in `stream.ts` and re-exported here so a stored turn
+// and a streamed one report a cost in exactly the same words (P4-2, D32).
+export type { Usage };
 
 /** `GET /api/health`. */
 export interface Health {
@@ -722,3 +726,203 @@ export interface InvalidAttributesDetail {
 export interface DuplicateLinkDetail {
   link_id: string;
 }
+
+/* -- chat (P4-9, P4-10, D30, D32) ------------------------------------------------------------ */
+
+/**
+ * One stored turn.
+ *
+ * `usage` of zero means **not reported**, not free (`specs/providers.md` § 2) — the panel says so
+ * rather than drawing a confident zero. `stop_reason` is empty until a turn finishes and is
+ * `cancelled` when the writer stopped it, which is what keeps a cancelled answer distinguishable
+ * from a complete one after a reload. `error_code` is one of the six provider codes when a turn
+ * failed, and a failed turn is a **stored** turn: the history says what went wrong rather than
+ * leaving a gap.
+ *
+ * `context` is what was composed to produce it (ruling 5) and is empty on a user turn.
+ */
+export interface ChatMessage {
+  id: string;
+  conversation_id: string;
+  ord: number;
+  role: string;
+  content: string;
+  context: ComposedContextRecord | Record<string, never>;
+  provider: string;
+  model: string;
+  usage: Usage;
+  stop_reason: string;
+  error_code: string;
+  created_at: string;
+}
+
+/** One chat, without its turns. What the conversation list is made of. */
+export interface Conversation {
+  id: string;
+  project_id: string;
+  title: string;
+  message_count: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+/** `GET /api/projects/{pid}/conversations` and its deleted twin. */
+export interface ConversationList {
+  conversations: Conversation[];
+}
+
+/**
+ * `GET /api/conversations/{cid}` — a conversation and every turn in it, in `ord`.
+ *
+ * This is what a reload reads (D30): the transcript, what each answer cost, and the context that
+ * produced it all come back from the project file. It is also what the panel re-reads when a
+ * stream terminates, because the socket carries the stream vocabulary and no persisted ids.
+ */
+export interface ConversationDetail {
+  conversation: Conversation;
+  messages: ChatMessage[];
+}
+
+/**
+ * One thing that was included in a composed context, and what it cost.
+ *
+ * Every key is present whatever the `kind`, so one renderer draws them all. `excerpt` is the
+ * part's text when it was short enough to record and empty when it was not; `chars` always says
+ * how big it really was, so what was withheld is visible rather than implied.
+ */
+export interface ContextPart {
+  kind: string;
+  label: string;
+  ref_id: string;
+  chars: number;
+  estimated_tokens: number;
+  excerpt: string;
+}
+
+/** What the writer pointed at and named. Sent on an `ask` and on a preview. */
+export interface ContextSelector {
+  document_id?: string;
+  from_pos?: number | null;
+  to_pos?: number | null;
+  include_chapter?: boolean;
+  entry_ids?: string[];
+  include_history?: boolean;
+}
+
+/**
+ * `POST /api/conversations/{cid}/context` — what would be sent, before it is sent (ruling 5).
+ *
+ * `fits` is the budget check's own answer, computed without calling anything: a request over
+ * budget is a hard refusal naming what was too big, never a truncation, so the panel can say so
+ * before the writer spends anything. `budget` of zero means none is in force.
+ */
+export interface ComposedContext {
+  parts: ContextPart[];
+  estimated_tokens: number;
+  max_tokens: number;
+  budget: number;
+  fits: boolean;
+}
+
+/** The same composition as it is stored on the message it produced. */
+export interface ComposedContextRecord {
+  selector: Required<ContextSelector>;
+  parts: ContextPart[];
+  estimated_tokens: number;
+}
+
+/**
+ * The frames a client may send on the chat socket.
+ *
+ * There is no `regenerate` and no `retry`: one deliberate ask is one bill (D13, ruling 6), and
+ * this vocabulary is small on purpose to keep it that way. The server **refuses** a frame it does
+ * not recognise by closing the socket — the mirror of the client ignoring an event it does not
+ * recognise (D32), and deliberately the opposite, because guessing what an unknown frame meant is
+ * how tokens get spent on something nobody asked for.
+ */
+export interface AskFrame {
+  type: 'ask';
+  prompt: string;
+  context?: ContextSelector;
+}
+
+/** Stop the answer that is arriving. D11's stated reason for choosing a socket. */
+export interface CancelFrame {
+  type: 'cancel';
+}
+
+export type ClientFrame = AskFrame | CancelFrame;
+
+/* -- settings (P4-11, D34) ------------------------------------------------------------------- */
+
+/** Every non-secret setting. A key is never among them, on any route, ever (D8, D34). */
+export interface AppSettings {
+  data_dir: string;
+  host: string;
+  port: number;
+  log_level: string;
+  web_dist: string | null;
+  llm_provider: string;
+  llm_base_url: string;
+  llm_model: string;
+  llm_max_tokens: number;
+  llm_context_budget: number;
+  llm_native_tools: boolean;
+  llm_streaming: boolean;
+  llm_supports_system: boolean;
+  llm_max_context: number;
+  llm_stream_usage: boolean;
+}
+
+/**
+ * What the registry knows about what it can build.
+ *
+ * `has_key` is **whether** a key is present, per provider — never its value, its length, or its
+ * first characters (D34). `reason` is the sentence to show when nothing can be built, and it is
+ * the same sentence the chat panel gets as a `provider_unconfigured` error.
+ */
+export interface ProviderStatus {
+  provider: string;
+  known_providers: string[];
+  model: string;
+  base_url: string;
+  max_tokens: number;
+  context_budget: number;
+  key_present: boolean;
+  has_key: Record<string, boolean>;
+  key_env_var: string;
+  key_env_vars: Record<string, string>;
+  configured: boolean;
+  reason: string;
+}
+
+/**
+ * `GET /api/settings`, and the body of a successful `PATCH`.
+ *
+ * `writable` is served rather than assumed, so the screen renders inputs from the server's list
+ * and a field that stops being writable stops being editable in the same commit.
+ */
+export interface SettingsDocument {
+  settings: AppSettings;
+  provider: ProviderStatus;
+  writable: string[];
+  config_file: string;
+}
+
+/** `PATCH /api/settings`. Only the provider block, and never a key — the server refuses one. */
+export type SettingsPatch = Partial<
+  Pick<
+    AppSettings,
+    | 'llm_provider'
+    | 'llm_base_url'
+    | 'llm_model'
+    | 'llm_max_tokens'
+    | 'llm_context_budget'
+    | 'llm_native_tools'
+    | 'llm_streaming'
+    | 'llm_supports_system'
+    | 'llm_max_context'
+    | 'llm_stream_usage'
+  >
+>;

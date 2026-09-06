@@ -21,9 +21,11 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from archetype.ids import IdPrefix
+from archetype.llm.port import Usage
 from archetype.manuscript.projection import project, text_offset_to_pm_position
 
 from .conftest import CONTRACT_FIXTURES_DIR, build_document
+from .fakes.provider import FakeProvider
 
 # Built from the registered prefixes rather than spelled out, because a prefix the pattern has
 # never heard of is not a failure - it is a fixture that is rewritten on every run and a diff
@@ -351,6 +353,56 @@ def test_contract_fixtures_round_trip(client: TestClient) -> None:
     capture("entry_list_deleted", client.get(f"/api/projects/{project_id}/entries/deleted"))
     client.post(f"/api/entries/{kurtz['id']}/restore")
 
+    # -- Phase 4, Group C: chat, the composed context, and the settings surface ---------------
+    #
+    # The transcript is driven through the **real socket** against `FakeProvider`, rather than
+    # written into the store, so the fixture the frontend types against is the shape the socket
+    # and the store actually produce together - including the usage and the composed context that
+    # only exist because a turn went all the way through (P4-10, ruling 5).
+    provider = FakeProvider()
+    client.app.state.provider_factory = lambda _settings: provider
+    provider.stage_stream_text(
+        ["The harbour ", "is grey."], usage=Usage(input_tokens=142, output_tokens=9)
+    )
+
+    conversation = capture(
+        "conversation",
+        client.post(
+            f"/api/projects/{project_id}/conversations", json={"title": "About the harbour"}
+        ),
+    )
+    with client.websocket_connect(f"/api/conversations/{conversation['id']}/stream") as socket:
+        socket.send_json(
+            {
+                "type": "ask",
+                "prompt": "what colour is the harbour?",
+                "context": {"document_id": first_document},
+            }
+        )
+        while socket.receive_json()["type"] not in {"done", "error"}:
+            pass
+
+    capture("conversation_detail", client.get(f"/api/conversations/{conversation['id']}"))
+    capture("conversation_list", client.get(f"/api/projects/{project_id}/conversations"))
+    capture(
+        "context_preview",
+        client.post(
+            f"/api/conversations/{conversation['id']}/context",
+            json={
+                "prompt": "and the gulls?",
+                "context": {"document_id": first_document, "entry_ids": [marlow]},
+            },
+        ),
+    )
+
+    # The settings document carries two absolute paths, which are a different machine's on every
+    # run - so they are pinned here rather than left to rewrite the fixture forever. Everything
+    # the client renders is in the fields around them.
+    settings_body = client.get("/api/settings").json()
+    settings_body["settings"]["data_dir"] = "<data_dir>"
+    settings_body["config_file"] = "<config_file>"
+    written["settings"] = write_fixture("settings", settings_body, normaliser)
+
     # The round trip: everything written parses back to what was written.
     for name, body in written.items():
         path = CONTRACT_FIXTURES_DIR / f"{name}.json"
@@ -399,6 +451,12 @@ def test_every_fixture_is_one_the_test_writes() -> None:
         "link",
         "link_list",
         "storytime",
+        # Phase 4 (P4-9 to P4-11).
+        "context_preview",
+        "conversation",
+        "conversation_detail",
+        "conversation_list",
+        "settings",
     }
     found = {path.stem for path in CONTRACT_FIXTURES_DIR.glob("*.json")}
     assert found == expected

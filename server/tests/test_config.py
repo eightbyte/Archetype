@@ -9,15 +9,18 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 from pydantic import Field, SecretStr
 
 from archetype.config import (
     CONFIG_FILE_ENV_VAR,
     PROJECT_ROOT,
     Settings,
+    config_file_path,
     get_settings,
     load_settings,
     reset_settings_cache,
+    write_config_values,
 )
 
 
@@ -233,3 +236,49 @@ def test_declaring_a_secret_without_exclude_fails_at_class_definition() -> None:
 
         class Leaky(Settings):
             api_key: SecretStr | None = None
+
+
+# -- writing the file back (P4-11) ------------------------------------------------------------
+
+
+def test_writing_settings_merges_rather_than_replacing(tmp_path: Path) -> None:
+    config = write_config(tmp_path / "config.yaml", "port: 9500\nllm_model: old\n")
+
+    write_config_values({"llm_model": "new", "llm_max_tokens": 2048}, path=config)
+
+    assert yaml.safe_load(config.read_text(encoding="utf-8")) == {
+        "port": 9500,
+        "llm_model": "new",
+        "llm_max_tokens": 2048,
+    }
+
+
+def test_writing_settings_creates_the_file_when_there_is_none(tmp_path: Path) -> None:
+    config = tmp_path / "nested" / "config.yaml"
+    write_config_values({"llm_provider": "openai"}, path=config)
+    assert yaml.safe_load(config.read_text(encoding="utf-8")) == {"llm_provider": "openai"}
+
+
+def test_a_secret_is_refused_at_the_write_as_well_as_at_the_route(tmp_path: Path) -> None:
+    """The second of D34's two guards.
+
+    A guard at the edge protects one route; a guard here protects every caller there will ever
+    be - including a Phase 6 one nobody has written yet. The rule it keeps is the whole of D8:
+    **this application never writes a secret to a file it chose.**
+    """
+    config = tmp_path / "config.yaml"
+    with pytest.raises(ValueError, match="environment only"):
+        write_config_values({"anthropic_api_key": "sk-please-store-this"}, path=config)
+    assert not config.exists()
+
+
+def test_the_written_file_is_the_one_the_yaml_layer_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A route that reported one path and wrote another would be unfindable by experiment."""
+    config = tmp_path / "elsewhere.yaml"
+    monkeypatch.setenv(CONFIG_FILE_ENV_VAR, str(config))
+
+    assert config_file_path() == config
+    write_config_values({"llm_model": "written-here"})
+    assert load_settings().llm_model == "written-here"

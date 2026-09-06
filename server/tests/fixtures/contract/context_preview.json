@@ -1,0 +1,48 @@
+{
+  "parts": [
+    {
+      "kind": "instructions",
+      "label": "Instructions",
+      "ref_id": "",
+      "chars": 500,
+      "estimated_tokens": 143,
+      "excerpt": "You are assisting the author of a long narrative work. You are given passages from their manuscript and entries from their story bible, and you answer questions about them.\n\nGround every answer in the text you were given. If the passages do not settle a question, say so plainly rather than inventing detail - the author will send more. Never rewrite the manuscript unless you are explicitly asked for a replacement, and when you are, give the replacement and nothing else. The author owns the words."
+    },
+    {
+      "kind": "chapter",
+      "label": "Chapter: Chapter 1 (12 words)",
+      "ref_id": "doc_000000000001",
+      "chars": 63,
+      "estimated_tokens": 18,
+      "excerpt": "Arrival\n\nThe Quay\n\nThe harbour was calm.\n\nHe did not look back."
+    },
+    {
+      "kind": "entry",
+      "label": "Charlie Marlow (character)",
+      "ref_id": "ent_000000000001",
+      "chars": 49,
+      "estimated_tokens": 14,
+      "excerpt": "Charlie Marlow (character)\nthe pilot who tells it"
+    },
+    {
+      "kind": "history",
+      "label": "2 earlier turns",
+      "ref_id": "",
+      "chars": 49,
+      "estimated_tokens": 14,
+      "excerpt": "what colour is the harbour?\n\nThe harbour is grey."
+    },
+    {
+      "kind": "question",
+      "label": "Your question",
+      "ref_id": "",
+      "chars": 14,
+      "estimated_tokens": 4,
+      "excerpt": "and the gulls?"
+    }
+  ],
+  "estimated_tokens": 233,
+  "max_tokens": 4096,
+  "budget": 100000,
+  "fits": true
+}

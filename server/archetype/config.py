@@ -31,9 +31,11 @@ __all__ = [
     "CONFIG_FILE_ENV_VAR",
     "PROJECT_ROOT",
     "Settings",
+    "config_file_path",
     "get_settings",
     "load_settings",
     "reset_settings_cache",
+    "write_config_values",
 ]
 
 #: Repository root: ``<repo>/server/archetype/config.py`` -> ``<repo>``.
@@ -332,3 +334,62 @@ def reset_settings_cache() -> None:
     """Drop the cached instance so the next :func:`get_settings` re-reads its layers."""
     global _settings
     _settings = None
+
+
+def config_file_path() -> Path:
+    """The file the YAML layer reads, and the only file this application ever writes settings to.
+
+    Resolved the same way the settings source resolves it, from the same environment variable, so
+    the path a route reports and the path a layer reads cannot disagree (P4-11).
+    """
+    return YamlSettingsSource._path_from_env()
+
+
+def write_config_values(values: dict[str, Any], *, path: Path | None = None) -> Path:
+    """Merge ``values`` into the YAML layer and write it back, refusing to write a secret.
+
+    The refusal here is the **second** guard, not the first: ``PATCH /api/settings`` refuses a
+    secret-valued field by name before it gets this far (D34). It is repeated because this is the
+    one function in the application that writes a settings file, and the rule it is keeping - the
+    app never writes a secret to a file it chose - is the whole reason D8 exists. A guard at the
+    edge protects one route; a guard here protects every caller there will ever be.
+
+    The file is rewritten from a parsed mapping, so **comments and key order in an existing
+    ``config.yaml`` are not preserved**. That is the cost of the settings screen being able to
+    write at all, and it is small: this file holds a dozen scalars.
+
+    Args:
+        values: Field name to value. Values must already be JSON/YAML-safe scalars.
+        path: Override the destination. Defaults to :func:`config_file_path`.
+
+    Returns:
+        The path written.
+
+    Raises:
+        ValueError: If any key names a secret-valued setting.
+        TypeError: If the existing file is not a YAML mapping.
+    """
+    secrets = sorted(set(values) & Settings.secret_fields())
+    if secrets:
+        raise ValueError(
+            f"{', '.join(secrets)} may not be written to a settings file; API keys come from "
+            "the environment only (D8, D34)"
+        )
+
+    destination = path if path is not None else config_file_path()
+    existing: dict[str, Any] = {}
+    if destination.is_file():
+        raw = yaml.safe_load(destination.read_text(encoding="utf-8"))
+        if raw is not None:
+            if not isinstance(raw, dict):
+                raise TypeError(
+                    f"{destination} must contain a YAML mapping, got {type(raw).__name__}"
+                )
+            existing = {str(key): value for key, value in raw.items()}
+
+    existing.update(values)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
+        yaml.safe_dump(existing, sort_keys=True, allow_unicode=True), encoding="utf-8"
+    )
+    return destination

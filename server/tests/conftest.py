@@ -31,6 +31,7 @@ from archetype.bible.citations import CitationStore
 from archetype.bible.entries import Entry, EntryStore
 from archetype.bible.links import LinkStore
 from archetype.bible.schema import EntryKind, FieldDefinition, FieldType
+from archetype.chat.conversations import Conversation, ConversationStore
 from archetype.config import CONFIG_FILE_ENV_VAR, Settings, reset_settings_cache
 from archetype.ids import IdPrefix, new_id
 from archetype.manuscript.anchors import EFFECTIVE_STATUS_SQL
@@ -38,6 +39,8 @@ from archetype.manuscript.documents import DocumentStore
 from archetype.manuscript.snapshots import SnapshotStore
 from archetype.projects import ProjectHandle, ProjectStore, open_migrated
 from archetype.projects.db import transaction, utc_now
+
+from .fakes.provider import FakeProvider
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 DB_FIXTURES_DIR = FIXTURES_DIR / "db"
@@ -322,6 +325,51 @@ def make_link(project: ProjectHandle):
         return link_id
 
     return factory
+
+
+# -- chat (Phase 4) -------------------------------------------------------------------------
+
+
+@pytest.fixture
+def conversations(project: ProjectHandle) -> ConversationStore:
+    """The conversation store for :func:`project` (P4-9)."""
+    return ConversationStore(project)
+
+
+@pytest.fixture
+def make_conversation(conversations: ConversationStore):
+    """Create a conversation. ``make_conversation("About Mira")``."""
+
+    def factory(title: str = "A question") -> Conversation:
+        return conversations.create(title)
+
+    return factory
+
+
+@pytest.fixture
+def provider() -> FakeProvider:
+    """The scripted provider every Phase 4 test runs against (P4-3).
+
+    Nothing in this suite reaches a network or a key: the application asks
+    ``app.state.provider_factory`` for a provider and :func:`chat_app` installs one that hands
+    back this object, so a route and a socket exercise the real code path against a fake.
+    """
+    return FakeProvider()
+
+
+@pytest.fixture
+def chat_app(settings: Settings, provider: FakeProvider) -> FastAPI:
+    """The real application with the fake provider installed at its one seam (P4-8, P4-10)."""
+    application = create_app(settings)
+    application.state.provider_factory = lambda _settings: provider
+    return application
+
+
+@pytest.fixture
+def chat_client(chat_app: FastAPI) -> Iterator[TestClient]:
+    """An HTTP and WebSocket client for :func:`chat_app`."""
+    with TestClient(chat_app, raise_server_exceptions=False) as test_client:
+        yield test_client
 
 
 @pytest.fixture

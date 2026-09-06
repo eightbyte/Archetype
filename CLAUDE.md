@@ -18,8 +18,8 @@ Python package: `archetype`. Config/env namespace: `ARCHETYPE_`. The repository 
 `WritingAssistant` — a path, not the product name.
 
 **Current state: Phase 1 complete (2026-08-30); Phase 2 complete (2026-09-01); Phase 3 complete
-(2026-09-04). Phase 4 is in progress — its § 2 is ruled, and Groups A and B are delivered
-(2026-09-04, 2026-09-05).** Both suites green — **1,293 backend, 535 frontend**. All **thirty-four** decisions are resolved and
+(2026-09-04). Phase 4 is in progress — its § 2 is ruled, and Groups A, B, and C are delivered
+(2026-09-04, 2026-09-05, 2026-09-05).** Both suites green — **1,373 backend, 544 frontend**. All **thirty-four** decisions are resolved and
 binding: the writer ruled D21–D24 on 2026-08-30, D25–D29 on 2026-09-01 (both reversals accepted,
 settling backlog `Q1`, `Q2`, `Q5`, and `Q7`), and **D30–D34 on 2026-09-04, all five as
 recommended**. Three open questions remain, none due before Phase 6.
@@ -60,8 +60,23 @@ fixture README says so plainly) — the capture scripts are committed and unrun,
 makes billed requests, so § 8's steps 4 and 12 are where that gap closes. Ten as-built deviations,
 three of which are corrections now carried in `specs/providers.md` § 13.
 
-**Groups C and D are not started** — there is no route, no socket, and no panel, and **nothing in
-the app calls a model yet**.
+**Group C is delivered** (`P4-9` … `P4-11`): **the application can now hold a streamed
+conversation, and remember it.** `archetype/chat/conversations.py` is `ConversationStore` — a
+fifth table under the one soft-delete predicate, turns appended and never edited, `ord` allocated
+inside the append's own transaction, and what a turn cost stored beside what produced it.
+`archetype/llm/context.py` is the composer, and it is **deliberately dumb**: it takes what the
+writer pointed at and what they named, searches for nothing, and its estimate is exactly the number
+the budget check will use. `archetype/api/chat_routes.py` carries seven conversation routes, a
+**context preview** that composes and spends nothing, and **the first WebSocket in the project** —
+`WS /api/conversations/{cid}/stream`, carrying D32's five events and nothing else, with cancel as a
+client frame. `archetype/api/settings_routes.py` is D34 on the wire: every non-secret setting, a
+`has_key` boolean per provider and never a key, and a `PATCH` that writes the provider block to
+`config.yaml` and refuses a secret **by name**. Ten as-built deviations; `C2` (the preview route)
+and `C6` (what closes the socket rather than borrowing a provider's code) are the two to read.
+
+**Group D is not started** — there is no panel, no *Ask agent*, no before/after diff, and no
+settings screen. **Nothing a writer can click reaches a model yet**: the socket is real and works,
+and the only things that drive it are the suite and a shell.
 
 The app is a place you can write, a place you can **maintain** what you wrote, a place you can get
 words **in and out of**, and now a place that **knows what is in the story**: create a project, add
@@ -250,10 +265,12 @@ the corpus abstracts, and Phase 4's § 8 adds a third kind of blindness the suit
   Phase 6, D33 an accepted rewrite is an ordinary editor transaction, D34 keys stay
   environment-only. Its § 3 is the port's shape, § 5 twelve exit criteria, § 6 the risks — of
   which "money" and "the port is shaped by whichever adapter is written first" are the two with no
-  precedent in earlier phases — § 7 the deviations table (`A1`–`A6` and `B1`–`B10` so far; `A1`
-  is the only one that changes a stored shape, `A3` and `B7` the only ones that add an unbudgeted
-  surface, `B5` the only one that adds stored configuration, and **`B1` is the one to read** —
-  it says what the recorded fixtures actually prove), and § 8 the
+  precedent in earlier phases — § 7 the deviations table (`A1`–`A6`, `B1`–`B10`, and `C1`–`C10`
+  so far; `A1` is the only one that changes a stored shape, `A3`, `B7`, and `C2` the only ones that
+  add an unbudgeted surface, `B5` the only one that adds stored configuration, `C4` the only one
+  that narrows a stated capability, and **`B1` and `C6` are the two to read** — one says what the
+  recorded fixtures actually prove and the other is a rule the phase had not written down), and
+  § 8 the
   fifteen-step acceptance run, which must additionally **record what the model actually said**,
   because the suite cannot assess an answer.
 - [specs/backlog.md](specs/backlog.md) — deferred features and open questions, each with the
@@ -267,7 +284,11 @@ the corpus abstracts, and Phase 4's § 8 adds a third kind of blindness the suit
   at version 4 and this document still describes version 3, because Phase 4's `conversation` and
   `message` tables (`P4-4`, D30) are built and the documentation pass that folds them in is
   `P4-15`. Until then `004_chat.sql` and `tests/test_migrations.py` are authoritative for them.
-- [specs/api-contract.md](specs/api-contract.md) — what each route promises and what it refuses:
+- [specs/api-contract.md](specs/api-contract.md) — what each route promises and what it refuses.
+  **Its body describes the surface through Phase 3; § 12 records what Phase 4's Group C added**
+  and `P4-15` folds the chat, socket, and settings routes into the body — until then those route
+  modules and their suites are authoritative for them, exactly as `004_chat.sql` is for the two
+  tables `data-model.md` does not yet describe. In the body:
   § 5's chapter operations, § 7's five anchor routes and the extended save response, § 8's four
   snapshot routes, § 9's two Markdown exports and one import — including the **one non-JSON
   response in the API** and why it is one — and **§ 10's twenty-three bible routes**, the served
@@ -450,6 +471,11 @@ suite keeps a developer's real config out of its way.
 | `server/archetype/llm/adapters/prompted_tools.py` | D31's fallback: declarations into the prompt, JSON back out, presented as ordinary `tool_calls`. **Pure** (`P4-7`) |
 | `server/archetype/llm/budget.py` | Ruling 7's hard refusal: the conservative estimate, the effective budget, and `context_too_large` naming what was too big. **Pure** (`P4-8`) |
 | `server/archetype/llm/registry.py` | The **only** place a provider is constructed, and the only place a key is unwrapped (`P4-8`, D34) |
+| `server/archetype/llm/context.py` | The context composer: what the writer **pointed at** and **named**, never what a search found. Its estimate is the budget check's own (`P4-10`, ruling 5) |
+| `server/archetype/chat/conversations.py` | `ConversationStore` — a chat, its turns, and what each one cost. Appended, never edited; soft-deleted whole (`P4-9`, D30) |
+| `server/archetype/api/chat_routes.py` | Seven conversation routes, the context preview, and **the one WebSocket** (`P4-9`, `P4-10`, D11, D32) |
+| `server/archetype/api/chat_schemas.py` | The chat wire shapes and the two client frames. It restates **no** stream event: those are the port's (`P4-9`, `P4-10`) |
+| `server/archetype/api/settings_routes.py` | `GET`/`PATCH /api/settings`, and their four shapes: whether a key is present, never a key (`P4-11`, D34) |
 | `server/archetype/projects/migrations/004_chat.sql` | `conversation` and `message` — where a chat lives, and why a Phase 4 turn is not a Phase 6 run (`P4-4`, D30) |
 | `server/archetype/bible/schema.py` | The **one** place the seven kinds' fields and the twelve relations are written down; the six closed field types, `validate()`, and the JSON dump (`P3-5`, D26) |
 | `server/archetype/bible/predicates.py` | The live predicate for an entry, and the **three-way** one for a link — written once (`P3-3`, D25) |
@@ -527,6 +553,11 @@ suite keeps a developer's real config out of its way.
 | `server/tests/test_llm_adapters.py` | What is true of **both**: interchangeable, one taxonomy, nothing retried, and the SSE framing (`P4-5`, `P4-6`) |
 | `server/tests/test_prompted_tools.py` | P4-7's corpus of replies, and D31's bar — a native and a fallback path producing the same call (`P4-7`) |
 | `server/tests/test_provider_registry.py` | Both adapters from configuration alone, `provider_unconfigured` before anything is composed, the budget, and the walk of the whole API surface for a leaked key (`P4-8`, D34) |
+| `server/tests/test_conversations.py` | The store, and the deleted conversation absent from every read path together (`P4-9`) |
+| `server/tests/test_context.py` | What the composer includes, what it refuses, and that its estimate **is** the budget check's (`P4-10`) |
+| `server/tests/test_chat_routes.py` | The seven routes and the preview over the real application (`P4-9`, `P4-10`) |
+| `server/tests/test_chat_socket.py` | A full streamed exchange, a mid-stream failure, a truncated stream, a cancel, and an over-budget ask that calls nothing (`P4-10`) |
+| `server/tests/test_settings_routes.py` | No key in the body, `has_key` per provider, a secret refused by name, and the provider taxonomy over HTTP (`P4-11`, D34) |
 | `server/tests/test_bible_schema.py` | The closed field-type list, the definition's own consistency, and validation's refusals (`P3-5`) |
 | `server/tests/test_entries.py` | All seven kinds through one store, every refusal writing nothing, and the deleted entry absent from every read path together (`P3-3`) |
 | `server/tests/test_entry_revisions.py` | Revisions, restore-through-update, the retcon computation, and the review queue that empties (`P3-4`) |
@@ -544,8 +575,76 @@ suite keeps a developer's real config out of its way.
 | `web/src/__tests__/entryLinks.test.tsx` | Links both ways, the picker's refusals, citations and their status, and *Add to bible* below the gesture (`P3-14`) |
 
 **Invariants established in Phase 1's Groups A, B, and C, in Phase 2's Groups A, B, C, and D, in
-Phase 3's Groups A, B, C, and D, and in Phase 4's Groups A and B**, beyond those already listed
+Phase 3's Groups A, B, C, and D, and in Phase 4's Groups A, B, and C**, beyond those already listed
 above.
+
+Phase 4's Group C added these:
+
+- **The socket carries D32's five events and nothing else, and the turn is persisted before the
+  terminator is sent.** No sixth event announces a saved message: the vocabulary is shared with
+  Phase 6 and adding to it here would make "one vocabulary" mean two different things on the two
+  sides. So a client that wants the persisted ids re-reads `GET /api/conversations/{cid}` when the
+  stream ends, and because the `done` (or `error`) goes out **after** the row is written, that read
+  cannot lose the race. One test asserts the ordering by reading while the socket is still open.
+- **Everything that is not a provider failure closes the socket instead of borrowing one of the six
+  codes.** A malformed frame, a conversation that is not there, a selection in a chapter deleted
+  since the writer selected in it — each closes with `1008` and a short reason. Filing one as
+  `provider_refused` would put a lie in the one column a writer consults when something went wrong.
+- **A failed turn is a stored turn.** An auth failure, a rate limit, a stream that stops without
+  saying so, and an over-budget refusal all persist an assistant message carrying `error_code` and
+  whatever text had arrived. A gap in the transcript is something the writer has to remember; a row
+  that says what went wrong is something they can read.
+- **`cancelled` is written by the socket and by nobody else.** It is a `stop_reason` and never an
+  `error_code`, because a deliberate act is not a failure — and it is the one stop reason no
+  adapter may produce (`specs/providers.md` § 3). A cancel closes the provider stream, keeps what
+  arrived, and asks for nothing more.
+- **The composer takes what the writer pointed at and what they named. It searches for nothing.**
+  There is no index until Phase 5, so a composer that started deciding which entries were
+  *relevant* would be shipping retrieval with no embeddings and no way to measure it. The test that
+  guards this asserts the negative: an entry that was **not** named is absent from the composed
+  context, however relevant it is to the passage.
+- **The estimate the writer is shown is the estimate the refusal uses.** `ComposedContext`
+  computes its total exactly as `estimate_request_tokens` does, so the preview and the budget check
+  cannot report two numbers. The per-part figures are indicative and say so.
+- **The selection is derived from stored content, and a client never sends a quote.** The selector
+  carries a ProseMirror range and the composer calls the anchor resolver's own `extract`, so a
+  range the composer accepts is one an anchor could be minted over, and a range it refuses is
+  refused with the sentence `specs/anchors.md` § 8 already wrote for a writer to read.
+- **A conversation is storage, and it knows nothing about a provider.** `archetype/chat/` imports
+  no part of `llm/`. A transcript can be listed, opened, renamed, deleted, and restored with no key
+  set and no provider configured, which is what lets the panel show what the writer paid for when
+  the assistant is unavailable. The stored turn is `ChatMessage` and not `Message`, because the
+  port already has a `Message` and two types with one name is how a shape ends up on the wrong side
+  of a wire.
+- **A message is appended and never edited, and a conversation is deleted whole.** No `update`, no
+  `revision`, no D19 guard — the title is the only mutable field. `ord` is allocated inside the
+  append's transaction and a unique index enforces it, so a race is two turns or one failure and
+  never one turn silently overwriting another.
+- **The provider factory is one seam on `app.state`, and `app.py` is the only module that imports
+  the registry.** A factory rather than a built provider, so a settings change takes effect on the
+  next request; replaceable, so the whole application runs against `FakeProvider` in the suite. It
+  is also where the composition root pays for httpx being on the import path, which is where that
+  cost belongs.
+- **A `PATCH` to settings writes the provider block and nothing process-level.** `data_dir`,
+  `host`, `port`, `log_level`, and `web_dist` are resolved once at startup; a route that changed
+  one would leave a running server whose settings describe something it is not doing. They stay
+  readable, and `writable` is **served** so the screen renders inputs from the server's list.
+- **A key is refused twice on the way to disk, and named the first time.** The route refuses a
+  `SecretStr` field by name with a sentence saying where keys come from; `write_config_values`
+  refuses one again at the write. A guard at the edge protects one route; a guard at the write
+  protects every caller there will ever be, and the rule it keeps is the whole of D8.
+- **A provider name is refused where it would be *written*, and tolerated where it *arrives*.**
+  `Settings.llm_provider` is still a plain string, so a typo in an environment variable breaks the
+  assistant and never the application; `PATCH /api/settings` refuses a name this build has no
+  adapter for, because storing one that can never work is writing a fault to disk.
+- **The served settings and `public_dump()` have identical key sets, structurally.** `SettingsOut`
+  is built by splatting the dump into a model that forbids extra fields, so a setting added later
+  and not declared on the wire fails loudly rather than going quietly unserved — and a test names
+  that failure.
+- **A list that cannot order by time still orders the same way twice.** `utc_now` has second
+  resolution, so two conversations touched in the same second cannot be told apart; the remaining
+  sort keys make that case stable rather than meaningful. A panel whose rows swap places on a
+  refresh looks broken in a way nobody can reproduce.
 
 Phase 4's Group B added these:
 

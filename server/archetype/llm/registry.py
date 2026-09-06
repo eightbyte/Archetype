@@ -40,6 +40,7 @@ __all__ = [
     "PROVIDER_NAMES",
     "build_provider",
     "capabilities_from",
+    "key_presence",
     "provider_status",
 ]
 
@@ -138,10 +139,23 @@ def provider_status(settings: Settings) -> dict[str, Any]:
         "max_tokens": settings.llm_max_tokens,
         "context_budget": settings.llm_context_budget,
         "key_present": key_present,
+        "has_key": key_presence(settings),
         "key_env_var": _env_var_for(name) if name in PROVIDER_NAMES else "",
+        "key_env_vars": {provider: _env_var_for(provider) for provider in PROVIDER_NAMES},
         "configured": not reason,
         "reason": reason,
     }
+
+
+def key_presence(settings: Settings) -> dict[str, bool]:
+    """Whether a key is set, **per provider** - and nothing else about it (P4-11, D34).
+
+    The settings screen shows this so a writer can see that swapping to the other provider will
+    work *before* they swap, which is the difference between a settings screen and a guess. It is
+    a boolean per name and it is derived here, in the one module permitted to unwrap a key, so no
+    caller ever has to touch one to find out whether it exists.
+    """
+    return {provider: bool(_key_for(settings, provider)) for provider in PROVIDER_NAMES}
 
 
 def _key_for(settings: Settings, provider: str) -> str:

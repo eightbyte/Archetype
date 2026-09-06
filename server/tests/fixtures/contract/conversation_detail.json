@@ -1,0 +1,83 @@
+{
+  "conversation": {
+    "id": "cnv_000000000001",
+    "project_id": "prj_000000000001",
+    "title": "About the harbour",
+    "message_count": 2,
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z",
+    "deleted_at": null
+  },
+  "messages": [
+    {
+      "id": "msg_000000000001",
+      "conversation_id": "cnv_000000000001",
+      "ord": 0,
+      "role": "user",
+      "content": "what colour is the harbour?",
+      "context": {},
+      "provider": "",
+      "model": "",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "stop_reason": "",
+      "error_code": "",
+      "created_at": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "msg_000000000002",
+      "conversation_id": "cnv_000000000001",
+      "ord": 1,
+      "role": "assistant",
+      "content": "The harbour is grey.",
+      "context": {
+        "selector": {
+          "document_id": "doc_000000000001",
+          "from_pos": null,
+          "to_pos": null,
+          "include_chapter": true,
+          "entry_ids": [],
+          "include_history": true
+        },
+        "parts": [
+          {
+            "kind": "instructions",
+            "label": "Instructions",
+            "ref_id": "",
+            "chars": 500,
+            "estimated_tokens": 143,
+            "excerpt": "You are assisting the author of a long narrative work. You are given passages from their manuscript and entries from their story bible, and you answer questions about them.\n\nGround every answer in the text you were given. If the passages do not settle a question, say so plainly rather than inventing detail - the author will send more. Never rewrite the manuscript unless you are explicitly asked for a replacement, and when you are, give the replacement and nothing else. The author owns the words."
+          },
+          {
+            "kind": "chapter",
+            "label": "Chapter: Chapter 1 (12 words)",
+            "ref_id": "doc_000000000001",
+            "chars": 63,
+            "estimated_tokens": 18,
+            "excerpt": "Arrival\n\nThe Quay\n\nThe harbour was calm.\n\nHe did not look back."
+          },
+          {
+            "kind": "question",
+            "label": "Your question",
+            "ref_id": "",
+            "chars": 27,
+            "estimated_tokens": 8,
+            "excerpt": "what colour is the harbour?"
+          }
+        ],
+        "estimated_tokens": 191
+      },
+      "provider": "fake",
+      "model": "claude-opus-5",
+      "usage": {
+        "input_tokens": 142,
+        "output_tokens": 9
+      },
+      "stop_reason": "end_turn",
+      "error_code": "",
+      "created_at": "2026-01-01T00:00:00Z"
+    }
+  ]
+}

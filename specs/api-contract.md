@@ -1,15 +1,22 @@
 # Archetype — API Contract
 
-**Status:** The Phase 3 surface as built — every route that exists · **Version:** 1.5 ·
-**Date:** 2026-09-03
+**Status:** The Phase 3 surface as built, plus Phase 4 Group C's routes in § 12 ·
+**Version:** 1.6 · **Date:** 2026-09-05
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
-(D7, D8, **D15**, D18, D19, **D21**, **D22**, **D23**, **D25**, **D26**, **D27**, **D28**)
+(D7, D8, **D15**, D18, D19, **D21**, **D22**, **D23**, **D25**, **D26**, **D27**, **D28**,
+**D30**, **D32**, **D34**)
 **Companions:** [`specs/data-model.md`](data-model.md) — the same vocabulary in storage ·
 [`specs/bible.md`](bible.md) — what an entry *means*
 
-This document covers **every route that exists**. Chat and streaming arrive in Phase 4, search
-in Phase 5, agent runs in Phase 6; each extends this document as it lands.
+This document covers every route through the end of Phase 3, and § 12 records what Phase 4's
+Group C added. **The chat routes, the WebSocket, and the settings routes exist and are not yet
+written up here**: `P4-11` amends § 12 in the change that builds them, and `P4-15` is the
+documentation pass that folds them into the body. Until then the route modules
+(`api/chat_routes.py`, `api/settings_routes.py`) and their suites are authoritative for those,
+exactly as `004_chat.sql` is authoritative for the two tables `data-model.md` does not yet
+describe. Search arrives in Phase 5 and agent runs in Phase 6; each extends this document as it
+lands.
 
 The generated OpenAPI schema at `http://127.0.0.1:8787/openapi.json` (browsable at `/docs`) is
 produced from the same pydantic models and is authoritative for exact types. This document is
@@ -1153,12 +1160,27 @@ Named, because each is a plausible thing to reach for and find missing:
 | ~~Markdown import and export~~ | **Arrived** — § 9 above (P2-13, P2-14) |
 | ~~Anchors~~ | **Arrived** — § 7 above (P2-7) |
 | ~~Bible entries, links, revisions~~ | **Arrived** — § 10 above (P3-9 … P3-11) |
-| Chat, streaming, provider settings | Phase 4 |
+| ~~Chat and conversations~~ | **Arrived** — seven routes and one preview (`P4-9`, `P4-10`, D30); written up at `P4-15` |
+| ~~WebSocket or SSE of any kind~~ | **Arrived, and it is exactly one**: `WS /api/conversations/{cid}/stream` (`P4-10`, D11, D32). Still no SSE, and still no second socket — D32 fixes one event vocabulary that Phase 6 **extends** rather than replaces |
+| ~~Any route returning a setting~~ | **Arrived with the qualification intact** (`P4-11`, D34): `GET /api/settings` returns `Settings.public_dump()` plus `has_key` **per provider**. A secret is still never returned by any route, ever; `PATCH /api/settings` refuses a secret-valued field by name and writes only the provider block |
 | Search — keyword, semantic, or hybrid | Phase 5 |
 | Agent runs, proposals, findings | Phase 6 |
-| WebSocket or SSE of any kind | Phase 4 |
 | Pagination on any list route | When a manuscript needs it; a chapter list is tens of rows |
-| Any route returning a setting | Never for secrets (D8); `Settings.public_dump` is the only sanctioned shape if one is ever needed |
+| A route that writes a secret anywhere | **Never.** D8, narrowed to the environment by `P1-2` and made a decision by D34. `write_config_values` refuses one a second time, at the write |
 
 There is **no stub route** for any of these. A route that answers `501` is a route a client can
 come to depend on.
+
+Three things Phase 4's Group C deliberately did **not** add, each named because it is one small
+step from what it did:
+
+- **No route that calls a model.** The one surface that reaches a provider is the socket. The
+  context preview composes and reports and spends nothing, and `GET /api/settings` reports what
+  the registry *could* build without building it.
+- **No second stream vocabulary.** The socket carries D32's five events and nothing else — not a
+  sixth type announcing a saved message. A client that needs the persisted ids re-reads
+  `GET /api/conversations/{cid}` when the stream terminates, and the terminator is sent **after**
+  the turn is persisted so that read cannot lose the race.
+- **No provider failure wearing the wrong code.** The six codes are all about a provider; a
+  malformed frame, a conversation that is not there, or a selection in a deleted chapter closes
+  the socket with a reason instead of borrowing one.

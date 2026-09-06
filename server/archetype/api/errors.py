@@ -38,6 +38,8 @@ from ..bible.entries import (
 )
 from ..bible.links import DuplicateLinkError, LinkNotFoundError
 from ..bible.schema import InvalidAttributesError
+from ..chat.conversations import ConversationNotFoundError
+from ..llm.port import ProviderError
 from ..manuscript.anchors.resolve import AnchorRangeError
 from ..manuscript.anchors.store import AnchorNotFoundError
 from ..manuscript.documents import (
@@ -52,12 +54,14 @@ from ..projects.store import ProjectNotFoundError
 from .logging import request_id_of
 
 __all__ = [
+    "PROVIDER_ERROR_STATUS",
     "ApiError",
     "ErrorBody",
     "ErrorResponse",
     "error_response",
     "error_responses",
     "install_error_handlers",
+    "provider_error_status",
 ]
 
 logger = logging.getLogger("archetype.api")
@@ -103,6 +107,40 @@ def error_responses(*status_codes: int) -> dict[int | str, dict[str, Any]]:
     return {code: {"model": ErrorResponse} for code in status_codes}
 
 
+#: What each provider failure is over HTTP (P4-9, ruling 4). The codes are the taxonomy's, closed
+#: at six; the statuses are this layer's reading of them, and each is chosen so a client that only
+#: looks at the number still does something sensible:
+#:
+#: * ``provider_unconfigured`` is a ``503`` - the assistant is not available *yet*, and nothing
+#:   about the request was wrong;
+#: * ``provider_rate_limited`` is a ``429``, the status that means exactly that;
+#: * ``context_too_large`` is a ``413``, which is what an oversized chapter already answers, and
+#:   the writer's fix is the same shape: send less;
+#: * the remaining three are ``502`` - the failure is upstream and it is not the writer's request
+#:   that is malformed.
+#:
+#: The **code** is what a client branches on; this table exists so that the status never
+#: contradicts it.
+PROVIDER_ERROR_STATUS: dict[str, int] = {
+    "provider_unconfigured": 503,
+    "provider_auth_failed": 502,
+    "provider_rate_limited": 429,
+    "provider_unavailable": 502,
+    "provider_refused": 502,
+    "context_too_large": 413,
+}
+
+
+def provider_error_status(code: str) -> int:
+    """The HTTP status for one provider failure. Unknown codes are a ``502``, never a ``500``.
+
+    A code this table has never heard of would mean the taxonomy grew without this map being
+    told - and the honest answer to that is still "the provider layer failed", not "the server
+    has a bug".
+    """
+    return PROVIDER_ERROR_STATUS.get(code, 502)
+
+
 # Status codes carry a default code name, used when an HTTPException is raised without one.
 _STATUS_CODES = {
     400: "invalid_request",
@@ -145,6 +183,26 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(LinkNotFoundError)
     def _link_not_found(request: Request, exc: LinkNotFoundError) -> JSONResponse:
         return _not_found(request, exc, "link_not_found", "link", "link_id")
+
+    @app.exception_handler(ConversationNotFoundError)
+    def _conversation_not_found(request: Request, exc: ConversationNotFoundError) -> JSONResponse:
+        return _not_found(request, exc, "conversation_not_found", "conversation", "conversation_id")
+
+    @app.exception_handler(ProviderError)
+    def _provider_failed(_: Request, exc: ProviderError) -> JSONResponse:
+        # Ruling 4: a provider failure is an envelope, never a crash and never a silent empty
+        # answer. A rate limit reaching the writer as a blank reply teaches them the assistant is
+        # unreliable rather than that their key is out of quota.
+        #
+        # On the socket the same six codes arrive as an `error` event instead (P4-10). One
+        # taxonomy, two carriers - which is why the code, and not the status, is what a client
+        # branches on.
+        return error_response(
+            provider_error_status(exc.code),
+            exc.code,
+            exc.message,
+            {"provider": exc.provider} if exc.provider else None,
+        )
 
     @app.exception_handler(RevisionNotFoundError)
     def _revision_not_found(_: Request, exc: RevisionNotFoundError) -> JSONResponse:

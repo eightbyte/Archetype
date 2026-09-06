@@ -26,8 +26,12 @@ import type {
   AnchorEntries,
   AnchorList,
   BibleSchema,
+  ChatMessage,
   Citation,
   CitationRemoved,
+  ComposedContext,
+  ConversationDetail,
+  ConversationList,
   Document,
   DocumentList,
   DocumentMeta,
@@ -51,6 +55,7 @@ import type {
   ReorderMismatchDetail,
   RevisionList,
   SaveResult,
+  SettingsDocument,
   Snapshot,
   SnapshotCapture,
   SnapshotList,
@@ -202,6 +207,72 @@ const KEYS = {
     'updated_at',
   ],
   invalidAttributesDetail: ['field'],
+  conversation: [
+    'id',
+    'project_id',
+    'title',
+    'message_count',
+    'created_at',
+    'updated_at',
+    'deleted_at',
+  ],
+  chatMessage: [
+    'id',
+    'conversation_id',
+    'ord',
+    'role',
+    'content',
+    'context',
+    'provider',
+    'model',
+    'usage',
+    'stop_reason',
+    'error_code',
+    'created_at',
+  ],
+  usage: ['input_tokens', 'output_tokens'],
+  contextPart: ['kind', 'label', 'ref_id', 'chars', 'estimated_tokens', 'excerpt'],
+  contextSelector: [
+    'document_id',
+    'from_pos',
+    'to_pos',
+    'include_chapter',
+    'entry_ids',
+    'include_history',
+  ],
+  composedContext: ['parts', 'estimated_tokens', 'max_tokens', 'budget', 'fits'],
+  appSettings: [
+    'data_dir',
+    'host',
+    'port',
+    'log_level',
+    'web_dist',
+    'llm_provider',
+    'llm_base_url',
+    'llm_model',
+    'llm_max_tokens',
+    'llm_context_budget',
+    'llm_native_tools',
+    'llm_streaming',
+    'llm_supports_system',
+    'llm_max_context',
+    'llm_stream_usage',
+  ],
+  providerStatus: [
+    'provider',
+    'known_providers',
+    'model',
+    'base_url',
+    'max_tokens',
+    'context_budget',
+    'key_present',
+    'has_key',
+    'key_env_var',
+    'key_env_vars',
+    'configured',
+    'reason',
+  ],
+  settingsDocument: ['settings', 'provider', 'writable', 'config_file'],
 } as const;
 
 function expectKeys(value: unknown, expected: readonly string[]): void {
@@ -677,5 +748,111 @@ describe('the bible envelope', () => {
     const detail = body.error.detail as InvalidAttributesDetail;
     expectKeys(detail, KEYS.invalidAttributesDetail);
     expect(detail.field).toBe('eye_colour');
+  });
+});
+
+describe('chat (P4-9, P4-10, D30)', () => {
+  test('a conversation list is conversations and nothing else', () => {
+    const body: ConversationList = load('conversation_list');
+    expectKeys(body, ['conversations']);
+    expect(body.conversations.length).toBeGreaterThan(0);
+    for (const conversation of body.conversations) {
+      expectKeys(conversation, KEYS.conversation);
+      expect(conversation.deleted_at).toBeNull();
+    }
+  });
+
+  test('a reload brings back the transcript, in ord (D30)', () => {
+    const body: ConversationDetail = load('conversation_detail');
+    expectKeys(body, ['conversation', 'messages']);
+    expectKeys(body.conversation, KEYS.conversation);
+
+    const ords = body.messages.map((message) => message.ord);
+    expect(ords).toEqual([...ords].sort((a, b) => a - b));
+    for (const message of body.messages) {
+      expectKeys(message, KEYS.chatMessage);
+      expectKeys(message.usage, KEYS.usage);
+    }
+    expect(body.conversation.message_count).toBe(body.messages.length);
+  });
+
+  test('an answer records what it cost and which model said it', () => {
+    const body: ConversationDetail = load('conversation_detail');
+    const answer = body.messages.find((message) => message.role === 'assistant');
+    expect(answer).toBeDefined();
+    expect(answer!.usage.input_tokens).toBeGreaterThan(0);
+    expect(answer!.provider.length).toBeGreaterThan(0);
+    expect(answer!.model.length).toBeGreaterThan(0);
+    expect(answer!.stop_reason).toBe('end_turn');
+    expect(answer!.error_code).toBe('');
+  });
+
+  test('the composed context is recorded on the answer, not on the question (ruling 5)', () => {
+    const body: ConversationDetail = load('conversation_detail');
+    expect(body.messages.length).toBe(2);
+    const [question, answer] = body.messages as [ChatMessage, ChatMessage];
+    expect(Object.keys(question.context)).toEqual([]);
+
+    const context = answer.context as {
+      selector: Record<string, unknown>;
+      parts: unknown[];
+      estimated_tokens: number;
+    };
+    expectKeys(context, ['selector', 'parts', 'estimated_tokens']);
+    expectKeys(context.selector, KEYS.contextSelector);
+    for (const part of context.parts) {
+      expectKeys(part, KEYS.contextPart);
+    }
+    expect(context.estimated_tokens).toBeGreaterThan(0);
+  });
+
+  test('the preview says what would be sent and whether it fits (ruling 7)', () => {
+    const body: ComposedContext = load('context_preview');
+    expectKeys(body, KEYS.composedContext);
+    for (const part of body.parts) {
+      expectKeys(part, KEYS.contextPart);
+    }
+    expect(body.estimated_tokens).toBeGreaterThan(0);
+    expect(body.fits).toBe(true);
+  });
+
+  test('a part records how big it was even when its text was too big to keep', () => {
+    const body: ComposedContext = load('context_preview');
+    for (const part of body.parts) {
+      expect(part.chars).toBeGreaterThanOrEqual(part.excerpt.length);
+      expect(part.estimated_tokens).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('settings (P4-11, D34)', () => {
+  test('every non-secret setting is served, and no key is', () => {
+    const body: SettingsDocument = load('settings');
+    expectKeys(body, KEYS.settingsDocument);
+    expectKeys(body.settings, KEYS.appSettings);
+
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toContain('api_key');
+    expect(serialized).not.toContain('sk-');
+  });
+
+  test('the screen is told whether a key is present, per provider, and nothing more', () => {
+    const body: SettingsDocument = load('settings');
+    expectKeys(body.provider, KEYS.providerStatus);
+
+    for (const name of body.provider.known_providers) {
+      expect(typeof body.provider.has_key[name]).toBe('boolean');
+      expect(body.provider.key_env_vars[name]).toContain('ARCHETYPE_');
+    }
+  });
+
+  test('the writable list is the provider block and nothing process-level', () => {
+    const body: SettingsDocument = load('settings');
+    expect(body.writable.length).toBeGreaterThan(0);
+    for (const name of body.writable) {
+      expect(name.startsWith('llm_')).toBe(true);
+      expect(Object.keys(body.settings)).toContain(name);
+    }
+    expect(body.writable).not.toContain('data_dir');
   });
 });

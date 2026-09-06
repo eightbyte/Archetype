@@ -1,0 +1,55 @@
+{
+  "settings": {
+    "data_dir": "<data_dir>",
+    "host": "127.0.0.1",
+    "port": 8787,
+    "log_level": "info",
+    "web_dist": null,
+    "llm_provider": "anthropic",
+    "llm_base_url": "",
+    "llm_model": "claude-opus-5",
+    "llm_max_tokens": 4096,
+    "llm_context_budget": 100000,
+    "llm_native_tools": true,
+    "llm_streaming": true,
+    "llm_supports_system": true,
+    "llm_max_context": 0,
+    "llm_stream_usage": true
+  },
+  "provider": {
+    "provider": "anthropic",
+    "known_providers": [
+      "anthropic",
+      "openai"
+    ],
+    "model": "claude-opus-5",
+    "base_url": "",
+    "max_tokens": 4096,
+    "context_budget": 100000,
+    "key_present": false,
+    "has_key": {
+      "anthropic": false,
+      "openai": false
+    },
+    "key_env_var": "ARCHETYPE_ANTHROPIC_API_KEY",
+    "key_env_vars": {
+      "anthropic": "ARCHETYPE_ANTHROPIC_API_KEY",
+      "openai": "ARCHETYPE_OPENAI_API_KEY"
+    },
+    "configured": false,
+    "reason": "no API key is set for anthropic. Set ARCHETYPE_ANTHROPIC_API_KEY in the environment and restart - keys are never read from a file this application wrote (D8, D34)."
+  },
+  "writable": [
+    "llm_provider",
+    "llm_base_url",
+    "llm_model",
+    "llm_max_tokens",
+    "llm_context_budget",
+    "llm_native_tools",
+    "llm_streaming",
+    "llm_supports_system",
+    "llm_max_context",
+    "llm_stream_usage"
+  ],
+  "config_file": "<config_file>"
+}
