@@ -1,12 +1,14 @@
 # Archetype — Data Model
 
-**Status:** Schema version 3 as built; later phases sketched · **Version:** 1.3 ·
-**Date:** 2026-09-03
+**Status:** Schema version 4 as built; later phases sketched · **Version:** 1.4 ·
+**Date:** 2026-09-06
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
-(D3, D18, D19, D20, D21, D22, D23, D25, D26, D27, D28)
+(D3, D18, D19, D20, D21, D22, D23, D25, D26, D27, D28, **D30**)
 **Companions:** [`specs/api-contract.md`](api-contract.md) — the same vocabulary on the wire ·
-[`specs/bible.md`](bible.md) — what the four Phase 3 tables *mean*
+[`specs/bible.md`](bible.md) — what the four Phase 3 tables *mean* ·
+[`specs/providers.md`](providers.md) — what `message.usage_json`, `stop_reason`, and `error_code`
+hold, and why a zero in the first means *not reported* rather than *free*
 
 This document has two halves and they are not equally binding.
 
@@ -88,16 +90,17 @@ leak back into a comparison.
 
 ---
 
-## 3. Tables as built (schema version 3)
+## 3. Tables as built (schema version 4)
 
 Created by `archetype/projects/migrations/001_init.sql` and extended by
-`002_anchors_and_snapshots.sql` and `003_bible.sql`. Types are SQLite's, which means `TEXT` holds
-UTF-8 and `INTEGER` holds a signed 64-bit integer.
+`002_anchors_and_snapshots.sql`, `003_bible.sql`, and `004_chat.sql`. Types are SQLite's, which
+means `TEXT` holds UTF-8 and `INTEGER` holds a signed 64-bit integer.
 
-Migration 003 is **extension-only in the strongest sense**: four tables added, and **not one
-column changed** on `document`, `anchor`, or `snapshot`. Phase 3 adds no manuscript behaviour — it
-reads anchors through `AnchorStore` and creates them through `AnchorStore.create`, which is the
-only path there has ever been.
+Migrations 003 and 004 are each **extension-only in the strongest sense**: 003 added four tables
+and 004 added two, and between them **not one column changed** on `document`, `anchor`, or
+`snapshot`. Neither phase adds manuscript behaviour — Phase 3 reads and creates anchors through
+`AnchorStore`, which is the only path there has ever been, and Phase 4 reads the manuscript and the
+bible through the stores that already exist and writes to neither.
 
 ### `schema_version`
 
@@ -373,6 +376,86 @@ chapter places nothing.
 
 ---
 
+### `conversation`
+
+A chat with the assistant (D30, `P4-4`). Project-scoped like everything else (D6) and soft-deleted
+like everything else (D22, D25).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `TEXT PRIMARY KEY` | `cnv_…` |
+| `project_id` | `TEXT NOT NULL REFERENCES project(id)` | |
+| `title` | `TEXT NOT NULL DEFAULT ''` | The **only** mutable field on the row |
+| `created_at` | `TEXT NOT NULL` | UTC ISO-8601 |
+| `updated_at` | `TEXT NOT NULL` | Moved by an append and by a rename |
+| `deleted_at` | `TEXT` | `NULL` = live (D22, D25) |
+
+Index: `idx_conversation_project ON conversation(project_id, updated_at)` — the panel lists one
+project's live conversations newest first.
+
+**There is no `version` column and no D19 guard**, and that is a statement about the shape rather
+than an omission. A conversation has no concurrent-edit surface: messages are appended and never
+rewritten, and the title is the only thing that can be changed. A guard exists to stop two writers
+overwriting each other's text, and there is no text here that two writers could both hold.
+
+**A Phase 4 turn is explicitly not a Phase 6 run.** Phase 6's `run` table, when it arrives, will
+*reference a message* rather than replace one — a run is what produced one assistant turn. The
+alternative was writing that shape now, and it was rejected as a schema guessed two phases early
+around a completion that has no plan and no tool calls, in a world where migrations are
+forward-only (D20) and guessing wrong is a migration to undo rather than an edit.
+
+### `message`
+
+One turn. **Appended, never edited.**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `TEXT PRIMARY KEY` | `msg_…` |
+| `conversation_id` | `TEXT NOT NULL REFERENCES conversation(id)` | |
+| `ord` | `INTEGER NOT NULL` | Position in the conversation, from 0 |
+| `role` | `TEXT NOT NULL` | `user` \| `assistant` \| `system` |
+| `content` | `TEXT NOT NULL` | What was said. Empty on a turn that failed before any text arrived |
+| `context_json` | `TEXT NOT NULL DEFAULT '{}'` | **What was composed and sent** (plan ruling 5) |
+| `provider` | `TEXT NOT NULL DEFAULT ''` | |
+| `model` | `TEXT NOT NULL DEFAULT ''` | |
+| `usage_json` | `TEXT NOT NULL DEFAULT '{}'` | The port's `Usage`, as the provider reported it |
+| `stop_reason` | `TEXT NOT NULL DEFAULT ''` | The port's closed set; `''` until the turn finishes |
+| `error_code` | `TEXT NOT NULL DEFAULT ''` | One of the six provider codes; `''` = no failure |
+| `created_at` | `TEXT NOT NULL` | UTC ISO-8601 |
+
+Index: `idx_message_conversation ON message(conversation_id, ord)` — **unique**, so `ord` is
+allocated inside the append's own transaction and a race is two turns or one failure, never one
+turn silently overwriting another.
+
+Five things about this table are decisions rather than columns.
+
+**`context_json` is what makes a bad answer diagnosable.** The selection, how much of the
+surrounding chapter came with it, which bible entries were included and why, and the token
+estimate — the same thing the panel shows *before* sending. The outline's standing invariant is
+that the composed context is recorded on the run record; Phase 4 has no run record, so it lands
+here (§ 6, *The composed context is stored on the message it produced*).
+
+**Zero usage means "not reported", never "free"** (`specs/providers.md` § 2). A provider that
+reports no usage is one whose bill this application cannot show, and the panel says so rather than
+drawing a confident zero.
+
+**`stop_reason` is how a cancelled turn survives a reload.** `cancelled` is a stop reason and never
+an error code, because a deliberate act is not a failure — and it is the one stop reason no adapter
+may produce: it is written by whoever closed the stream. Without this column a cancelled turn would
+be indistinguishable from a complete one after a reload (phase-4 plan § 7, `A1`).
+
+**A failed turn is a stored turn.** An auth failure, a rate limit, a stream that stopped without
+saying so, and an over-budget refusal each persist a row carrying `error_code` and whatever text
+had arrived. A gap in the transcript is something the writer has to remember; a row that says what
+went wrong is something they can read.
+
+**`provider` and `model` are per message, not per conversation.** Swapping providers is a settings
+change with no code change (D34), so two consecutive turns may legitimately have come from
+different models — and a transcript that could not say which would be unreadable exactly when it
+mattered.
+
+---
+
 ## 4. What makes a file a project
 
 The scan (`ProjectStore.scan`) opens every `*.sqlite` in the projects directory **read-only** and
@@ -543,6 +626,36 @@ method plus a transaction — so there is still exactly **one** place an `anchor
 one place an `entry` row and its revision 1 are. A second `INSERT INTO anchor` in the bible's half
 would be the second minting path § 2's rules exist to forbid.
 
+### A message is appended and never edited (D30)
+
+There is no `update`, no revision table, and no D19 guard on a turn. `ord` is allocated **inside
+the append's own transaction** and a unique index enforces it, so two appends racing produce two
+turns or one failure and never one turn silently overwriting another.
+
+A message is not independently removable, either: a conversation is soft-deleted **whole**, because
+a transcript with a hole in it records a conversation that did not happen.
+
+### The composed context is stored on the message it produced (D30, plan ruling 5)
+
+The outline's standing invariant is that the composed context is recorded on the run record. Phase
+4 has no run record, so it is recorded on the assistant message, and Phase 6's `run` will reference
+that row rather than replace it. Without it a wrong answer cannot be diagnosed without guessing:
+the writer sees an answer that is subtly about the wrong passage, and nothing in the file says
+which passage was actually sent.
+
+The **estimate stored beside it is the one the writer was shown**, computed exactly as
+`estimate_request_tokens` computes it, so the preview and the budget refusal cannot report two
+numbers.
+
+### A conversation is storage, and it knows nothing about a provider
+
+`archetype/chat/` imports no part of `llm/`. A conversation can be listed, opened, renamed,
+deleted, and restored with **no key set and no provider configured at all** — which is what lets
+the panel show a writer what they already paid for when the assistant is unavailable.
+
+The stored turn is `ChatMessage` and not `Message`: the port already has a `Message`, and two types
+with one name in one process is how a shape ends up on the wrong side of a wire.
+
 ---
 
 ## 7. Planned tables (not yet built)
@@ -563,11 +676,20 @@ chunk_vec(chunk_id, embedding)                   -- sqlite-vec virtual table
 chunk_fts(chunk_id, text)                        -- FTS5 virtual table
 
 -- Phase 6: agent runs
-run(id, project_id, kind, task_json, status, started_at, ended_at, usage_json)
+run(id, project_id, message_id, kind, task_json, status, started_at, ended_at, usage_json)
 run_step(id, run_id, ord, type, payload_json)    -- plan|tool_call|tool_result|message|error
 proposal(id, run_id, kind, target_json, payload_json, status, decided_at)
 finding(id, run_id, kind, severity, message, citations_json, status)
 ```
+
+The Phase 4 block that stood here is gone too: `conversation` and `message` are **built**, and § 3
+describes them as they are. One correction is worth recording, because it is a decision and not a
+detail — `message` carries a `stop_reason`, which the plan's own DDL sketch did not have, and
+without it a **cancelled** turn is indistinguishable from a complete one after a reload.
+
+`run` gains a `message_id` above, which the outline's sketch did not have: D30 fixed that a run
+**references** the assistant turn it produced rather than replacing it, so the sketch is amended
+here in the change that makes D30 binding on this document.
 
 Two things the phases below inherit:
 

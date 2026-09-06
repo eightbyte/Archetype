@@ -1,6 +1,6 @@
 """The settings surface - the first route in this project that returns a setting (P4-11, D34).
 
-api-contract section 12 has listed "any route returning a setting" as absent since Phase 1, with
+api-contract listed "any route returning a setting" as absent from Phase 1 until this landed, with
 one qualification: *never for secrets (D8); ``Settings.public_dump`` is the only sanctioned shape
 if one is ever needed*. This is that need, and this module keeps that qualification exactly.
 

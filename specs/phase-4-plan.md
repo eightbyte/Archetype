@@ -113,7 +113,7 @@ Cheap to change now, awkward once files exist.
 | **6** | **Token spend is one deliberate act per answer** (D13). No retry on a failed completion, no speculative prefetch, no background summarisation, no "regenerate" that fires without a click. | The one rule in this phase with a bill attached. It is also why the autosave backoff ladder is **not** reused here: retrying a save costs nothing and protects the writer's words; retrying a completion costs money and protects nothing. |
 | **7** | **The context budget is a hard refusal, not a truncation.** A request whose composed context exceeds the configured budget is refused with `context_too_large` naming what was too big; nothing is silently dropped. | Truncation is how a continuity answer comes back confidently wrong because the half of the chapter that contradicted it was cut. The writer narrowing their selection is a correct and cheap fix; a quiet cut is neither. |
 | **8** | **The chat panel is one more error boundary, and the editor is never inside it.** The right region already has its own (P1-12); the conversation, the composer, and the diff view each degrade independently. | The P1-12 rule one level in, exactly as the Bible tab took it in Phase 3. A panel talking to a network service is the most likely thing in the app to throw. |
-| **9** | **Phase 4 adds no route that answers `501`, and no button for a Phase 6 feature.** The run inspector, the proposals queue, and the findings list are absent, not stubbed. | api-contract § 12's standing rule. A stub is a thing a client comes to depend on with the wrong meaning, and a disabled button is a promise with a date on it. |
+| **9** | **Phase 4 adds no route that answers `501`, and no button for a Phase 6 feature.** The run inspector, the proposals queue, and the findings list are absent, not stubbed. | api-contract's standing rule (its *deliberately absent* section). A stub is a thing a client comes to depend on with the wrong meaning, and a disabled button is a promise with a date on it. |
 
 ---
 
@@ -377,7 +377,7 @@ type-checked by the frontend.
 
 **P4-10 · The WebSocket, and the one thing that streams**
 
-`WS /api/conversations/{cid}/stream` — the first non-HTTP surface in the API (api-contract § 12
+`WS /api/conversations/{cid}/stream` — the first non-HTTP surface in the API (api-contract § 12,
 has reserved it since Phase 1).
 
 The client sends one *ask* frame carrying the prompt and the context selector; the server composes
@@ -407,7 +407,7 @@ budgets, the capability flags, and **`has_key: bool` per provider and nothing mo
 `PATCH /api/settings` writes the non-secret fields to `config.yaml` and refuses a secret-valued
 field with a message saying where keys come from.
 
-This is the first route in the project that returns a setting, which api-contract § 12 has so far
+This is the first route in the project that returns a setting, which api-contract had so far
 listed as absent. Its § 12 row is amended in the same change to say what is now true and what stays
 never true.
 

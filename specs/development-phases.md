@@ -1,6 +1,6 @@
 # Archetype — Decision Register & Development Phases
 
-**Status:** Active · **Version:** 2.0 · **Date:** 2026-09-04
+**Status:** Active · **Version:** 2.1 · **Date:** 2026-09-06
 **Parent:** [`specs/project-outline.md`](project-outline.md)
 
 This document is the **authoritative register of binding decisions** (§ 1) and the **work
@@ -99,7 +99,7 @@ builds ahead of its consumer.
 | 1 | [Skeleton & Editor](phase-1-plan.md) | Write, format, and reload a multi-chapter document; navigate by TOC; both suites green | **Complete** (2026-08-30) — every exit criterion met; acceptance recorded in its § 6 |
 | 2 | [Manuscript Model & Anchors](phase-2-plan.md) | An anchor survives heavy editing around it; deleted text yields `stale`, never a wrong match | **Complete (2026-09-01)** — § 2 ruled (D21–D24 binding, 2026-08-30); Groups A–D delivered 2026-08-31, both suites green; the § 8 acceptance run passed all fifteen steps, step 13 having found and closed `D15` |
 | 3 | [Story Bible (manual)](phase-3-plan.md) | Build a bible by hand; retcon an entry and see dependents flagged | **Complete (2026-09-04)** — § 2 ruled 2026-09-01 (D25–D29 binding, both reversals accepted), closing `Q2` and `Q7`; Groups A–D delivered 2026-09-02/03; the § 8 acceptance run passed all fifteen steps, step 12 having found and closed `E2`. All ten exit criteria met |
-| 4 | [LLM Provider Layer & Chat](phase-4-plan.md) | Ask a question about a selection, get a streamed answer; swap providers in settings with no code change | **In progress** — § 2 **ruled 2026-09-04** (D30–D34 binding, all five as recommended); **Group A delivered 2026-09-04**, both suites green |
+| 4 | [LLM Provider Layer & Chat](phase-4-plan.md) | Ask a question about a selection, get a streamed answer; swap providers in settings with no code change | **Built, awaiting § 8 (2026-09-06)** — § 2 **ruled 2026-09-04** (D30–D34 binding, all five as recommended); Groups A–D delivered 2026-09-04/05/05/06, both suites green (1,373 backend, 616 frontend). Eleven of the twelve exit criteria are met by the suites and by the code; the twelfth and the § 8 run need a real provider and a person |
 | 5 | Retrieval & Indexing | Search 50k words by meaning and by exact phrase; edits reindex within seconds | Not started |
 | 6 | Agent Harness & Tools | Watch the agent plan, search, read, and answer with citations | Not started |
 | 7 | AI Bible Extraction & Continuity | Accept proposals from a chapter run; a contradictory paragraph is flagged with citations | Not started |
@@ -138,12 +138,23 @@ consumer a person can look at before Phase 8 draws the timeline (plan § 7, `D1`
 acceptance run passed all fifteen steps on 2026-09-04 and found one real defect in Phase 2's
 display of a `stale` anchor (`E2`), fixed in the same change.
 
-**Phase 4 — [LLM Provider Layer & Chat](phase-4-plan.md)** — **in progress; § 2 ruled 2026-09-04** *(`specs/providers.md` written here, at `P4-1`, before the code it governs; `specs/api-contract.md` extended here)*
-**Superseded by the plan** — fifteen items (`P4-1` … `P4-15`) in four groups; **Group A delivered 2026-09-04** (`specs/providers.md`, the port and its vocabularies, `FakeProvider`, migration 004 and the `cnv_`/`msg_` prefixes) and **Group B delivered 2026-09-05** (both adapters over `httpx` and no vendor SDK, the prompted-JSON fallback, the context budget, and the registry that is the only place a provider is constructed).
+**Phase 4 — [LLM Provider Layer & Chat](phase-4-plan.md)** — **built, awaiting § 8; § 2 ruled 2026-09-04** *(`specs/providers.md` written here, at `P4-1`, before the code it governs; `specs/api-contract.md` extended here)*
+**Superseded by the plan** — fifteen items (`P4-1` … `P4-15`) in four groups, all delivered.
+**Group A** (2026-09-04): `specs/providers.md`, the port and its five closed vocabularies,
+`FakeProvider`, migration 004 and the `cnv_`/`msg_` prefixes. **Group B** (2026-09-05): both
+adapters over `httpx` and **no vendor SDK at all**, the prompted-JSON fallback, the context budget
+as a hard refusal, and the registry that is the only place a provider is constructed or a key is
+unwrapped. **Group C** (2026-09-05): `ConversationStore`, seven conversation routes, the context
+preview, the project's **first WebSocket**, and the settings routes. **Group D** (2026-09-06): the
+fifth context and the panel, *Ask agent* as the fourth selection action, the three single-pass
+actions with a word-level before/after, and the settings screen.
 The `LLMProvider` port · Anthropic and OpenAI-compatible adapters · prompted-JSON tool fallback
 for providers without native tool calling · `FakeProvider` · settings UI with server-side key
-handling (D8) · WebSocket transport (D11) · streaming chat panel · selection-as-context ·
-single-pass proofread / tone / rewrite with before-and-after diffs (D12).
+handling (D8, narrowed by D34) · WebSocket transport (D11) · streaming chat panel ·
+selection-as-context · single-pass proofread / tone / rewrite with before-and-after diffs (D12,
+applied as ordinary editor transactions by D33). What remains is **§ 8**, the fifteen-step run by
+hand against a real provider — the only thing standing under the pointer gesture, a real socket,
+and **whether the answers are any good**.
 
 **Phase 5 — Retrieval & Indexing**
 Paragraph-aware chunking with overlap · the `Embedder` port with `fastembed` and API adapters

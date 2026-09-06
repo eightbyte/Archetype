@@ -1,22 +1,19 @@
 # Archetype — API Contract
 
-**Status:** The Phase 3 surface as built, plus Phase 4 Group C's routes in § 12 ·
-**Version:** 1.6 · **Date:** 2026-09-05
+**Status:** The Phase 4 surface as built · **Version:** 1.7 · **Date:** 2026-09-06
 **Parent:** [`specs/project-outline.md`](project-outline.md) ·
 **Decisions:** [`specs/development-phases.md`](development-phases.md) § 1
 (D7, D8, **D15**, D18, D19, **D21**, **D22**, **D23**, **D25**, **D26**, **D27**, **D28**,
 **D30**, **D32**, **D34**)
 **Companions:** [`specs/data-model.md`](data-model.md) — the same vocabulary in storage ·
-[`specs/bible.md`](bible.md) — what an entry *means*
+[`specs/bible.md`](bible.md) — what an entry *means* ·
+[`specs/providers.md`](providers.md) — the stream event vocabulary the socket carries, which this
+document deliberately does **not** restate
 
-This document covers every route through the end of Phase 3, and § 12 records what Phase 4's
-Group C added. **The chat routes, the WebSocket, and the settings routes exist and are not yet
-written up here**: `P4-11` amends § 12 in the change that builds them, and `P4-15` is the
-documentation pass that folds them into the body. Until then the route modules
-(`api/chat_routes.py`, `api/settings_routes.py`) and their suites are authoritative for those,
-exactly as `004_chat.sql` is authoritative for the two tables `data-model.md` does not yet
-describe. Search arrives in Phase 5 and agent runs in Phase 6; each extends this document as it
-lands.
+This document covers **every route through the end of Phase 4**: the manuscript and the bible
+(§ 4–10), the chat routes and the context preview (§ 11), the one WebSocket (§ 12), and the
+settings (§ 13). Search arrives in Phase 5 and agent runs in Phase 6; each extends this document
+as it lands.
 
 The generated OpenAPI schema at `http://127.0.0.1:8787/openapi.json` (browsable at `/docs`) is
 produced from the same pydantic models and is authoritative for exact types. This document is
@@ -120,16 +117,31 @@ cleanly. A wire-shape change fails a suite rather than the browser.
 | `GET` | `/api/anchors/{anchor_id}/entries` | `200` | `404` |
 | `POST` | `/api/documents/{document_id}/entries` | `201` | `404`, `409`, `422` |
 | `GET` | `/api/projects/{project_id}/storytime` | `200` | `404` |
+| `GET` | `/api/projects/{project_id}/conversations` | `200` | `404` |
+| `GET` | `/api/projects/{project_id}/conversations/deleted` | `200` | `404` |
+| `POST` | `/api/projects/{project_id}/conversations` | `201` | `404`, `422` |
+| `GET` | `/api/conversations/{conversation_id}` | `200` | `404` |
+| `PATCH` | `/api/conversations/{conversation_id}` | `200` | `404`, `422` |
+| `DELETE` | `/api/conversations/{conversation_id}` | `200` | `404` |
+| `POST` | `/api/conversations/{conversation_id}/restore` | `200` | `404` |
+| `POST` | `/api/conversations/{conversation_id}/context` | `200` | `404`, `422` |
+| `WS` | `/api/conversations/{conversation_id}/stream` | *upgrade* | closes `1008` with a reason |
+| `GET` | `/api/settings` | `200` | — |
+| `PATCH` | `/api/settings` | `200` | `422` |
 
-Any route can also answer `500` (§ 6).
+Any route can also answer `500` (§ 6). The socket is the one row that is not HTTP: it never
+answers a status code, and everything that would have been a `4xx` on a route is a close with a
+reason instead (§ 12).
 
-**Documents, anchors, snapshots, entries, and links are addressed without naming a project.** Storage is one
-file per project (D3), so `manuscript/locator.py` resolves the bare id to a file, for any of the five tables;
-see data-model § 4. The alternative — `/api/projects/{pid}/documents/{did}` — would have put a redundant,
-spoofable scope in every autosave URL. Phase 3 added two prefixes to that one mechanism and no second mechanism.
+**Documents, anchors, snapshots, entries, links, and conversations are addressed without naming a project.**
+Storage is one file per project (D3), so `manuscript/locator.py` resolves the bare id to a file, for any of the
+six tables; see data-model § 4. The alternative — `/api/projects/{pid}/documents/{did}` — would have put a
+redundant, spoofable scope in every autosave URL. Phase 3 added two prefixes to that one mechanism and Phase 4
+added a third; there is still no second mechanism.
 
-**`GET /api/bible/schema` is the one route with no project scope at all**, because D26's vocabulary is the
-product's and not a manuscript's (§ 10).
+**Two routes have no project scope at all.** `GET /api/bible/schema`, because D26's vocabulary is the
+product's and not a manuscript's (§ 10); and `GET`/`PATCH /api/settings`, because a setting is the
+application's (§ 13).
 
 ---
 
@@ -503,7 +515,8 @@ uses one envelope:
 | `entry_version_conflict` | 409 | Stale entry write (D19, ruling 3). Its **own** code, because the editor and the entry form recover differently. Nothing was written |
 | `duplicate_link` | 409 | A live link already says the same thing; `detail.link_id` names it (§ 10) |
 | `invalid_attributes` | 422 | An unknown kind, relation, or attribute, or a value the definition refuses; `detail.field` names the input (§ 10) |
-| `web_not_built` | 404 | `GET /` with no frontend mounted (§ 11) — a diagnostic, not part of the API |
+| `conversation_not_found` | 404 | No project file holds that conversation (§ 11) |
+| `web_not_built` | 404 | `GET /` with no frontend mounted (§ 14) — a diagnostic, not part of the API |
 
 **A `404` names only what was asked for.** The store's own message carries the projects directory;
 that goes to the log, and the client is told `no document 'doc_…' in this workspace`.
@@ -1124,7 +1137,341 @@ without going through a request.
 
 ---
 
-## 11. Serving the app itself (P1-14)
+## 11. Chat and conversations (P4-9, P4-10, D30)
+
+Seven conversation routes and one context preview, all under the existing `/api` prefix, served by
+`api/chat_routes.py`. They are **storage routes**: not one of them calls a model, and every one of
+them works with no key set and no provider configured at all — which is what lets the panel show a
+writer what they already paid for when the assistant is unavailable.
+
+The one surface that reaches a provider is the socket (§ 12).
+
+### `Conversation` — one chat, without its turns
+
+```jsonc
+{
+  "id": "cnv_01j9…",
+  "project_id": "prj_01j8…",
+  "title": "what colour is the harbour?",   // named from its first question; the only mutable field
+  "message_count": 4,
+  "created_at": "2026-09-06T09:12:03Z",
+  "updated_at": "2026-09-06T09:14:41Z",
+  "deleted_at": null                        // soft delete (D22, D25)
+}
+```
+
+### `ChatMessage` — one turn
+
+```jsonc
+{
+  "id": "msg_01j9…",
+  "conversation_id": "cnv_01j9…",
+  "ord": 1,
+  "role": "assistant",
+  "content": "The harbour is grey, and getting darker.",
+  "context": { "selector": {…}, "parts": [ … ], "estimated_tokens": 233 },
+  "provider": "anthropic",
+  "model": "claude-opus-5",
+  "usage": { "input_tokens": 233, "output_tokens": 12 },
+  "stop_reason": "end_turn",                 // '' until the turn finishes; 'cancelled' if stopped
+  "error_code": "",                          // one of the six provider codes when it failed
+  "created_at": "2026-09-06T09:14:41Z"
+}
+```
+
+Four fields carry a rule rather than a value.
+
+- **`usage` of zero means "not reported", never "free"** (`specs/providers.md` § 2). The field is
+  always present rather than absent-when-unknown, because an absent field is a shape change and
+  this is a fact about the answer.
+- **`context` is what was composed to produce this turn** (plan ruling 5), and is empty on a user
+  turn: the user turn *is* the question, and what the question was sent with is recorded on the
+  answer it produced.
+- **`stop_reason` is how a cancelled turn survives a reload.** `cancelled` is a stop reason and
+  never an error code, because a deliberate act is not a failure.
+- **`error_code` means this turn failed and is stored anyway.** A gap in the transcript is
+  something the writer has to remember; a row that says what went wrong is something they can read.
+
+### `GET /api/projects/{project_id}/conversations`
+
+The project's live conversations, most recently used first. `404 project_not_found`.
+
+The order is `updated_at` descending with a **stable tiebreak**. `utc_now` has second resolution,
+so two conversations touched in the same second cannot be told apart by time; the remaining sort
+keys make that case stable rather than meaningful, because a panel whose rows swap places on a
+refresh looks broken in a way nobody can reproduce.
+
+### `GET /api/projects/{project_id}/conversations/deleted`
+
+The restore surface (D22, D25). A soft delete whose only recovery is a toast the writer has to
+catch before it fades is a delete with a grace period, not a recoverable one — and without this
+route `POST …/restore` is unreachable after a reload.
+
+### `POST /api/projects/{project_id}/conversations` → `201`
+
+```jsonc
+{ "title": "" }        // an empty title is legitimate — the panel names it from its first question
+```
+
+`404 project_not_found`, `422 validation_error`.
+
+### `GET /api/conversations/{conversation_id}`
+
+One conversation and **every turn in it, in `ord`**:
+
+```jsonc
+{ "conversation": { … }, "messages": [ … ] }
+```
+
+This is what makes a reload keep what the writer paid for (D30) — and it is also what a client
+re-reads when a stream terminates, because the socket carries no persisted ids. The terminator is
+sent **after** the row is written, so that read cannot lose the race. `404
+conversation_not_found`.
+
+### `PATCH /api/conversations/{conversation_id}`
+
+```jsonc
+{ "title": "The harbour" }
+```
+
+The title is the only mutable field a conversation has. `404`, `422`.
+
+### `DELETE /api/conversations/{conversation_id}` → `200` with the conversation
+
+A soft delete, and a **whole** one: every turn stays and the conversation leaves every read path.
+A message is not independently removable, because a transcript with a hole in it records a
+conversation that did not happen.
+
+### `POST /api/conversations/{conversation_id}/restore` → `200`
+
+### `POST /api/conversations/{conversation_id}/context` — what would be sent, before it is sent
+
+Ruling 5 in one route, and it **spends nothing**.
+
+```jsonc
+// request
+{
+  "prompt": "what colour is the harbour?",
+  "context": {
+    "document_id": "doc_01j8…",
+    "from_pos": 1, "to_pos": 42,      // a ProseMirror range — both, or neither
+    "include_chapter": true,
+    "entry_ids": ["ent_01j8…"],
+    "include_history": true
+  }
+}
+```
+
+```jsonc
+// response
+{
+  "parts": [
+    { "kind": "instructions", "label": "Instructions", "ref_id": "",
+      "chars": 500, "estimated_tokens": 143, "excerpt": "You are assisting…" },
+    { "kind": "selection", "label": "Selected passage in Chapter 1", "ref_id": "doc_01j8…", … },
+    { "kind": "chapter",   "label": "Chapter: Chapter 1 (12 words)",  "ref_id": "doc_01j8…", … },
+    { "kind": "entry",     "label": "Charlie Marlow (character)",     "ref_id": "ent_01j8…", … },
+    { "kind": "history",   "label": "2 earlier turns", "ref_id": "", … },
+    { "kind": "question",  "label": "Your question",   "ref_id": "", … }
+  ],
+  "estimated_tokens": 233,
+  "max_tokens": 4096,
+  "budget": 100000,
+  "fits": true
+}
+```
+
+Five things about this route.
+
+**It is the same `compose()` the socket calls**, so the number on screen is the number the budget
+refusal will use. The alternative was a composer in the browser, which is a second implementation
+that agrees with the server's until it does not.
+
+**The client sends a range and never a quote.** The server derives the passage out of the text it
+holds, so a preview cannot describe a passage the manuscript does not contain — the rule an anchor
+is created under (`specs/anchors.md` § 8), one module over. A range that has no honest place in the
+text is refused with the sentence that document already wrote for a writer to read.
+
+**Every part has the same key set whatever its `kind`**, so one renderer draws them all (the P3-11
+rule). `excerpt` is the part's text when it is short enough to record and empty when it is not;
+`chars` always says how big it really was, so what was withheld is visible rather than implied.
+
+**`fits` is the budget check's own answer, computed without calling anything.** An over-budget
+context is **reported** here rather than refused: the refusal belongs to the ask, and this route's
+whole job is to show the number first. `budget` of zero means none is in force.
+
+**The composer searches for nothing.** It takes what the writer pointed at and what they named,
+and there is no index until Phase 5 — a composer that started deciding which entries were
+*relevant* would be shipping retrieval with no embeddings and no way to measure it.
+
+`404 conversation_not_found`, `422 validation_error` (a half-formed range, an impossible one, a
+prompt over `MAX_PROMPT_CHARS`, more than `MAX_ENTRY_REFS` entries).
+
+---
+
+## 12. The chat socket (P4-10, D11, D32)
+
+`WS /api/conversations/{conversation_id}/stream` — **the only WebSocket in this application**, and
+the only surface anywhere in the API that reaches a provider.
+
+D11 chose the transport for the reason this phase exercises: a long answer to a question the writer
+has changed their mind about is exactly when they reach for cancel, and cancel needs a channel that
+carries a frame *back* while an answer is arriving.
+
+### What a client may send
+
+Two frames, discriminated on `type`, validated by the same kind of closed model a request body is:
+
+```jsonc
+{ "type": "ask", "prompt": "…", "context": { …the selector above… } }
+{ "type": "cancel" }
+```
+
+**There is no `regenerate` and no `retry`.** One deliberate ask is one provider call and one bill
+(D13, plan ruling 6); this vocabulary is small on purpose to keep it that way. A frame the server
+does not recognise **closes the socket** — the mirror of the client ignoring an event it does not
+recognise, and deliberately the opposite, because guessing what an unknown frame meant is how
+tokens get spent on something nobody asked for.
+
+A `cancel` with nothing in flight is ignored rather than refused: it is late rather than wrong, and
+answering it with a closed socket would punish a race.
+
+### What the server sends
+
+D32's five events, dumped from the port unchanged — `start`, `delta`, `usage`, `done`, `error`.
+They are specified in [`specs/providers.md`](providers.md) § 4 and are **not restated here or in
+`chat_schemas.py`**, because D32 fixes *one* vocabulary over one socket shared with Phase 6, and a
+second copy is the place two copies drift apart.
+
+Exactly one of `done` and `error` arrives, and it is the last thing sent.
+
+### The order of a turn, and why it is that order
+
+1. **compose** — which can fail on a deleted chapter or an impossible range, before anything is
+   written and before anything is spent;
+2. **persist the question**, so a failure from here on is a turn the writer can see rather than a
+   gap they have to remember;
+3. **build the provider** and **check the budget**, both of which refuse without calling anything;
+4. **stream**, accumulating;
+5. **persist the answer** with its usage, its stop reason, and the context that produced it;
+6. **send the terminator**, last — so a client refetching `GET /api/conversations/{cid}` on `done`
+   finds the row.
+
+### Three rules that govern it
+
+**Nothing retries and nothing reconnects.** Not the transport, not the socket, not the client. The
+autosave's backoff ladder is right there and is exactly wrong here: retrying a save costs nothing
+and protects the writer's words, and retrying a completion costs money and protects nothing.
+
+**Everything that is not a provider failure closes the socket instead of borrowing one of the six
+codes.** A malformed frame, a conversation that is not there, a selection in a chapter deleted
+since the writer selected in it — each closes with **`1008`** and a short reason. Filing one as
+`provider_refused` would put a lie in the one column a writer consults when something went wrong,
+and the taxonomy is closed at six. A close frame carries 123 bytes, which a sentence a writer can
+act on fits inside.
+
+**`cancelled` is written by the socket and by nobody else.** It is a `stop_reason` and never an
+`error_code`, and it is the one stop reason no adapter may produce (`specs/providers.md` § 3). A
+cancel closes the provider stream, keeps what arrived, and asks for nothing more.
+
+The connection is **accepted first and then closed with a reason** when the conversation is not
+there, rather than refused during the handshake: a browser is told very little about a handshake
+that failed, and the reason is the useful half of the answer.
+
+---
+
+## 13. Settings (P4-11, D34)
+
+Two routes, served by `api/settings_routes.py`. § 15 has listed "any route returning a setting" as
+absent since Phase 1, with one qualification — *never for secrets (D8); `Settings.public_dump` is
+the only sanctioned shape if one is ever needed*. This is that need, and it keeps the
+qualification exactly.
+
+### `GET /api/settings`
+
+```jsonc
+{
+  "settings": {                       // every non-secret setting, mirrored field for field
+    "data_dir": "…", "host": "127.0.0.1", "port": 8787, "log_level": "info", "web_dist": null,
+    "llm_provider": "anthropic", "llm_base_url": "", "llm_model": "claude-opus-5",
+    "llm_max_tokens": 4096, "llm_context_budget": 100000,
+    "llm_native_tools": true, "llm_streaming": true, "llm_supports_system": true,
+    "llm_max_context": 0, "llm_stream_usage": true
+  },
+  "provider": {                       // what the registry knows about what it can build
+    "provider": "anthropic",
+    "known_providers": ["anthropic", "openai"],
+    "model": "claude-opus-5", "base_url": "", "max_tokens": 4096, "context_budget": 100000,
+    "key_present": false,
+    "has_key": { "anthropic": false, "openai": false },
+    "key_env_var": "ARCHETYPE_ANTHROPIC_API_KEY",
+    "key_env_vars": { "anthropic": "ARCHETYPE_…", "openai": "ARCHETYPE_…" },
+    "configured": false,
+    "reason": "no API key is set for anthropic. Set ARCHETYPE_ANTHROPIC_API_KEY …"
+  },
+  "writable": ["llm_provider", "llm_base_url", …],
+  "config_file": "…/config.yaml"
+}
+```
+
+**`has_key` is whether a key is present, per provider — never its value, its length, or its first
+characters** (D34). Per provider rather than only for the configured one, so the screen can tell
+the writer that swapping will work *before* they swap. `key_env_var` names where the current
+provider's key comes from, because "set a key" without saying which one is not help.
+
+**`reason` is the registry's own sentence**, so the settings screen and the chat panel say the same
+thing about the same condition — an unconfigured provider reaches the panel as
+`provider_unconfigured` carrying this text.
+
+**`writable` is served rather than assumed**, so the screen renders inputs from the server's list
+and a field that stops being writable stops being editable in the same commit. `config_file` is
+where a `PATCH` lands, which is the answer to the question a writer asks first when a setting does
+not stick.
+
+`SettingsOut` is built by splatting `Settings.public_dump()` into a model that **forbids extra
+fields**, so a setting added later and not declared on the wire fails loudly rather than going
+quietly unserved.
+
+### `PATCH /api/settings`
+
+**It writes the provider block and refuses everything else.** `data_dir`, `host`, `port`,
+`log_level`, and `web_dist` are process-level: this application resolves its projects directory and
+installs its static mount once, at startup, so a route that changed one would leave a running
+server whose settings describe something it is not doing. They stay **readable**, and they change
+the way they always have — the environment, or the file, and a restart.
+
+```jsonc
+{ "llm_provider": "openai", "llm_model": "gpt-4o-mini" }   // every field optional
+```
+
+The response is the same document `GET` returns, reporting what is **in force**. That is not always
+what was written: settings layer defaults < `config.yaml` < `ARCHETYPE_*` (P1-2) and this route
+writes the middle layer, so a field also set in the environment is written to the file and then
+overridden — and reading the answer back is how the writer finds that out.
+
+Three refusals, each with a reason:
+
+- **A secret is refused by name**, before the `extra="forbid"` check, with a sentence saying where
+  keys come from — the writer who tries this is doing the reasonable thing and the answer has to
+  tell them what to do instead. `write_config_values` refuses one **again** at the write, because
+  a guard at the edge protects one route and a guard at the write protects every caller there will
+  ever be.
+- **A provider name this build has no adapter for is refused.** `Settings.llm_provider` stays a
+  plain string, so a typo in an environment variable breaks the assistant and never the
+  application; a value this application is about to *write to a file* is different, and storing one
+  that can never work is writing a fault to disk.
+- **An empty body writes nothing at all.** No file is created, no timestamp moves. A no-op request
+  is a no-op.
+
+`422 validation_error` for all three.
+
+**Changing a provider takes effect on the next request, with no reload and no restart.** The
+provider is built from a factory on `app.state` on every request (`P4-8`), which is also the single
+seam that runs the whole application against `FakeProvider` in the suite.
+
+---
+
+## 14. Serving the app itself (P1-14)
 
 Not an API route, but part of the contract for how the server is reached.
 
@@ -1149,7 +1496,7 @@ the README tells you to open is a bad way to learn you skipped a build step.
 
 ---
 
-## 12. What is deliberately absent
+## 15. What is deliberately absent
 
 Named, because each is a plausible thing to reach for and find missing:
 
@@ -1160,9 +1507,9 @@ Named, because each is a plausible thing to reach for and find missing:
 | ~~Markdown import and export~~ | **Arrived** — § 9 above (P2-13, P2-14) |
 | ~~Anchors~~ | **Arrived** — § 7 above (P2-7) |
 | ~~Bible entries, links, revisions~~ | **Arrived** — § 10 above (P3-9 … P3-11) |
-| ~~Chat and conversations~~ | **Arrived** — seven routes and one preview (`P4-9`, `P4-10`, D30); written up at `P4-15` |
-| ~~WebSocket or SSE of any kind~~ | **Arrived, and it is exactly one**: `WS /api/conversations/{cid}/stream` (`P4-10`, D11, D32). Still no SSE, and still no second socket — D32 fixes one event vocabulary that Phase 6 **extends** rather than replaces |
-| ~~Any route returning a setting~~ | **Arrived with the qualification intact** (`P4-11`, D34): `GET /api/settings` returns `Settings.public_dump()` plus `has_key` **per provider**. A secret is still never returned by any route, ever; `PATCH /api/settings` refuses a secret-valued field by name and writes only the provider block |
+| ~~Chat and conversations~~ | **Arrived** — § 11 above: seven routes and one context preview (`P4-9`, `P4-10`, D30) |
+| ~~WebSocket or SSE of any kind~~ | **Arrived, and it is exactly one** — § 12 above: `WS /api/conversations/{cid}/stream` (`P4-10`, D11, D32). Still no SSE, and still no second socket — D32 fixes one event vocabulary that Phase 6 **extends** rather than replaces |
+| ~~Any route returning a setting~~ | **Arrived with the qualification intact** — § 13 above (`P4-11`, D34): `GET /api/settings` returns `Settings.public_dump()` plus `has_key` **per provider**. A secret is still never returned by any route, ever; `PATCH /api/settings` refuses a secret-valued field by name and writes only the provider block |
 | Search — keyword, semantic, or hybrid | Phase 5 |
 | Agent runs, proposals, findings | Phase 6 |
 | Pagination on any list route | When a manuscript needs it; a chapter list is tens of rows |
@@ -1171,8 +1518,8 @@ Named, because each is a plausible thing to reach for and find missing:
 There is **no stub route** for any of these. A route that answers `501` is a route a client can
 come to depend on.
 
-Three things Phase 4's Group C deliberately did **not** add, each named because it is one small
-step from what it did:
+Three things Phase 4 deliberately did **not** add, each named because it is one small step from
+what it did:
 
 - **No route that calls a model.** The one surface that reaches a provider is the socket. The
   context preview composes and reports and spends nothing, and `GET /api/settings` reports what

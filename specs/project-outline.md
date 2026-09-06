@@ -1,7 +1,7 @@
 # Archetype — Project Outline
 
-**Status:** **Phase 3 complete**; **Phase 4 in progress** — its § 2 **ruled** (D30–D34 binding), Groups A and B delivered · **Version:** 1.9 · **Date:** 2026-09-05
-**Phase:** 4 (LLM Provider Layer & Chat) — § 2 ruled 2026-09-04; Group A delivered 2026-09-04, Group B delivered 2026-09-05. Phase 3 (Story Bible) closed on 2026-09-04
+**Status:** **Phase 3 complete**; **Phase 4 built, awaiting its § 8 run** — its § 2 **ruled** (D30–D34 binding), all four groups delivered · **Version:** 2.0 · **Date:** 2026-09-06
+**Phase:** 4 (LLM Provider Layer & Chat) — § 2 ruled 2026-09-04; Groups A–D delivered 2026-09-04, 09-05, 09-05, and 09-06. **The product now does the thing it is named for**: highlight a paragraph, ask a question, watch the answer stream in. What is left is the manual acceptance run, which needs a real key and a person. Phase 3 (Story Bible) closed on 2026-09-04
 **Child documents:**
 - [`specs/development-phases.md`](development-phases.md) — binding decision register (D1–D34) and the work breakdown across all phases
 - [`specs/phase-1-plan.md`](phase-1-plan.md) — Phase 1 work items
@@ -9,7 +9,7 @@
 - [`specs/phase-3-plan.md`](phase-3-plan.md) — Phase 3 work items; its § 2 carries the rulings (D25–D29, settling `Q2` and `Q7`), its § 7 the as-built deviations including the acceptance run's two findings, its § 8 the acceptance run
 - [`specs/phase-4-plan.md`](phase-4-plan.md) — Phase 4 work items; its § 2 carries the rulings (**D30–D34, ruled 2026-09-04 and binding**), its § 7 the as-built deviations, its § 8 the acceptance run
 - [`specs/backlog.md`](backlog.md) — deferred ideas and revisit list
-- [`specs/data-model.md`](data-model.md) — storage at schema version 3 as built, later phases sketched
+- [`specs/data-model.md`](data-model.md) — storage at schema version 4 as built, later phases sketched
 - [`specs/api-contract.md`](api-contract.md) — the HTTP surface as built
 - [`specs/anchors.md`](anchors.md) — what an anchor stores, the two coordinate systems, the matching ladder, and what an anchor does **not** promise (written at `P2-4`, before the code it governs)
 - [`specs/bible.md`](bible.md) — what an entry is and is not, the two vocabularies, story-time, the retcon rule, and both live predicates (written at `P3-1`, before the code it governs)
@@ -267,6 +267,16 @@ one new adapter file. A `FakeProvider` with scripted responses backs the entire 
 Providers without native tool calling fall back to a prompted JSON tool protocol, so the agent
 loop is not gated on provider features.
 
+**As built (Phase 4).** The port is `archetype/llm/port.py` and the full specification is
+[`specs/providers.md`](providers.md), written at `P4-1` before the code it governs. Two things the
+sketch above did not say and the code settled. **No vendor SDK is used at all**: § 3 fixes LLM
+access as HTTP via `httpx`, so the transport occupies the position an SDK would have and inherits
+its rule — an import-graph test fails if any module outside `llm/` imports it, exactly as one fails
+if a provider SDK is imported outside `llm/adapters/`. And **nothing retries**: `httpx` retries
+nothing by default and the transport adds none, because the autosave's backoff ladder is right
+there and is exactly wrong here — retrying a save costs nothing and protects the writer's words,
+and retrying a completion costs money and protects nothing.
+
 ### 4.6 Agent orchestrator
 
 A real agent loop, not a single prompt:
@@ -323,11 +333,23 @@ Three resizable regions plus a settings screen.
 - **Settings.** Provider, base URL, model, key handling, embedding source, agent limits
   (max iterations, token budget), extraction auto-accept toggles.
 
+**As built through Phase 4.** The action bar carries four of its six: *Mark passage* (P2-9),
+*Re-link here* (P2-10), *Add to bible* (P3-14), and *Ask agent* (P4-13). *Proofread*, *Tone*, and
+*Rewrite* are **in the panel** rather than on the bar, because each is a question with a fixed
+wording that costs money and the panel is where what is being sent is on screen (phase-4 plan § 7,
+`D1`). *Continuity check* is Phase 7's.
+
+The outline panel has **five** tabs rather than four — Contents, Marks, Timeline, Interactions,
+Bible — the extra one being the *Marks* tab anchors needed (phase-2 plan § 2, ruling 6). The agent
+panel has three views: the conversation list, one conversation, and the settings; the run inspector
+and the proposals queue are Phases 6 and 7. And the settings screen renders its inputs from the
+server's own `writable` list and shows **whether a key is present, never a key** (D34).
+
 ---
 
 ## 5. Data Model Sketch
 
-**Superseded for the tables that exist.** [`specs/data-model.md`](data-model.md) documents `project`, `document`, `anchor`, `snapshot`, `schema_version`, and the four bible tables — `entry`, `entry_revision`, `entry_link`, `entry_anchor` — **as built at schema version 3**, and is the authority on them. The nine below are kept only as the shape they were sketched in; where the sketch and the data model disagree, the data model is right and the sketch is history. Four differences are worth naming because each is a decision rather than drift: `document` carries a nullable `deleted_at`, because deleting a chapter is a **soft** delete (D22); `anchor.status` holds the resolver's text answer alone — `orphaned` is **derived** from the chapter's `deleted_at` on read and never written into the row; `entry`, `entry_link`, and `entry_anchor` likewise carry what a soft delete needs, because D25 ruled for entries exactly as D22 ruled for chapters; and `entry_revision` has **no id of its own** — it is keyed `(entry_id, revision)`, because a revision is only ever reached through its entry and an id would be an identity nobody dereferences.
+**Superseded for the tables that exist.** [`specs/data-model.md`](data-model.md) documents `project`, `document`, `anchor`, `snapshot`, `schema_version`, the four bible tables — `entry`, `entry_revision`, `entry_link`, `entry_anchor` — and Phase 4's two, `conversation` and `message`, **as built at schema version 4**, and is the authority on them. The nine below are kept only as the shape they were sketched in; where the sketch and the data model disagree, the data model is right and the sketch is history. Four differences are worth naming because each is a decision rather than drift: `document` carries a nullable `deleted_at`, because deleting a chapter is a **soft** delete (D22); `anchor.status` holds the resolver's text answer alone — `orphaned` is **derived** from the chapter's `deleted_at` on read and never written into the row; `entry`, `entry_link`, and `entry_anchor` likewise carry what a soft delete needs, because D25 ruled for entries exactly as D22 ruled for chapters; and `entry_revision` has **no id of its own** — it is keyed `(entry_id, revision)`, because a revision is only ever reached through its entry and an id would be an identity nobody dereferences. A fifth, from Phase 4: the sketch's `run` and `run_step` are **not** what a chat turn is stored in — a conversation lives in `conversation` and `message`, and Phase 6's `run` will *reference* a message rather than replace it, because a run is what produced one assistant turn (D30).
 
 What is below stays as the sketch for the tables later phases will add — illustrative, not final:
 
@@ -369,7 +391,7 @@ full test suite is green.
 | **1** | **Skeleton & Editor** | Repo scaffold (server + web), config, project SQLite store, three-pane shell, rich-text editor, autosave, load/save, TOC from headings, jump-to-heading. Test harness on both sides. | Write, format, and reload a multi-chapter document; navigate by TOC; `pytest` and `vitest` green |
 | **2** | **Manuscript Model & Anchors** | Chapter CRUD + reorder + soft delete/restore, snapshots (handover, manual, and before anything destructive), Markdown import and export both ways over a round-trip corpus, the anchor service with server-side re-resolution and client-side rebasing, staleness detection, the *Marks* tab and its re-linking flow | An anchor created before an editing session still resolves to the right passage after heavy editing above, below, and around it; deleted text yields `stale`, never a wrong match |
 | **3** | **[Story Bible (manual)](phase-3-plan.md)** | Entry schema + CRUD for all seven kinds, links with story-time bounds, revisions/retcon with a review queue, entries created from a selection with an anchor, story-time ordering, bible browser, filter-search, and one generic detail form driven by a served per-kind schema | Build a bible for a test story entirely by hand; retcon an entry and see dependents flagged |
-| **4** | **[LLM Provider Layer & Chat](phase-4-plan.md)** | Provider port, Anthropic + OpenAI-compatible adapters, settings UI, streaming chat panel, selection-as-context, single-pass proofread / tone / rewrite with accept-reject diffs | Highlight a paragraph, ask a question, get a streamed answer; swap providers in settings with no code change |
+| **4** | **[LLM Provider Layer & Chat](phase-4-plan.md)** | Provider port, Anthropic + OpenAI-compatible adapters, settings UI, streaming chat panel, selection-as-context, single-pass proofread / tone / rewrite with accept-reject diffs | Highlight a paragraph, ask a question, get a streamed answer; swap providers in settings with no code change — **built 2026-09-06; the § 8 run by hand is what remains** |
 | **5** | **Retrieval & Indexing** | Chunking, embeddings, sqlite-vec + FTS5, incremental reindex, hybrid search API + UI | Search a 50k-word manuscript by meaning and by exact phrase; edits reindex within seconds |
 | **6** | **Agent Harness & Tools** | Agent loop (plan → act → synthesize), tool registry, run records, streaming run inspector, all read tools + `note` | Ask "where did I first describe the harbor?" and watch the agent plan, search, read, and answer with citations |
 | **7** | **AI Bible Extraction & Continuity** | Extraction runs (selection- and chapter-scoped), proposal queue with dedup/merge against existing entries, continuity checking, findings UI | Run extraction over a chapter, review and accept proposals, then have a deliberately contradictory paragraph flagged with citations |

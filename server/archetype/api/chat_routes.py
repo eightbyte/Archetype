@@ -4,10 +4,11 @@ A third route module on the `C1` precedent - the prefix, the error envelope, and
 guarantee belong to the API, and a fourth thousand-line file does not. ``create_app`` includes it
 alongside the manuscript's and the bible's, and the static mount is still registered last.
 
-What is here that is nowhere else in this project: **a WebSocket**. api-contract section 12 has
-reserved one since Phase 1 and D11 chose it, for the reason this phase exercises - a long answer
-to a question the writer has changed their mind about is exactly when they reach for cancel, and
-cancel needs a channel that carries a frame *back* while an answer is arriving.
+What is here that is nowhere else in this project: **a WebSocket**. api-contract listed one as
+absent from Phase 1 until this landed, and D11 chose it, for the reason this phase exercises - a
+long answer to a question the writer has changed their mind about is exactly when they reach for
+cancel, and cancel needs a channel that carries a frame *back* while an answer is arriving.
+It is written up in api-contract section 12.
 
 Three rules govern it, and each is written down because each is one small step from being broken.
 
